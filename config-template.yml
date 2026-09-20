@@ -22,7 +22,7 @@ adapter: auto
 
 # Override the binary the adapter invokes. Leave empty to use the adapter's own.
 # Split on whitespace, so wrappers work:
-#   "npx astryx"  ·  "npm run ds --"  ·  "pnpm --filter @acme/web exec ds"  ·  "./bin/ds"
+#   "npm run ds --"  ·  "pnpm --filter @acme/web exec ds"  ·  "./bin/ds"
 bin: ""
 
 # Working directory for the design system, relative to repo root. Empty = repo
