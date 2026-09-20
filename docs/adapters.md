@@ -24,7 +24,6 @@ Save as `.specify/extensions/design/adapters/acme.yml`, then `adapter: acme` in 
 
 | Adapter                                    | Basis                                                                                                                                                                                  |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `astryx`                                   | The Astryx CLI. Every command takes `--json`, and `manifest` self-describes, so nearly every capability maps one-to-one, including `guidelines` via `docs principles`.                 |
 | `shadcn`                                   | The shadcn CLI. `docs` and `info` emit JSON; `search` and `view` print for humans, which is usable but less structured. No token command exists, so `tokens` is deliberately unmapped. |
 | `mui`, `antd`, `chakra`, `radix`, `ark-ui` | Libraries with no query CLI. Each reads the same generated inventory as `static-json`, so `adapter: mui` names your system and `auto` can pick it from `package.json`.                 |
 | `static-json`                              | No CLI at all. Reads a generated inventory file.                                                                                                                                       |

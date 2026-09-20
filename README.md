@@ -15,7 +15,7 @@ That is the whole interface. You do not drive the phases, manage context, or con
 
 ## Features
 
-- **Works with any design system.** A short YAML adapter maps a small capability contract onto whatever your system exposes. Ships with `astryx`, `shadcn`, `mui`, `antd`, `chakra`, `radix`, `ark-ui`, `static-json` and an `example` template. `adapter: auto` detects the right one.
+- **Works with any design system.** A short YAML adapter maps a small capability contract onto whatever your system exposes. Ships with `shadcn`, `mui`, `antd`, `chakra`, `radix`, `ark-ui`, `static-json` and an `example` template. `adapter: auto` detects the right one.
 - **Reuse first, create last.** Every UI need climbs a ladder before anything new is built: Recall → Reuse → Compose → Extend → Create. A genuine gap is sent to your design system's intake, when its CLI offers one. Otherwise it stays documented in the feature.
 - **Remembers every decision.** Each ladder walk is saved in a committed ledger keyed by UI capability. The next feature that needs a date range reads the answer instead of searching again, even when it words the need differently.
 - **Lean context, nothing out of reach.** Each phase starts with only what it needs, never the whole inventory. Everything else stays one call away, so the agent can still ask for it when it does.
@@ -226,7 +226,6 @@ The extension asks yours through a thin adapter that maps capabilities (`search`
 
 | Adapter | For |
 |---|---|
-| `astryx` | [Astryx](https://astryx.atmeta.com), whose CLI answers every capability including guidelines |
 | `shadcn` | [shadcn/ui](https://ui.shadcn.com), via its CLI and registries. It publishes no machine-readable guidelines, so the default set applies unless you set `guidelines.source` |
 | `mui` | [MUI](https://mui.com) (Material UI), via an inventory file |
 | `antd` | [Ant Design](https://ant.design), via an inventory file |
@@ -264,7 +263,7 @@ See [guidelines/example.yml](guidelines/example.yml) for the shape.
 For most projects the whole file (`.specify/extensions/design/design-config.yml`) is one line:
 
 ```yaml
-adapter: astryx   # or auto (default), shadcn, mui, antd, chakra, radix, ark-ui, static-json, your own
+adapter: shadcn   # or auto (default), mui, antd, chakra, radix, ark-ui, static-json, your own
 ```
 
 Everything else is optional and documented in [config-template.yml](config-template.yml): a `bin` override, a `cwd` for monorepos, a guidelines `source`, per-capability overrides, `workflow.max_validation_rounds`, and `gate.enforce: false` while adopting. `SPECKIT_DESIGN_*` environment variables and a gitignored `design-config.local.yml` override the committed config.

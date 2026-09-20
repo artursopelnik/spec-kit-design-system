@@ -55,7 +55,7 @@ First release.
   (`after_specify`), `check` (`before_plan`, blocking) and `validate`
   (`after_implement`).
 - Adapters, each a declarative map from the capability contract onto a CLI call
-  or a file read: `astryx`, `shadcn`, `mui`, `antd`, `chakra`, `radix`,
+  or a file read: `shadcn`, `mui`, `antd`, `chakra`, `radix`,
   `ark-ui`, `static-json`, and an `example` template. The library adapters
   read a generated inventory file, since those libraries have no query CLI.
   `adapter: auto` picks one from the project.

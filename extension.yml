@@ -18,8 +18,8 @@ requires:
   # which is the failure mode that makes catalog entries unusable.
   speckit_version: ">=1.0.0,<2.0.0"
   # No tools are declared here. The design system CLI is named in
-  # design-config.yml instead, because it differs per project (astryx,
-  # shadcn, an in-house binary, or no CLI at all), and declaring one would imply
+  # design-config.yml instead, because it differs per project (shadcn, an
+  # in-house binary, or no CLI at all), and declaring one would imply
   # a dependency this extension does not have.
 
 provides:
@@ -81,8 +81,8 @@ config:
   defaults:
     # Which adapter under adapters/ describes the project's design system.
     # "auto" detects one from the project (components.json -> shadcn,
-    # @astryxdesign/cli -> astryx, a known component library in package.json,
-    # else static-json). Name one to pin it.
+    # a known component library in package.json, else static-json).
+    # Name one to pin it.
     adapter: auto
 
     guidelines:
