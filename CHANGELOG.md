@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Reuse → Compose → Extend → Create principle into `constitution-template`.
 - Config layering: extension defaults → project config → local override →
   `SPECKIT_DESIGNSYS_*` environment variables.
+- Baseline requirements (`baseline.yml`): 20 rules covering accessibility,
+  responsive behaviour, input modality, states and tokens, written into every
+  spec and verified by the audit. These hold for every design system, which is
+  why no spec states them and nothing checks them. Rules are filtered to the
+  surface kinds a feature involves, cited by id rather than restated, and
+  individually disableable with the reason reported rather than hidden.
+  No rule carries a color, breakpoint or spacing value, and none encodes an
+  aesthetic opinion; both properties are asserted by tests.
+- A `breakpoints` capability, because "use our breakpoints" is unenforceable
+  unless the agent can look up what they are.
 - Rung-5 gaps are written as standalone `design-system-gap-<slug>.md` RFC files
   so they can travel to another team or tracker unchanged, rather than living
   as a section inside the feature's design doc.

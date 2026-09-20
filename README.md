@@ -31,6 +31,8 @@ Spec Kit Extension
 
 **It remembers.** Every ladder walk is recorded in a committed ledger keyed by UI capability. The second feature that needs a date range reads the first one's decision instead of re-running its search. Lookups match on the wordings actually searched, so a differently phrased need still finds the answer.
 
+**The obvious requirements are stated anyway.** Nobody writes "it has to be accessible" or "it has to work on a phone" in a spec, because it goes without saying. So it goes unchecked, and each feature decides for itself. A baseline of 20 rules covering accessibility, responsive behaviour, input modality, states and tokens is written into every spec and verified by the audit.
+
 **Design requirements up front.** `DS-` requirements land in the spec at `/speckit.specify`, covering states, responsive behaviour, accessibility, tokens and interaction. Not in a review comment three days later.
 
 **A gate that actually blocks.** `/speckit.plan` does not start until every UI surface has a documented resolution, with the candidates searched and a concrete reason the chosen rung is the lowest that holds.
@@ -97,6 +99,57 @@ DatePicker internals.
 ```
 
 This is not paperwork. It is the mechanism that distinguishes a real gap the design system should close from a search that was not thorough enough.
+
+## Baseline requirements
+
+Some requirements hold for every design system, which is exactly why no spec states them. "It has to be accessible" and "it has to work on a phone" are too obvious to write down, so they are never written down, so nothing checks them, so the agent decides each time and decides differently each time.
+
+`baseline.yml` holds 20 rules covering the five dimensions:
+
+| Dimension | Examples |
+|---|---|
+| **Accessibility** | keyboard operable, focus visible, focus order matches reading order, accessible name on every control, color never the only cue, reflow at 320px, survives 200% text scaling |
+| **Responsive** | behaviour specified at every breakpoint the system defines, fluid between them, content reflows rather than truncates |
+| **Input modality** | pointer, touch and keyboard all work; nothing reachable only on hover; capability never inferred from viewport size |
+| **States** | default, hover, focus, active, disabled, loading, error, empty; slow actions acknowledge themselves; failures surface |
+| **Tokens** | no raw hex, px or font stacks where a token exists; no new values added to a scale |
+
+Two properties make this useful rather than noisy, and both are enforced by tests:
+
+**No rule carries a design value.** There are no colors, no breakpoint widths, no spacing numbers. Those come from your system through the `tokens` and `breakpoints` capabilities. A rule that hardcoded them would invent exactly what it exists to prevent. `320px` and `200%` appear only because WCAG defines them.
+
+**No rule is an aesthetic opinion.** Nothing says three font families is the right number or that spacing belongs on a 4px grid. That is your design system's business. Every rule is a capability requirement that is objectively checkable and that your design system already intends.
+
+Rules are filtered to what the feature actually involves, so a static text block carries five rules rather than twenty:
+
+```bash
+DS=.specify/extensions/designsys/scripts/bash
+$DS/ds-baseline.sh --json                                # all 20
+$DS/ds-baseline.sh --json --applies-to interactive,layout
+$DS/ds-baseline.sh --json --dimension accessibility
+```
+
+Specs cite rules by id rather than restating them, since the text lives in one place and copying it into every spec creates a second source of truth:
+
+```markdown
+| Rule | Dimension | Requirement |
+|---|---|---|
+| BL-A11Y-FOCUS-VISIBLE | accessibility | Focus indicator visible at every stop (WCAG 2.4.7) |
+| BL-RESP-BREAKPOINTS | responsive | Behaviour specified at `sm`, `md`, `lg`, `xl` |
+| BL-INPUT-NO-HOVER-ONLY | interaction | Nothing reachable only on hover (WCAG 1.4.13) |
+```
+
+Note that the breakpoint names in that table are real, read back from the design system. "Use the right breakpoints" constrains nothing; naming them does.
+
+Turn individual rules off in config when they genuinely do not apply. A disabled rule is reported in the spec with its reason, never dropped quietly:
+
+```yaml
+baseline:
+  enabled: true
+  disabled_rules: ["BL-MOTION-REDUCED"]   # product has no animation
+```
+
+Where a rule maps to a standard it cites the criterion instead of paraphrasing it, so WCAG stays the source of truth for what the rule means.
 
 ## The lifecycle
 
@@ -219,6 +272,7 @@ Resolve design system context for the current spec and write it in as explicit r
 **Output**
 
 * `## Design System Requirements` populated in `spec.md` with `DS-` IDs
+* The applicable baseline rules cited by id, with the system's real breakpoint and token names filled in
 * Measurable design entries under `## Success Criteria`
 * `[NEEDS CLARIFICATION: ...]` markers where the system's answer is genuinely ambiguous
 
@@ -260,7 +314,7 @@ Validate the implementation against what was decided.
 
 **Output**
 
-* An `## Audit` table in `design-system.md`, findings classified as violation, warning or note
+* An `## Audit` table in `design-system.md`, findings classified as violation, warning or note, with baseline findings reported under their rule id
 * Small, unambiguous fixes applied in place, such as a raw value with an obvious token or a missing accessible name
 * An explicit compliance verdict
 
@@ -336,6 +390,7 @@ The extension is written against a **capability contract**, never against one CL
 | `list_components` | what exists at all? | |
 | `pattern` | an existing composed arrangement | |
 | `tokens` | the token vocabulary | |
+| `breakpoints` | the system's breakpoint names and widths | |
 | `extend` | the sanctioned way to extend a component | |
 | `report_gap` | route a genuine gap to its owner | |
 
@@ -641,6 +696,7 @@ spec-kit-design-system/
 ├── CHANGELOG.md
 ├── extension.yml               # Extension manifest
 ├── config-template.yml         # Config template, materialized on install
+├── baseline.yml                # Requirements every design system wants
 ├── adapters/                   # Capability mappings: examples, not a vendor list
 │   ├── example.yml             #   template to copy for your own CLI
 │   └── static-json.yml         #   universal fallback, no CLI required
@@ -654,6 +710,7 @@ spec-kit-design-system/
 │   │   ├── designsys-common.sh
 │   │   ├── check-design-gate.sh
 │   │   ├── ds-query.sh
+│   │   ├── ds-baseline.sh
 │   │   └── ds-ledger.sh
 │   └── python/
 │       └── designsys.py        # All logic lives here
@@ -682,7 +739,7 @@ pip install pytest pyyaml
 python -m pytest
 ```
 
-The suite covers config layering, the ledger (recall across wordings, superseding, tri-state staleness), capability dispatch against a fake CLI that reproduces each failure mode, and the fail-closed probe.
+The suite covers config layering, the ledger (recall across wordings, superseding, tri-state staleness), capability dispatch against a fake CLI that reproduces each failure mode, the fail-closed probe, and the baseline rules (well-formedness, that no rule hardcodes a design value, and that filtering never drops an unconditional one).
 
 CI additionally runs a **real install** on every push: `specify init`, `specify extension add --dev`, `specify preset add --dev`, then asserts that hooks are registered with `before_plan` blocking, that `strategy: append` composed all three templates without losing core content, and that the gate fails closed against a missing binary. It also runs weekly on a schedule, because Spec Kit moves fast and a catalog entry that quietly stops working on a newer release is the failure mode worth catching early.
 

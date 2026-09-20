@@ -136,7 +136,9 @@ def test_probe_fails_closed_when_the_design_system_is_unreachable(
     config = designsys.load_config(root)
     adapter = designsys.load_adapter(root, config)
 
-    assert len(designsys.mapped_capabilities(adapter)) == 8
+    # The template adapter maps the whole contract, so the gap between what is
+    # declared and what is reachable is as wide as it can get.
+    assert designsys.mapped_capabilities(adapter) == designsys.CAPABILITIES
     probe = designsys.probe_adapter(root, config, adapter)
     assert probe["reachable"] is False
     assert probe["capabilities"] == []

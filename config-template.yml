@@ -42,6 +42,7 @@ cwd: ""
 #   component        detail for one component (props, variants, states, a11y)
 #   pattern          detail for one composed pattern / template
 #   tokens           design tokens / theme values
+#   breakpoints      the system's breakpoint names and widths
 #   extend           how to legitimately extend a component (e.g. swizzle)
 #   report_gap       route a genuine gap to the design system's own intake
 #
@@ -88,6 +89,25 @@ ledger:
 # "staleness_checked": false rather than claiming decisions are fresh.
 # /speckit.designsys.check passes this explicitly when the CLI can report it.
 design_system_version: ""
+
+# --- Baseline ------------------------------------------------------------------
+#
+# Requirements that hold for every design system: accessible, responsive, works
+# with pointer and touch and keyboard, every state defined, no raw values where a
+# token exists. Specs leave these out because they are obvious, which is exactly
+# why nothing checks them and every feature decides for itself.
+#
+# The rules live in baseline.yml. They contain no colors, no breakpoint widths and
+# no spacing values; those come from YOUR design system through the `tokens` and
+# `breakpoints` capabilities. A rule carrying a concrete value would be inventing
+# the thing it exists to prevent.
+baseline:
+  enabled: true
+
+  # Rule ids to skip, for example ["BL-MOTION-REDUCED"] in a product with no
+  # animation. A disabled rule is reported in the spec with its reason, never
+  # dropped silently. Run `ds-baseline.sh --json` to list the ids.
+  disabled_rules: []
 
 # --- Gate --------------------------------------------------------------------
 gate:

@@ -90,6 +90,14 @@ config:
       # no decision, because it looks authoritative.
       revalidate_when_stale: true
 
+    baseline:
+      # Requirements true of every design system, which specs leave out because
+      # they are assumed. Written into the spec so they are stated once and
+      # checkable, rather than re-invented per feature.
+      enabled: true
+      # Rule ids to skip. A disabled rule is reported, not hidden.
+      disabled_rules: []
+
     gate:
       # Block planning when the ladder was not walked or its rungs are unjustified.
       enforce: true

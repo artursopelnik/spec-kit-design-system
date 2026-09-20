@@ -59,6 +59,14 @@ def project(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def baseline_installed(project):
+    """baseline.yml as the installer places it, next to extension.yml."""
+    target = project / ".specify" / "extensions" / "designsys" / "baseline.yml"
+    target.write_text((REPO / "baseline.yml").read_text(encoding="utf-8"), encoding="utf-8")
+    return target
+
+
+@pytest.fixture
 def write_config(project):
     def _write(data: dict, local: bool = False):
         name = "designsys-config.local.yml" if local else "designsys-config.yml"

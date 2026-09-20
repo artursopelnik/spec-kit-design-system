@@ -39,7 +39,27 @@ For every surface in `DESIGN_DOC`, verify the code did what was decided:
 
 Flag anything built bespoke that never appeared in `DESIGN_DOC` at all. This is the highest-value finding the audit produces: it is the exact failure this extension exists to catch, and it will usually look locally reasonable.
 
-### 3. Check the dimensions
+### 3. Check the baseline
+
+The spec's `### Baseline` table cites rule ids rather than restating them. Fetch the text:
+
+```
+.specify/extensions/designsys/scripts/bash/ds-baseline.sh --json --applies-to <kinds from the spec>
+```
+
+Each rule carries a `verify` field saying how to check it. Work through them. These are the requirements nobody writes down, so they are also the ones nobody checks, which makes them the most likely to be missing: a control with no focus style, a layout that breaks at 320px, an action reachable only on hover, a raw hex where a token exists.
+
+Check against the code, not against the spec's claims. The spec saying `BL-A11Y-FOCUS-VISIBLE` applies is not evidence that focus is visible.
+
+Report a baseline finding under its own rule id, so it is traceable to the rule rather than to your phrasing of it:
+
+```
+| violation | Filter row | BL-A11Y-FOCUS-VISIBLE: outline:none with no replacement | Restore a focus indicator |
+```
+
+A rule listed in `BASELINE_DISABLED` is not checked. Note in the report that it was skipped and why, rather than passing over it silently.
+
+### 4. Check the dimensions
 
 For each dimension in `audit.required_dimensions`, check the corresponding `DS-` requirements from the spec:
 
@@ -49,7 +69,7 @@ For each dimension in `audit.required_dimensions`, check the corresponding `DS-`
 - **Tokens**: when `audit.forbid_raw_values` is true, flag raw hex colors, raw px spacing and hardcoded font stacks wherever the system provides a token. Report the token that should have been used, not just the violation.
 - **Interaction**: is the feedback the spec required actually implemented?
 
-### 4. Report
+### 5. Report
 
 Write findings into `DESIGN_DOC` under `## Audit`, most severe first:
 
@@ -71,7 +91,7 @@ Classify honestly:
 
 Do not pad the report. An audit that always finds something teaches people to ignore it; the cleanest useful outcome is "no violations" and it should be reachable.
 
-### 5. On violations
+### 6. On violations
 
 Report them and state clearly that the feature does not yet satisfy its design requirements. Where a fix is small, local and unambiguous (a raw value that has an obvious token, a missing `aria-label`), apply it and say so. Where a fix means reversing an implementation decision, report it with the recommended change and let the user decide; silently rewriting a built feature during an audit hook is not your call.
 
@@ -83,6 +103,8 @@ State the number of violations, warnings and notes; list the violations; state w
 
 - [ ] Every surface in `DESIGN_DOC` was checked against what the code actually does
 - [ ] Bespoke UI absent from `DESIGN_DOC` is flagged
+- [ ] Every applicable baseline rule was checked against the code using its `verify` step
+- [ ] Baseline findings are reported under their rule id, and skipped rules are named
 - [ ] Every required dimension was checked against the spec's `DS-` requirements
 - [ ] Findings are recorded in `DESIGN_DOC` under `## Audit` with severities
 - [ ] The compliance verdict is stated explicitly

@@ -10,6 +10,8 @@
 
 **Design system**: [NAME, resolved from designsys-config.yml]
 **Surfaces identified**: [capability phrases, not component names]
+**Breakpoints**: [the system's own names, retrieved from it, never invented]
+**Token families in play**: [e.g. `color.surface.*`, `space.*`, `radius.*`]
 
 ### Requirements
 
@@ -25,9 +27,24 @@ functional requirements above.
 Mark genuine ambiguity rather than resolving it silently:
 `[NEEDS CLARIFICATION: system offers both Drawer and Modal here. Which is correct?]`
 
+### Baseline
+
+Requirements that hold for every feature in this design system, cited by id rather
+than restated. The text lives in the extension's `baseline.yml`; copying it here
+would create a second source of truth that drifts.
+
+**Surface kinds**: [interactive, layout, text, media, motion — whichever apply]
+
+| Rule | Dimension | Requirement |
+|---|---|---|
+| BL-… | … | [one line, with the system's real breakpoint and token names filled in] |
+
+**Disabled for this project**: [rule ids and why, or none]
+
 ### Dimensions
 
-Every dimension must be answered or explicitly excluded with a reason.
+Every dimension must be answered or explicitly excluded with a reason. A dimension
+counts as covered when a baseline rule or a `DS-` requirement speaks to it.
 
 | Dimension | Requirement | Covered by |
 |---|---|---|

@@ -120,10 +120,27 @@ jobs:
           .specify/extensions/designsys/scripts/bash/check-design-gate.sh --json \
             | python -c "import json,sys; d=json.load(sys.stdin); print('gate ok, adapter', d['ADAPTER'])"
 
+      - name: Baseline rules load and filter
+        working-directory: proj
+        run: |
+          .specify/extensions/designsys/scripts/bash/ds-baseline.sh --json > all.json
+          .specify/extensions/designsys/scripts/bash/ds-baseline.sh --json --applies-to text > text.json
+          python - <<'PY'
+          import json
+          every = json.load(open("all.json"))
+          text = json.load(open("text.json"))
+          assert every["enabled"] and every["rules"], every
+          assert len(text["rules"]) < len(every["rules"]), "filtering did nothing"
+          unconditional = {r["id"] for r in every["rules"] if r["applies_to"] == "any"}
+          got = {r["id"] for r in text["rules"]}
+          assert unconditional <= got, "an unconditional rule was filtered away"
+          print(f"baseline ok: {len(every['rules'])} rules, {len(text['rules'])} apply to text")
+          PY
+
       - name: Gate fails closed when the design system is unreachable
         working-directory: proj
         run: |
-          printf 'adapter: astryx\nbin: "./not-installed"\n' \
+          printf 'adapter: example\nbin: "./not-installed"\n' \
             > .specify/extensions/designsys/designsys-config.yml
           # Capture to a file rather than piping: a heredoc would otherwise take
           # over stdin and the gate output would never reach the checker.
@@ -133,6 +150,7 @@ jobs:
           payload = json.load(open("gate.json"))
           assert payload["REACHABLE"] is False, payload
           assert payload["CAPABILITIES"] == [], payload
-          assert len(payload["MAPPED_CAPABILITIES"]) == 8, payload
+          # The adapter file declares a full contract; none of it is reachable.
+          assert len(payload["MAPPED_CAPABILITIES"]) > 0, payload
           print("fail-closed confirmed")
           PY

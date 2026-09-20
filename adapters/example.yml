@@ -68,6 +68,13 @@ capabilities:
     defaults:
       theme: "default"
 
+  breakpoints:
+    # Separate from tokens because responsive requirements are written using
+    # these names. If the agent cannot look them up, it invents them. Map this
+    # to wherever your system states them, even if that is the token command.
+    args: ["breakpoints"]
+    result_path: "data"
+
   extend:
     # The sanctioned way to customize a component, such as a command that copies
     # its source for local modification. Mapping this makes rung 4 a real check

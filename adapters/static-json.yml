@@ -13,8 +13,13 @@
 #       "accessibility": "...", "usage": "...", "avoid": "..." }
 #   ],
 #   "patterns":  [ { "name": "...", "description": "...", "composes": [...] } ],
-#   "tokens":    { "color": {...}, "space": {...}, "type": {...} }
+#   "tokens":    { "color": {...}, "space": {...}, "type": {...} },
+#   "breakpoints": { "sm": "640px", "md": "768px", "lg": "1024px", "xl": "1280px" }
 # }
+#
+# Include "breakpoints" even if they live in your tokens too. Responsive
+# requirements are written using these names, and a name the agent cannot look
+# up is a name it will invent.
 
 id: static-json
 name: "Static JSON inventory"
@@ -46,5 +51,9 @@ capabilities:
   tokens:
     read_file: "{source}"
     result_path: "tokens"
+
+  breakpoints:
+    read_file: "{source}"
+    result_path: "breakpoints"
 
   # extend / report_gap: unmapped, because a static inventory has no write side.

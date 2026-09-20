@@ -1,0 +1,226 @@
+schema_version: "1.0"
+
+# Baseline design requirements.
+#
+# These hold for every design system, which is exactly why no spec states them.
+# "It has to be accessible" and "it has to work on a phone" are too obvious to
+# write down, so they are never written down, so nobody checks them, so the
+# agent decides each time and decides differently each time.
+#
+# Nothing here is an aesthetic opinion. There are no rules about how many font
+# families are tasteful or whether spacing should sit on a 4px grid: that is
+# your design system's business, not this file's. Every rule below is a
+# capability requirement that is objectively checkable and that every design
+# system already intends.
+#
+# Nothing here carries a concrete value either. There are no colors, no
+# breakpoint widths, no spacing scale. Those come from YOUR design system
+# through the `tokens` and `breakpoints` capabilities. A rule that hardcoded
+# them would be inventing the very thing it is meant to prevent.
+#
+# `applies_to` decides which rules reach a given feature:
+#   interactive  anything the user can operate
+#   layout       anything that occupies space and reflows
+#   text         anything that renders copy
+#   media        images, video, icons carrying meaning
+#   motion       transitions, animation, autoplay
+#   any          unconditional
+#
+# Disable individual rules in designsys-config.yml under `baseline.disabled_rules`.
+# A disabled rule must carry a reason; the gate reports it rather than hiding it.
+
+rules:
+  # --- Accessibility ----------------------------------------------------------
+  # WCAG is cited, never restated. The standard is the source of truth for what
+  # the rule means; this file only records that it applies here.
+
+  - id: BL-A11Y-KEYBOARD
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Every interactive element MUST be fully operable by keyboard alone, including
+      any action otherwise reachable only by pointer.
+    verify: "Tab to each control and operate it without a mouse."
+    standard: "WCAG 2.1.1"
+
+  - id: BL-A11Y-NO-TRAP
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Keyboard focus MUST NOT become trapped. Anything that takes focus, such as a
+      dialog or menu, MUST return it to a sensible place when dismissed.
+    verify: "Open and dismiss each overlay; confirm focus returns to the trigger."
+    standard: "WCAG 2.1.2"
+
+  - id: BL-A11Y-FOCUS-VISIBLE
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Keyboard focus MUST be visible at all times. The focus indicator MUST NOT be
+      removed without an equally visible replacement.
+    verify: "Tab through the feature; a focus indicator is visible at every stop."
+    standard: "WCAG 2.4.7"
+
+  - id: BL-A11Y-FOCUS-ORDER
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Focus order MUST follow the order the content is read in, not the order the
+      elements happen to appear in the DOM.
+    verify: "Tab order matches visual order at every breakpoint."
+    standard: "WCAG 2.4.3"
+
+  - id: BL-A11Y-NAME
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Every control MUST expose an accessible name that describes what it does.
+      Icon-only controls MUST carry a label that is not the icon's own name.
+    verify: "Each control has a non-empty accessible name in the a11y tree."
+    standard: "WCAG 4.1.2"
+
+  - id: BL-A11Y-NOT-COLOR-ALONE
+    dimension: accessibility
+    applies_to: any
+    requirement: >-
+      Color MUST NOT be the only means of conveying information, indicating state,
+      or distinguishing an element. A second cue MUST be present.
+    verify: "Render in grayscale; every distinction is still readable."
+    standard: "WCAG 1.4.1"
+
+  - id: BL-A11Y-CONTRAST
+    dimension: accessibility
+    applies_to: text
+    requirement: >-
+      Text and meaningful non-text elements MUST meet the contrast ratio the design
+      system commits to, at minimum WCAG AA, in every theme the system ships.
+    verify: "Check contrast for each text/background pair, per theme."
+    standard: "WCAG 1.4.3, 1.4.11"
+
+  - id: BL-A11Y-TARGET-SIZE
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Pointer targets MUST be large enough to hit reliably on touch, using the
+      design system's own target size where it defines one.
+    verify: "Measure the hit area of each control, not just its visible box."
+    standard: "WCAG 2.5.8"
+
+  - id: BL-A11Y-REFLOW
+    dimension: responsive
+    applies_to: layout
+    requirement: >-
+      Content MUST reflow to a 320px viewport without horizontal scrolling and
+      without loss of information or function.
+    verify: "At 320px width, nothing is clipped and nothing scrolls sideways."
+    standard: "WCAG 1.4.10"
+
+  - id: BL-A11Y-TEXT-SCALING
+    dimension: accessibility
+    applies_to: text
+    requirement: >-
+      Layout MUST survive user text scaling to 200% without clipping or overlap.
+      Containers MUST NOT assume a fixed text size.
+    verify: "Set browser text size to 200%; nothing is cut off or overlapping."
+    standard: "WCAG 1.4.4"
+
+  # --- Responsive and fluid ---------------------------------------------------
+
+  - id: BL-RESP-BREAKPOINTS
+    dimension: responsive
+    applies_to: layout
+    requirement: >-
+      Behaviour MUST be specified at every breakpoint the design system defines,
+      referenced by the system's own breakpoint names. New breakpoint values MUST
+      NOT be introduced for one feature.
+    verify: "Breakpoint names in the spec exist in the system's breakpoint set."
+    standard: null
+
+  - id: BL-RESP-FLUID
+    dimension: responsive
+    applies_to: layout
+    requirement: >-
+      Layout MUST adapt fluidly between breakpoints rather than only at them. Fixed
+      pixel widths MUST NOT be used where the content should flex.
+    verify: "Resize continuously; nothing breaks between breakpoints."
+    standard: null
+
+  - id: BL-RESP-REFLOW-NOT-TRUNCATE
+    dimension: responsive
+    applies_to: layout
+    requirement: >-
+      Under constraint, content MUST reflow, wrap or stack. Silently truncating or
+      hiding content is only acceptable where the spec says so explicitly.
+    verify: "Narrow each container; content rearranges rather than disappearing."
+    standard: null
+
+  # --- Input modality ---------------------------------------------------------
+
+  - id: BL-INPUT-MODALITIES
+    dimension: interaction
+    applies_to: interactive
+    requirement: >-
+      The feature MUST work with pointer, touch and keyboard. Device capability
+      MUST NOT be assumed from viewport size, since touch screens come in every size.
+    verify: "Operate the feature with each input type."
+    standard: null
+
+  - id: BL-INPUT-NO-HOVER-ONLY
+    dimension: interaction
+    applies_to: interactive
+    requirement: >-
+      Information and actions MUST NOT be reachable only on hover. Hover MAY
+      enhance but MUST NOT gate, because touch has no hover.
+    verify: "Complete every task without hovering."
+    standard: "WCAG 1.4.13"
+
+  - id: BL-MOTION-REDUCED
+    dimension: interaction
+    applies_to: motion
+    requirement: >-
+      Animation and transitions MUST respect the user's reduced-motion preference,
+      and MUST NOT be required to understand what happened.
+    verify: "With reduced motion set, the feature remains fully usable."
+    standard: "WCAG 2.3.3"
+
+  # --- States -----------------------------------------------------------------
+
+  - id: BL-STATE-COVERAGE
+    dimension: states
+    applies_to: interactive
+    requirement: >-
+      Every interactive element MUST define default, hover, focus, active and
+      disabled. Anything that loads MUST define loading and error. Anything that can
+      be empty MUST define an empty state.
+    verify: "Each state exists and uses the design system's own state styling."
+    standard: null
+
+  - id: BL-STATE-FEEDBACK
+    dimension: interaction
+    applies_to: interactive
+    requirement: >-
+      Any action that is not instantaneous MUST acknowledge itself, and any action
+      that can fail MUST surface the failure in a way the user can act on.
+    verify: "Trigger the slow path and the failure path; both are visible."
+    standard: null
+
+  # --- Tokens -----------------------------------------------------------------
+
+  - id: BL-TOKEN-NO-RAW-VALUES
+    dimension: tokens
+    applies_to: any
+    requirement: >-
+      Color, spacing, typography, radius, shadow and z-index MUST reference the
+      design system's tokens. Raw hex, raw px and hardcoded font stacks MUST NOT be
+      used where a token exists.
+    verify: "Search the diff for raw values; each one has no corresponding token."
+    standard: null
+
+  - id: BL-TOKEN-NO-NEW-SCALE
+    dimension: tokens
+    applies_to: any
+    requirement: >-
+      A feature MUST NOT introduce new values into a token scale. A genuinely missing
+      token is a design system gap and goes through the gap process, not a local constant.
+    verify: "Every token referenced exists in the system's vocabulary."
+    standard: null

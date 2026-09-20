@@ -7,6 +7,7 @@ invoke this module directly and get identical behaviour.
 Subcommands:
     gate                     prerequisites + resolved config as one JSON object
     query <capability> ...   invoke a capability against the design system CLI
+    baseline                 requirements that hold for every design system
     ledger lookup <phrase>   find prior decisions for a capability
     ledger record <file>     append a decision (JSON object on disk or '-')
     ledger list              all active decisions
@@ -30,6 +31,11 @@ CONFIG_NAME = "designsys-config.yml"
 LOCAL_CONFIG_NAME = "designsys-config.local.yml"
 LEDGER_NAME = "design-decisions.yml"
 DESIGN_DOC_NAME = "design-system.md"
+BASELINE_NAME = "baseline.yml"
+
+# What a rule can apply to. A feature declares which of these it involves, and
+# only the matching rules reach its spec.
+SURFACE_KINDS = ["interactive", "layout", "text", "media", "motion", "any"]
 
 # Capabilities the commands are written against. An adapter maps these to real
 # invocations; anything unmapped is reported as unavailable rather than faked.
@@ -40,6 +46,9 @@ CAPABILITIES = [
     "component",
     "pattern",
     "tokens",
+    # Breakpoints are their own query because "use our breakpoints" is
+    # unenforceable unless the agent can find out what they actually are.
+    "breakpoints",
     "extend",
     "report_gap",
 ]
@@ -448,6 +457,47 @@ def run_capability(
 # --- ledger ------------------------------------------------------------------
 
 
+def load_baseline(root: Path, config: dict, kinds: list[str] | None = None) -> dict:
+    """Requirements that hold for every design system.
+
+    Specs omit these because they are obvious, which is exactly why nothing
+    checks them. Filtering by surface kind keeps a spec from carrying twenty
+    rules when the feature is a static text block.
+    """
+    settings = config.get("baseline") or {}
+    if settings.get("enabled") is False:
+        return {"enabled": False, "rules": [], "disabled": [], "skipped": 0}
+
+    data = load_yaml(ext_dir(root) / BASELINE_NAME)
+    rules = data.get("rules") or []
+
+    disabled = {str(entry) for entry in (settings.get("disabled_rules") or [])}
+    wanted = {kind.strip() for kind in (kinds or []) if kind.strip()}
+
+    selected, skipped = [], 0
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        if rule.get("id") in disabled:
+            continue
+        applies = rule.get("applies_to", "any")
+        if wanted and applies != "any" and applies not in wanted:
+            skipped += 1
+            continue
+        selected.append(rule)
+
+    return {
+        "enabled": True,
+        "baseline": str(ext_dir(root) / BASELINE_NAME),
+        "filtered_by": sorted(wanted) or None,
+        "rules": selected,
+        # Reported rather than silently dropped: a disabled baseline rule is a
+        # decision someone should be able to see and question.
+        "disabled": sorted(disabled),
+        "skipped_as_not_applicable": skipped,
+    }
+
+
 def ledger_path(root: Path) -> Path:
     return root / ".specify" / "memory" / LEDGER_NAME
 
@@ -584,6 +634,7 @@ def cmd_gate(args: argparse.Namespace) -> None:
     feature = feature_dir(root)
     spec = feature / "spec.md" if feature else None
     probe = probe_adapter(root, config, adapter)
+    baseline = load_baseline(root, config)
 
     emit(
         {
@@ -594,6 +645,9 @@ def cmd_gate(args: argparse.Namespace) -> None:
             "DESIGN_DOC": str(feature / DESIGN_DOC_NAME) if feature else "",
             "LEDGER": str(ledger_path(root)),
             "LEDGER_COUNT": len(load_ledger(root)["decisions"]),
+            "BASELINE_ENABLED": baseline["enabled"],
+            "BASELINE_COUNT": len(baseline["rules"]),
+            "BASELINE_DISABLED": baseline["disabled"],
             "ADAPTER": adapter.get("id", ""),
             "ADAPTER_NAME": adapter.get("name", ""),
             # Empty when the design system could not actually be reached. The
@@ -610,6 +664,15 @@ def cmd_gate(args: argparse.Namespace) -> None:
     )
 
 
+def cmd_baseline(args: argparse.Namespace) -> None:
+    root = repo_root()
+    kinds = (args.applies_to or "").split(",") if args.applies_to else None
+    result = load_baseline(root, load_config(root), kinds)
+    if args.dimension:
+        result["rules"] = [r for r in result["rules"] if r.get("dimension") == args.dimension]
+    emit(result)
+
+
 def cmd_query(args: argparse.Namespace) -> None:
     root = repo_root()
     config = load_config(root)
@@ -622,6 +685,7 @@ def cmd_query(args: argparse.Namespace) -> None:
         "pattern": ["name"],
         "extend": ["name"],
         "tokens": ["theme"],
+        "breakpoints": ["theme"],
         "report_gap": ["title", "body"],
     }.get(args.capability, [])
     for key, value in zip(positional, args.args):
@@ -679,6 +743,14 @@ def main() -> None:
     query.add_argument("capability", choices=CAPABILITIES)
     query.add_argument("args", nargs="*")
     query.set_defaults(func=cmd_query)
+
+    baseline = sub.add_parser("baseline", parents=[common])
+    baseline.add_argument(
+        "--applies-to",
+        help=f"comma-separated surface kinds this feature involves ({', '.join(SURFACE_KINDS)})",
+    )
+    baseline.add_argument("--dimension", help="return only rules for one dimension")
+    baseline.set_defaults(func=cmd_baseline)
 
     ledger = sub.add_parser("ledger", parents=[common])
     ledger.add_argument("action", choices=["lookup", "record", "list"])
