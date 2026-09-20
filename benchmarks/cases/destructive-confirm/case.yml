@@ -1,0 +1,100 @@
+# The system has the component. The whole question is whether the run finds it.
+#
+# Radix ships no machine-readable guidelines, so this case is also the one that
+# exercises the extension's default guideline set (GL-*) rather than a file the
+# design system publishes.
+
+id: destructive-confirm
+title: "Cancelling a booking is too easy to do by accident"
+kind: ui-feature
+design_system: radix
+rfc: rfc.md
+
+surfaces:
+  - id: confirmation
+    capability: "asking for a decision before something irreversible happens"
+    expected_resolution: reuse
+    rationale: >-
+      AlertDialog is exactly this: role=alertdialog, no outside-click dismissal,
+      focus on Cancel. Rung 1 holds, so nothing below it may be built.
+    satisfied_by:
+      - [AlertDialog]
+    forbidden:
+      - pattern: 'window\.confirm'
+        because: "the browser dialog is unstyled, unnamed and cannot carry the consequence"
+      - pattern: '<Dialog(?:\.Root)?[\s>]'
+        because: >-
+          Dialog dismisses on outside click and Escape, so the decision can be
+          lost by accident, which is the bug being fixed
+      - pattern: '<Popover(?:\.Root)?[\s>]'
+        because: "a popover is dismissed by clicking away; it cannot hold a decision"
+
+  - id: completion-feedback
+    capability: "telling the person the cancellation went through"
+    expected_resolution: reuse
+    rationale: "Toast is the system's live-region message surface."
+    satisfied_by:
+      - [Toast]
+      - [AlertDialog, VisuallyHidden]
+    forbidden: []
+
+# Radix publishes no rules, so these are the extension's defaults.
+guidelines:
+  - id: GL-ACCESSIBLE-NAME
+    evidence:
+      - 'AlertDialog\.Title'
+      - 'aria-label(?:led)?(?:by)?'
+      - 'VisuallyHidden'
+  - id: GL-KEYBOARD
+    evidence:
+      - '(?i)keyboard'
+      - '(?i)\bEscape\b'
+      - '(?i)tab order'
+  - id: GL-FOCUS-VISIBLE
+    evidence:
+      - '(?i)focus[- ](?:visible|ring|return)'
+      - 'border-focus'
+      - ':focus'
+  - id: GL-STATE-FEEDBACK
+    evidence:
+      - '(?i)\bpending\b'
+      - '(?i)in flight'
+      - 'disabled'
+  - id: GL-TOKENS
+    evidence:
+      - 'var\(--(?:color|space|radius|size)-'
+      - 'styles\.'
+
+criteria:
+  - text: "Cancelling cannot complete without an explicit confirmation"
+    evidence:
+      - '(?i)confirm\w* .{0,40}before'
+      - '(?i)(?:explicit|deliberate) confirmation'
+      - '(?i)AlertDialogAction'
+  - text: "The confirmation names the booking and the consequence"
+    evidence:
+      - '(?i)(?:names?|identif\w+) the booking'
+      - 'AlertDialog\.Description'
+      - '(?i)consequence'
+  - text: "Dismissing by clicking outside is not an answer"
+    evidence:
+      - '(?i)outside (?:click|press|dismiss)'
+      - '(?i)onInteractOutside'
+      - '(?i)cannot be dismissed'
+  - text: "Keyboard operable, focus returns afterwards"
+    evidence:
+      - '(?i)focus return'
+      - '(?i)returns? focus'
+      - '(?i)keyboard'
+  - text: "The person sees that the cancellation went through"
+    evidence:
+      - '(?i)\btoast\b'
+      - '(?i)(?:confirmation|success) message'
+      - '(?i)live region'
+
+# Files the RFC is about. They are seeded into the workspace, and unlike the rest
+# of the seed they are always scored, whether the run touched them or not:
+# leaving the subject of the change alone is an outcome, not an absence of one.
+always_score:
+  - src/components/BookingRow.tsx
+  - src/components/BookingRow.module.css

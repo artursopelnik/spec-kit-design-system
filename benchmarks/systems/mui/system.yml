@@ -1,0 +1,30 @@
+# Harness metadata for the MUI workspace.
+
+id: mui
+name: "MUI (Material UI)"
+adapter: mui
+inventory: inventory.json
+guidelines: guidelines.yml
+
+install:
+  inventory_path: ".design-system/inventory.json"
+  guidelines_path: ".design-system/guidelines.yml"
+
+stack: "React + TypeScript with @mui/material and a custom theme"
+
+# Imports from here are claims about the design system: a name imported from one
+# of these and absent from the inventory is a component the run invented. A name
+# imported from anywhere else is a dependency decision, not a claim, and is left
+# out of the fidelity count.
+ds_module_pattern: "@mui/material|@mui/lab|@/components/ui|components/ui"
+
+token_signals:
+  - "theme\\.(?:palette|spacing|typography|shape|breakpoints)\\b"
+  - "\\bsx=\\{\\{"
+  - "\\b(?:color|severity)=\"(?:primary|secondary|error|warning|success|info)\""
+  - "useMediaQuery\\("
+  - "\\b(?:xs|sm|md|lg|xl)\\s*:"
+
+raw_value_allow: ["0", "1px", "2px", "100%"]
+
+ignore_refs: ["Link", "Head", "Image", "Script", "Outlet", "Route", "Routes", "Providers", "ThemeProvider", "CssBaseline"]

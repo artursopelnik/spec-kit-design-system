@@ -1,0 +1,44 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--color-text);
+}
+
+.surface {
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: var(--space-6);
+  border-radius: var(--radius-md);
+}
+
+.title {
+  color: var(--color-text);
+}
+
+.description {
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.button,
+.destructive {
+  min-height: var(--size-touch-target);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+}
+
+.button:focus-visible,
+.destructive:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+}
+
+.destructive {
+  background: var(--color-danger);
+  color: var(--color-danger-contrast);
+}

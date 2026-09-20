@@ -1,0 +1,56 @@
+schema_version: "1.0"
+
+# House guidelines for the benchmark's MUI workspace. MUI documents its rules in
+# prose on mui.com; these are the machine-readable subset a team would keep in
+# their own repo. Both arms see the file; only the extension arm resolves it
+# through the guidelines capability.
+
+prose: |
+  The theme is the single source of visual truth. Responsive behaviour is
+  written with breakpoint names. Nothing that is available to the keyboard may
+  be invisible to the eye.
+
+rules:
+  - id: MUI-THEME-TOKENS
+    dimension: tokens
+    applies_to: any
+    requirement: >-
+      Colour, spacing, radius and type MUST come from the theme (palette,
+      spacing, shape, typography) through sx, styled or the component props.
+      Literal hex and rgb() values MUST NOT appear in component code.
+    verify: "Grep the diff for hex and rgb() literals outside the theme definition."
+
+  - id: MUI-BREAKPOINT-NAMES
+    dimension: responsive
+    applies_to: layout
+    requirement: >-
+      Responsive rules MUST use the breakpoint names (xs, sm, md, lg, xl) through
+      an sx breakpoint object or theme.breakpoints. Literal pixel media queries
+      MUST NOT be written.
+    verify: "No @media (...px) and no hardcoded widths in the diff."
+
+  - id: MUI-OVERFLOW-REACHABLE
+    dimension: accessibility
+    applies_to: layout
+    requirement: >-
+      Actions removed from a layout at a breakpoint MUST remain reachable through
+      another control, such as a Menu. They MUST NOT be hidden with display:none
+      while remaining in the tab order.
+    verify: "Every action hidden at a breakpoint appears in the overflow Menu; nothing is only visually hidden."
+
+  - id: MUI-TARGET-SIZE
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Touch-primary controls MUST have a target of at least 44x44 CSS pixels.
+      IconButton size="small" MUST NOT be the primary control on a touch surface.
+    verify: "Check the rendered size of each toolbar control at the xs breakpoint."
+
+  - id: MUI-FIELD-ERRORS
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Field validation errors MUST be delivered through the field's own error and
+      helperText props so they are announced. A separate error element MUST NOT
+      be rendered next to the field.
+    verify: "Each invalid field sets error and helperText; no hand-written error element."

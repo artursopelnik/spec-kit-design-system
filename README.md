@@ -33,6 +33,22 @@ Spec Kit's hooks (`before_plan`, `after_implement`, …) give you the *when*. Yo
 
 If you only need a reminder before planning, a hook of your own is enough. If you want the design system to be a real constraint, this is that hook set, already built and tested.
 
+### Does it actually help?
+
+Fair question, and not one to answer with conviction. [`benchmarks/`](benchmarks/) is the apparatus for answering it with numbers: the same RFC run three times — the agent alone, the agent with Spec Kit, the agent with this extension — against trimmed snapshots of shadcn/ui, Radix UI and MUI, scored on five deterministic measures:
+
+| Metric | The question |
+|---|---|
+| Fidelity | Does the work only use components and APIs the system actually has? |
+| Ladder | Did each surface land on what the system already offers, or below it? |
+| Tokens | Does styling go through the system's scale, or around it? |
+| Guidelines | Do the rules in force show up in the work? |
+| Criteria | Did the RFC's acceptance criteria survive into the work? |
+
+Every arm is handed the design system in the same place, described the same way, with the same instruction to reuse before building. Withholding it from the comparison arms would produce a much better-looking result and measure nothing. Every metric is computable from any arm's output, so none of them can reward the extension for merely having run.
+
+**No results are published here yet.** The suite ships the harness, the four cases and the scorer; the numbers need an agent, many runs, and a stated model, and a number nobody can reproduce is worse than no number. Running it is one command per arm, and [benchmarks/README.md](benchmarks/README.md) says what to publish alongside a result.
+
 ## What is an RFC?
 
 An RFC (request for comments) is a short document that says **what should change and why**, before anyone builds it. It is the only input this extension takes. It is not a spec: no component names, no implementation, no design decisions. Those come out of the workflow.
@@ -258,6 +274,14 @@ cd /tmp/design-demo
 
 Builds a throwaway project wired to a fixture design system (ten components, two patterns, tokens, breakpoints, guidelines). Walk it with [examples/README.md](examples/README.md).
 
+Or wire it to one of the real systems the benchmarks use, with the RFC and the code a benchmark case is about, and run the workflow on it:
+
+```bash
+./examples/setup-demo.sh /tmp/shadcn-demo --system shadcn --case date-range-filter
+./examples/setup-demo.sh /tmp/radix-demo  --system radix  --case destructive-confirm
+./examples/setup-demo.sh /tmp/mui-demo    --system mui    --case toolbar-mobile
+```
+
 ## Troubleshooting
 
 | Symptom | Cause and fix |
@@ -297,6 +321,7 @@ guidelines/    default fallback set and an example
 preset/        spec, plan and constitution addenda
 templates/     RFC template
 examples/      fixture design system and demo project
+benchmarks/    cases, design system snapshots, scorer and report
 docs/          architecture, adapters, workflow
 tests/         pytest suite, one file per concern
 .github/       CI: tests, shell and YAML checks, real Spec Kit install

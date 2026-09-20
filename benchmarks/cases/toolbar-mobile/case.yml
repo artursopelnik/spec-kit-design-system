@@ -1,0 +1,90 @@
+# A change to existing UI rather than a new feature. The system documents the
+# answer as a pattern, and the cheap wrong answer (hide the overflow with a
+# pixel media query) is the one that also breaks the tab order.
+
+id: toolbar-mobile
+title: "The booking toolbar is unusable on a phone"
+kind: ui-change
+design_system: mui
+rfc: rfc.md
+
+surfaces:
+  - id: overflow-actions
+    capability: "reaching actions that do not fit at small widths"
+    expected_resolution: compose-pattern
+    rationale: >-
+      ResponsiveAppBar is documented in the system and composes AppBar, Toolbar,
+      IconButton and Menu. Rung 2 holds, so no new responsive machinery is
+      warranted.
+    satisfied_by:
+      - [Toolbar, IconButton, Menu]
+      - [AppBar, Toolbar, IconButton, Menu]
+    forbidden:
+      - pattern: '@media[^{]{0,60}\d{3,4}px'
+        because: >-
+          a literal pixel media query next to a theme that names its
+          breakpoints, which then drifts from every other responsive rule
+      - pattern: 'window\.(?:innerWidth|matchMedia)\('
+        because: "measuring the viewport by hand instead of using the theme's breakpoints"
+
+  - id: touch-targets
+    capability: "hitting a toolbar action on a phone"
+    expected_resolution: reuse
+    rationale: "IconButton reaches a 48px target at size=\"large\"; nothing needs building."
+    satisfied_by:
+      - [IconButton]
+    forbidden:
+      - pattern: '<IconButton[^>]*size="small"'
+        because: "a 34px target as the primary control on touch"
+
+guidelines:
+  - id: MUI-BREAKPOINT-NAMES
+    evidence:
+      - 'theme\.breakpoints\.'
+      - '\b(?:xs|sm|md|lg|xl)\s*:'
+      - 'useMediaQuery\('
+  - id: MUI-OVERFLOW-REACHABLE
+    evidence:
+      - '<Menu[\s>]'
+      - '(?i)overflow menu'
+      - '(?i)still reachable'
+  - id: MUI-TARGET-SIZE
+    evidence:
+      - 'size="large"'
+      - '(?i)touch target'
+      - '\b4[48]\b'
+  - id: MUI-THEME-TOKENS
+    evidence:
+      - 'theme\.(?:palette|spacing|typography|shape)'
+      - 'sx=\{\{'
+
+criteria:
+  - text: "Every action remains reachable at 375 pixels wide"
+    evidence:
+      - '(?i)(?:every|all) action'
+      - '(?i)375'
+      - '(?i)overflow'
+  - text: "The toolbar does not scroll sideways or clip"
+    evidence:
+      - '(?i)(?:horizontal|sideways) scroll'
+      - '(?i)(?:clip|overflow-x)'
+  - text: "Nothing is reachable by keyboard while invisible"
+    evidence:
+      - '(?i)tab order'
+      - '(?i)(?:keyboard|focus).{0,40}(?:hidden|invisible)'
+      - '(?i)display:\s*.?none'
+  - text: "Touch targets are large enough"
+    evidence:
+      - '(?i)touch target'
+      - 'size="large"'
+      - '\b4[48]\b'
+  - text: "The desktop layout is unchanged"
+    evidence:
+      - '(?i)desktop.{0,40}unchanged'
+      - '(?i)(?:md|lg) (?:and )?(?:up|above)'
+
+# Files the RFC is about. They are seeded into the workspace, and unlike the rest
+# of the seed they are always scored, whether the run touched them or not:
+# leaving the subject of the change alone is an outcome, not an absence of one.
+always_score:
+  - src/components/BookingToolbar.tsx

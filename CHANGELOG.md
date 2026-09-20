@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `benchmarks/`: a suite for measuring whether the extension produces better
+  work, rather than asserting it. The same RFC runs in three arms — the agent
+  alone, the agent with Spec Kit, the agent with the extension — against trimmed
+  inventories of shadcn/ui, Radix UI and MUI, and is scored on five
+  deterministic, arm-neutral measures: inventory fidelity, ladder outcome, token
+  discipline, guideline coverage and criteria traceability. Four cases, one per
+  RFC kind, each with the code the RFC is about. No results are published yet;
+  the suite ships the apparatus.
+- `examples/setup-demo.sh --system shadcn|radix|mui [--case <id>]`: the demo
+  project can now be wired to one of those inventories, with a benchmark case's
+  RFC and starting code, instead of the Acme fixture.
+
 ### Fixed
 
 - Prose or empty output from a CLI adapter written for JSON is now

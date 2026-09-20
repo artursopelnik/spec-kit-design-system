@@ -1,0 +1,90 @@
+# A bug rather than a feature. Everything needed already exists in the system;
+# the failure mode under measurement is patching the colour by hand instead of
+# using the wiring the system already has.
+
+id: login-error-unreadable
+title: "The error on the login form cannot be read"
+kind: ui-bug
+design_system: shadcn
+rfc: rfc.md
+
+surfaces:
+  - id: field-error
+    capability: "telling the person which field failed, readably and audibly"
+    expected_resolution: reuse
+    rationale: >-
+      FormMessage is part of Form and is already wired to its control through
+      aria-describedby and aria-invalid, in the destructive pair from the theme.
+    satisfied_by:
+      - [Form]
+    forbidden:
+      - pattern: 'style=\{\{[^}]*color'
+        because: "an inline colour cannot follow the theme into dark appearance"
+      - pattern: '<p[^>]*className="[^"]*text-red-\d'
+        because: >-
+          a hand-picked palette colour next to a destructive token that is
+          already contrast-checked in both appearances
+      - pattern: '#(?:[0-9a-fA-F]{3}){1,2}\b'
+        because: "a literal colour in component code, in a system themed by variables"
+
+  - id: form-error
+    capability: "a failure that belongs to the whole form"
+    expected_resolution: reuse
+    rationale: "Alert with the destructive variant is the system's page-level message."
+    satisfied_by:
+      - [Alert]
+      - [Form]
+    forbidden: []
+
+guidelines:
+  - id: SHADCN-CONTRAST
+    evidence:
+      - '(?i)contrast'
+      - '(?i)4\.5'
+      - 'destructive'
+  - id: SHADCN-STATUS-NOT-COLOUR-ALONE
+    evidence:
+      - '(?i)not (?:by )?colou?r alone'
+      - '(?i)icon'
+      - 'role="alert"'
+  - id: SHADCN-FIELD-ERRORS
+    evidence:
+      - 'FormMessage'
+      - 'aria-describedby'
+      - 'aria-invalid'
+  - id: SHADCN-THEME-TOKENS
+    evidence:
+      - 'var\(--'
+      - '\b(?:text|bg|border)-destructive'
+
+criteria:
+  - text: "Legible against its background for someone with low vision"
+    evidence:
+      - '(?i)contrast'
+      - '(?i)4\.5'
+      - '(?i)legib'
+  - text: "Signalled by more than colour"
+    evidence:
+      - '(?i)colou?r alone'
+      - '(?i)icon'
+      - 'role="alert"'
+  - text: "Announced when the field takes focus"
+    evidence:
+      - 'aria-describedby'
+      - '(?i)announce'
+      - 'aria-invalid'
+  - text: "A form-level failure is presented as such"
+    evidence:
+      - '(?i)form[- ]level'
+      - '<Alert[\s>]'
+      - '(?i)whole form'
+  - text: "Holds in light and dark appearance"
+    evidence:
+      - '(?i)dark (?:mode|appearance|theme)'
+      - '(?i)both (?:themes|appearances)'
+
+# Files the RFC is about. They are seeded into the workspace, and unlike the rest
+# of the seed they are always scored, whether the run touched them or not:
+# leaving the subject of the change alone is an outcome, not an absence of one.
+always_score:
+  - src/components/LoginForm.tsx

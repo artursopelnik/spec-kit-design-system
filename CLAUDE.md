@@ -24,6 +24,15 @@ Hooks wired in `extension.yml`, not in the run command: `after_specify` → `des
 
 The preset exists because extensions can only *replace* templates while presets can *append*; `preset/templates/*-addendum.md` compose design sections into spec/plan/constitution without forking them.
 
+## Benchmarks
+
+`benchmarks/` measures whether the extension improves outcomes: the same RFC in three arms (`unaided`, `speckit`, `extension`) against trimmed inventories of shadcn/Radix/MUI, scored by `benchmarks/harness/score.py` on five metrics. Two rules hold the suite up, both covered by `tests/test_benchmarks.py`:
+
+- **Every arm gets the design system**, in the same path, described by the same `AGENTS.md`. Changing one arm's setup without the others voids the run.
+- **Every metric is arm-neutral**: none may look for an artifact only the extension produces, or it measures which arm ran. Extension-only observations (design doc, gap records, ledger, validation rounds) are reported unscored.
+
+Cases (`benchmarks/cases/<id>/case.yml`) say what a good answer looks like per surface; `satisfied_by` names must exist in the system's inventory and cited guideline ids must exist in whatever source is in force for that system (house file, or the default set for Radix). Never publish numbers this repo has not produced: no results are committed yet, and the READMEs say so.
+
 ## Invariants to preserve
 
 - **A failure to ask is never "the design system has nothing."** Missing binary, outage, changed flag → `available: false`. Only an error code the adapter explicitly declares as not-found becomes `found: false`. `probe_adapter` spends a real call at gate time; the gate fails closed when unreachable.

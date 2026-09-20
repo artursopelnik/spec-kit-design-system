@@ -1,0 +1,382 @@
+{
+  "_source": "Trimmed snapshot of Radix Primitives (radix-ui.com) as a team would inventory them: one styled wrapper per primitive, written by hand for benchmarking. Radix has no CLI, so the radix adapter reads a file exactly like this one. It carries no `guidelines` key on purpose: Radix publishes no rules, so this is the workspace where the extension falls back to its own default set, and the fallback is part of what the benchmark measures.",
+  "_snapshot": "2026-09",
+  "breakpoints": {
+    "sm": "520px",
+    "md": "768px",
+    "lg": "1024px",
+    "xl": "1280px"
+  },
+  "tokens": {
+    "color": {
+      "surface": "var(--color-surface)",
+      "surface-raised": "var(--color-surface-raised)",
+      "text": "var(--color-text)",
+      "text-muted": "var(--color-text-muted)",
+      "text-danger": "var(--color-text-danger)",
+      "border": "var(--color-border)",
+      "border-focus": "var(--color-border-focus)",
+      "accent": "var(--color-accent)",
+      "accent-contrast": "var(--color-accent-contrast)",
+      "danger": "var(--color-danger)",
+      "danger-contrast": "var(--color-danger-contrast)"
+    },
+    "space": {
+      "1": "var(--space-1)",
+      "2": "var(--space-2)",
+      "3": "var(--space-3)",
+      "4": "var(--space-4)",
+      "6": "var(--space-6)"
+    },
+    "radius": {
+      "sm": "var(--radius-sm)",
+      "md": "var(--radius-md)",
+      "full": "var(--radius-full)"
+    },
+    "size": {
+      "control": "var(--size-control)",
+      "touch-target": "var(--size-touch-target)"
+    }
+  },
+  "components": [
+    {
+      "name": "AlertDialog",
+      "description": "Modal that interrupts the user for a confirmation and cannot be dismissed by clicking outside or by Escape alone",
+      "states": [
+        "closed",
+        "open"
+      ],
+      "props": [
+        "open",
+        "onOpenChange",
+        "defaultOpen"
+      ],
+      "accessibility": "role=alertdialog. AlertDialog.Title and AlertDialog.Description are wired as the accessible name and description. Focus lands on AlertDialog.Cancel; the only exits are Action and Cancel.",
+      "usage": "Destructive and irreversible confirmations. Name the consequence in the Description.",
+      "avoid": "Do not use where the user can simply walk away from the decision; that is Dialog.",
+      "parts": [
+        "AlertDialogRoot",
+        "AlertDialogTrigger",
+        "AlertDialogPortal",
+        "AlertDialogOverlay",
+        "AlertDialogContent",
+        "AlertDialogTitle",
+        "AlertDialogDescription",
+        "AlertDialogAction",
+        "AlertDialogCancel"
+      ]
+    },
+    {
+      "name": "Dialog",
+      "description": "Modal overlay for a focused task",
+      "states": [
+        "closed",
+        "open"
+      ],
+      "props": [
+        "open",
+        "onOpenChange",
+        "modal"
+      ],
+      "accessibility": "role=dialog, focus trapped, Escape closes, outside click dismisses.",
+      "usage": "Forms and detail views that do not need the page behind them.",
+      "avoid": "Outside-click and Escape dismiss it, so a destructive confirmation can be lost by accident. Use AlertDialog."
+    },
+    {
+      "name": "Popover",
+      "description": "Non-modal floating container anchored to a trigger",
+      "states": [
+        "closed",
+        "open"
+      ],
+      "props": [
+        "open",
+        "onOpenChange",
+        "modal"
+      ],
+      "accessibility": "Focus moves into the content and returns to the trigger. Escape closes.",
+      "usage": "Secondary controls and disclosures next to their trigger.",
+      "avoid": "Dismissible by clicking away; never use for a decision that must be made."
+    },
+    {
+      "name": "DropdownMenu",
+      "description": "Menu of actions anchored to a trigger",
+      "states": [
+        "closed",
+        "open"
+      ],
+      "props": [
+        "open",
+        "onOpenChange",
+        "modal"
+      ],
+      "accessibility": "Roving focus, typeahead, Escape closes and returns focus to the trigger.",
+      "usage": "Row actions and collapsed toolbar actions.",
+      "avoid": "Menu items are not form controls; do not put fields inside."
+    },
+    {
+      "name": "Toolbar",
+      "description": "Grouped controls with a single tab stop",
+      "states": [
+        "default"
+      ],
+      "props": [
+        "orientation",
+        "loop"
+      ],
+      "accessibility": "role=toolbar with arrow-key roving focus, so a row of controls costs one tab stop.",
+      "usage": "Rows of buttons and toggles above content.",
+      "avoid": "Do not put a row of plain buttons in a div; that costs one tab stop per control."
+    },
+    {
+      "name": "Tooltip",
+      "description": "Hover and focus hint",
+      "states": [
+        "closed",
+        "open"
+      ],
+      "props": [
+        "open",
+        "onOpenChange",
+        "delayDuration"
+      ],
+      "accessibility": "Opens on keyboard focus as well as hover.",
+      "usage": "Supplementary hints on icon-only controls.",
+      "avoid": "Never the only carrier of a control's name, and never available on touch."
+    },
+    {
+      "name": "Select",
+      "description": "Listbox for one value from an enumerable set",
+      "states": [
+        "closed",
+        "open",
+        "disabled"
+      ],
+      "props": [
+        "value",
+        "onValueChange",
+        "disabled",
+        "name"
+      ],
+      "accessibility": "Typeahead, arrow keys, and the trigger is labelled by the selected value.",
+      "usage": "Short known option sets.",
+      "avoid": "Not for free text or open-ended values."
+    },
+    {
+      "name": "Checkbox",
+      "description": "Binary control with an indeterminate state",
+      "states": [
+        "unchecked",
+        "checked",
+        "indeterminate",
+        "disabled"
+      ],
+      "props": [
+        "checked",
+        "onCheckedChange",
+        "disabled",
+        "required"
+      ],
+      "accessibility": "Space toggles. Pair with Label.",
+      "usage": "Independent choices, including a select-all.",
+      "avoid": "Not for a setting that applies immediately; that is Switch."
+    },
+    {
+      "name": "Switch",
+      "description": "Immediate on/off control",
+      "states": [
+        "off",
+        "on",
+        "disabled"
+      ],
+      "props": [
+        "checked",
+        "onCheckedChange",
+        "disabled"
+      ],
+      "accessibility": "role=switch with the state announced.",
+      "usage": "Settings that take effect on change.",
+      "avoid": "Not inside a form that needs submitting."
+    },
+    {
+      "name": "RadioGroup",
+      "description": "One choice from a small visible set",
+      "states": [
+        "default",
+        "checked",
+        "disabled"
+      ],
+      "props": [
+        "value",
+        "onValueChange",
+        "orientation"
+      ],
+      "accessibility": "Arrow keys move and select; the group carries the label.",
+      "usage": "Two to five visible options.",
+      "avoid": "Not for long lists; that is Select."
+    },
+    {
+      "name": "Label",
+      "description": "Accessible label bound to a control",
+      "states": [
+        "default"
+      ],
+      "props": [
+        "htmlFor"
+      ],
+      "accessibility": "Clicking focuses the control and does not select the text.",
+      "usage": "Every control gets one, visible or visually hidden.",
+      "avoid": "A placeholder is not a label."
+    },
+    {
+      "name": "VisuallyHidden",
+      "description": "Text available to assistive technology but not shown",
+      "states": [
+        "default"
+      ],
+      "props": [
+        "asChild"
+      ],
+      "accessibility": "Keeps content in the accessibility tree while removing it visually.",
+      "usage": "Names for icon-only controls, and status text that has a visual equivalent.",
+      "avoid": "Do not hide something the sighted user also needs."
+    },
+    {
+      "name": "Toast",
+      "description": "Transient message in a live region",
+      "states": [
+        "visible",
+        "dismissed"
+      ],
+      "props": [
+        "open",
+        "onOpenChange",
+        "duration",
+        "type"
+      ],
+      "accessibility": "Announced through a live region. type=\"foreground\" interrupts, \"background\" does not.",
+      "usage": "Confirmation that an action completed, with an undo where one exists.",
+      "avoid": "Not for errors the user has to act on."
+    },
+    {
+      "name": "Tabs",
+      "description": "Switch between panels of one surface",
+      "states": [
+        "active",
+        "inactive",
+        "disabled"
+      ],
+      "props": [
+        "value",
+        "onValueChange",
+        "orientation",
+        "activationMode"
+      ],
+      "accessibility": "Roving focus with aria-controls wiring.",
+      "usage": "Peer views of the same object.",
+      "avoid": "Not page navigation."
+    },
+    {
+      "name": "Accordion",
+      "description": "Vertically stacked disclosure sections",
+      "states": [
+        "collapsed",
+        "expanded",
+        "disabled"
+      ],
+      "props": [
+        "type",
+        "value",
+        "onValueChange",
+        "collapsible"
+      ],
+      "accessibility": "Headers are buttons wired with aria-expanded and aria-controls.",
+      "usage": "Long content split into sections, including filters at small widths.",
+      "avoid": "Do not hide the primary action inside one."
+    },
+    {
+      "name": "ScrollArea",
+      "description": "Scrollable region with custom scrollbars",
+      "states": [
+        "default"
+      ],
+      "props": [
+        "type",
+        "scrollHideDelay"
+      ],
+      "accessibility": "The viewport stays keyboard scrollable.",
+      "usage": "Long menus and lists inside a bounded surface.",
+      "avoid": "Do not wrap the document in one."
+    },
+    {
+      "name": "Separator",
+      "description": "Rule between groups",
+      "states": [
+        "default"
+      ],
+      "props": [
+        "orientation",
+        "decorative"
+      ],
+      "accessibility": "decorative=false exposes it to assistive technology.",
+      "usage": "Between toolbar groups and list sections.",
+      "avoid": "Do not use a bordered div."
+    },
+    {
+      "name": "Progress",
+      "description": "Determinate progress indicator",
+      "states": [
+        "indeterminate",
+        "loading",
+        "complete"
+      ],
+      "props": [
+        "value",
+        "max"
+      ],
+      "accessibility": "role=progressbar with the value announced.",
+      "usage": "Work with a known duration or share.",
+      "avoid": "Not a skeleton."
+    },
+    {
+      "name": "Avatar",
+      "description": "User image with a text fallback",
+      "states": [
+        "idle",
+        "loading",
+        "loaded",
+        "error"
+      ],
+      "props": [
+        "delayMs"
+      ],
+      "accessibility": "The fallback carries the name when the image fails.",
+      "usage": "People in lists and headers.",
+      "avoid": "Do not use as a button without a real control around it."
+    }
+  ],
+  "patterns": [
+    {
+      "name": "FieldRow",
+      "description": "Label, control and error message wired together: Label + control + a message element referenced by aria-describedby, with aria-invalid on the control",
+      "composes": [
+        "Label",
+        "VisuallyHidden"
+      ],
+      "usage": "Every form field. The error message element carries the danger text token and stays in the DOM order next to its control.",
+      "avoid": "Do not render an error paragraph that nothing points at; it is seen but not announced."
+    },
+    {
+      "name": "OverflowToolbar",
+      "description": "Toolbar that collapses its secondary actions into a DropdownMenu below the md breakpoint",
+      "composes": [
+        "Toolbar",
+        "DropdownMenu",
+        "Tooltip",
+        "VisuallyHidden"
+      ],
+      "usage": "Action rows that do not fit at small widths. The primary action stays visible; the rest move into the menu.",
+      "avoid": "Do not hide actions with CSS only; they stay in the tab order."
+    }
+  ]
+}
