@@ -291,6 +291,32 @@ Adding a design system is `benchmarks/systems/<id>/` with an `inventory.json`
 and a `system.yml` saying which adapter reads it, what counts as reaching for
 its tokens, and which imports are claims about the system.
 
+## The Ledger Benchmark
+
+The extension's unique claim is that its ledger — a decision store keyed by UI
+capability — helps subsequent features avoid re-walking the ladder for shared
+surfaces. This benchmark measures that: two RFCs in the same workspace, the
+second one asking for a surface the first already decided.
+
+```bash
+python benchmarks/harness/runner.py \
+  --case period-filter-sequence --arm extension \
+  --agent 'claude ...' \
+  --repeat 5 --score
+```
+
+Scoring: Feature 2 either recalls the decision from Feature 1's ledger (rung 0,
+cheaper, fewer tokens) or re-derives it (rungs 1–5, more expensive). The
+`metric_recall` checks whether the ladder walk included a successful ledger
+lookup rather than full re-derivation. The cost delta between features shows
+what the ledger saved.
+
+The case is `period-filter-sequence`: Feature 1 filters bookings by date range,
+Feature 2 filters invoices by billing period. Both need "selecting a start and
+end date", worded differently, so the ledger cannot help by accident: a string
+match. It needs the right alias ("date range" vs "period selection") and the
+mapping of that to the prior decision.
+
 ## Files
 
 ```text
