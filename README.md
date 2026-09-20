@@ -31,7 +31,7 @@ Spec Kit Extension
 
 **It remembers.** Every ladder walk is recorded in a committed ledger keyed by UI capability. The second feature that needs a date range reads the first one's decision instead of re-running its search. Lookups match on the wordings actually searched, so a differently phrased need still finds the answer.
 
-**The obvious requirements are stated anyway.** Nobody writes "it has to be accessible" or "it has to work on a phone" in a spec, because it goes without saying. So it goes unchecked, and each feature decides for itself. A baseline of 20 rules covering accessibility, responsive behaviour, input modality, states and tokens is written into every spec and verified by the audit.
+**The obvious requirements are stated anyway.** Nobody writes "it has to be accessible" or "it has to work on a phone" in a spec, because it goes without saying. So it goes unchecked, and each feature decides for itself. Rules reach the spec in three layers: what your design system says itself, your house rules, and a baseline floor that claims no authority of its own and can be switched off entirely.
 
 **Design requirements up front.** `DS-` requirements land in the spec at `/speckit.specify`, covering states, responsive behaviour, accessibility, tokens and interaction. Not in a review comment three days later.
 

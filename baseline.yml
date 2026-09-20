@@ -45,7 +45,7 @@ schema_version: "1.0"
 #   motion       transitions, animation, autoplay
 #   any          unconditional
 #
-# Disable individual rules in designsys-config.yml under `baseline.disabled_rules`.
+# Disable individual rules in designsys-config.yml under `rules.disabled`.
 # A disabled rule must carry a reason; the gate reports it rather than hiding it.
 
 rules:
