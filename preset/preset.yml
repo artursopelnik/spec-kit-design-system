@@ -13,7 +13,8 @@ requires:
   # `strategy: append` on templates is preset-only; extensions resolve templates
   # as `replace`, which would fork the core templates and strand the project on
   # whatever version they were copied from.
-  speckit_version: ">=0.6.0"
+  # Append composition verified against 1.0.9.dev0.
+  speckit_version: ">=1.0.0,<2.0.0"
 
 provides:
   templates:

@@ -13,10 +13,13 @@ extension:
   license: MIT
 
 requires:
-  speckit_version: ">=0.2.0"
+  # Verified against 1.0.9.dev0. Earlier versions are untested rather than known
+  # broken — a floor of 0.2.0 was claimed before anything was actually installed,
+  # which is the failure mode that makes catalog entries unusable.
+  speckit_version: ">=1.0.0,<2.0.0"
   tools:
     # The design system CLI itself is named in designsys-config.yml, not here,
-    # because it differs per project (astryx, shadcn, an in-house binary, ...).
+    # because it differs per project (astryx, an in-house binary, no CLI at all).
     - name: jq
       required: false
 

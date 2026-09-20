@@ -6,6 +6,8 @@ designsys-config.local.yml
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.coverage
 
 # IDEs
 .vscode/

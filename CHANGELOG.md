@@ -12,8 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`sync`, `check`, `audit`, `gap`) and three hooks (`after_specify`,
   `before_plan` blocking, `after_implement`).
 - Capability contract (`search`, `component`, `pattern`, `tokens`, `extend`,
-  `report_gap`, `describe`, `list_components`) with adapters for Astryx,
-  shadcn/ui and a static JSON inventory.
+  `report_gap`, `describe`, `list_components`), with a worked Astryx adapter and
+  a static JSON fallback for design systems with no CLI.
 - Decision ledger at `.specify/memory/design-decisions.yml`, consulted as
   rung 0 of the ladder and written after each walk. Alias-based matching so
   differently-worded lookups still hit; staleness detection via the recorded
@@ -26,6 +26,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rung-5 gaps are written as standalone `design-system-gap-<slug>.md` RFC files
   so they can travel to another team or tracker unchanged, rather than living
   as a section inside the feature's design doc.
+
+### Verified
+
+- Installs via `specify extension add --dev` and `specify preset add --dev`
+  against Spec Kit `1.0.9.dev0`, with config materialization and hook
+  registration confirmed in `.specify/extensions.yml`.
+- `strategy: append` composes all three templates without losing core content.
+- `pytest` suite over the Python module, plus a CI job that repeats the real
+  install on every push and weekly on a schedule.
+
+### Removed before first release
+
+- The `shadcn` adapter. It parsed prose output rather than a typed envelope, and
+  more importantly a list of named vendor adapters undercuts the point: the
+  capability contract is the product, and per-vendor adapters would become a
+  maintenance treadmill that turns "works with any design system" into "works
+  with the few we got around to".
+- The `--refresh` flag, which was documented in two commands and implemented in
+  none. The `describe` capability it was meant to drive is real and still
+  reachable; nothing rewrites an adapter automatically, because silently editing
+  committed repository content would hide a breaking upstream change rather than
+  surface it.
 
 ### Deliberately not built
 

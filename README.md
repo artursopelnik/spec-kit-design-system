@@ -27,7 +27,7 @@ Spec Kit Extension
 
 ## Features
 
-- **Works with any design system** — the extension holds no component knowledge of its own. A capability contract maps onto whatever your system already exposes: Astryx, shadcn/ui, or a static JSON inventory if it has no CLI at all. Your design system stays the single source of truth; nothing is mirrored, so nothing can drift.
+- **Works with any design system** — the extension holds no component knowledge of its own, and there is no supported-systems list. A capability contract maps onto whatever your system already exposes; writing an adapter for yours is about ten lines of YAML, and if it has no CLI at all, a generated JSON inventory works. Your design system stays the single source of truth; nothing is mirrored, so nothing can drift.
 - **It remembers** — every ladder walk is recorded in a committed ledger keyed by UI capability. The second feature that needs a date range reads the first one's decision instead of re-running its search. Lookups match on the wordings actually searched, so a differently-phrased need still finds the answer.
 - **Design requirements up front** — `DS-` requirements land in the spec at `/speckit.specify`, covering states, responsive behaviour, accessibility, tokens and interaction. Not in a review comment three days later.
 - **A gate that actually blocks** — `/speckit.plan` does not start until every UI surface has a documented resolution, with the candidates searched and a concrete reason the chosen rung is the lowest that holds.
@@ -135,20 +135,22 @@ This is not paperwork. It is the mechanism that distinguishes a real gap the des
 
 ### Prerequisites
 
-1. **Spec Kit** 0.6.0 or higher (the preset uses `strategy: append`, which requires ≥ 0.6.0)
+1. **Spec Kit** 1.0 or higher. Verified against `1.0.9.dev0`; earlier versions are untested rather than known broken.
 2. **Python 3** with PyYAML, which ships as a Spec Kit dependency
 3. **A design system CLI** — or a static JSON inventory, if yours has no CLI
 
 ### Install
 
 ```bash
-# From within a spec-kit project
-specify extension add https://github.com/artursopelnik/spec-kit-design-system
-specify preset add https://github.com/artursopelnik/spec-kit-design-system --path preset
-
-# Or from a local development directory
+# From within a spec-kit project, from a local clone
 specify extension add --dev /path/to/spec-kit-design-system
+specify preset add --dev /path/to/spec-kit-design-system/preset
+
+# Or from a release archive
+specify extension add designsys --from https://github.com/artursopelnik/spec-kit-design-system/releases/latest/download/designsys.tar.gz
 ```
+
+The extension and preset install separately — the preset lives in the `preset/` subdirectory of this repo.
 
 The extension and the preset ship together on purpose. Extensions can only *replace* templates, which would fork your `spec-template` and strand you on whatever version it was copied from. Presets can `append`, which is how the design sections get composed in without forking anything.
 
@@ -189,7 +191,7 @@ Once installed, the hooks run on their own — the normal Spec Kit flow is the u
 You only invoke a command directly to re-run one, or to scope it:
 
 ```bash
-> /speckit.designsys.check --refresh          # re-derive the CLI mapping first
+> /speckit.designsys.check "date range selection"   # re-check one surface
 > /speckit.designsys.audit src/features/booking
 ```
 
@@ -203,7 +205,7 @@ Resolve design system context for the current spec and write it in as explicit r
 
 **Arguments**
 
-- `--refresh` (optional): re-derive the capability mapping from the CLI's own self-description before querying
+None.
 
 **Prerequisites**
 
@@ -225,7 +227,6 @@ Walk the reuse ladder and gate planning on the outcome.
 **Arguments**
 
 - `<surface>` (optional): re-check one named surface instead of all
-- `--refresh` (optional): re-derive the capability mapping first
 
 **Prerequisites**
 
@@ -335,13 +336,16 @@ The extension is written against a **capability contract**, never against one CL
 
 Anything unmapped is reported as unavailable, and the commands degrade deliberately rather than failing — or worse, inventing an inventory from memory.
 
-### Shipped adapters
+### What ships
 
-| Adapter | Design system | Notes |
-|---|---|---|
-| `astryx` | [Meta Astryx](https://github.com/facebook/astryx) | Self-describing via `astryx manifest --json`. Its `gap-report` command means rung 5 routes into the design system's own intake instead of dead-ending in a document. |
-| `shadcn` | shadcn/ui | `search` / `view` against one or more registries. No self-description and no gap intake, so those capabilities are unmapped. |
-| `static-json` | *any* | Point it at a generated inventory file and the gate still works. Most teams can produce one from Storybook or their token pipeline in a few lines of build script. |
+Two files, and neither is a vendor binding:
+
+| File | What it is |
+|---|---|
+| `static-json` | **The universal fallback.** Point it at a generated inventory file and everything works without a CLI at all. Most teams can produce one from Storybook or their token pipeline in a few lines of build script. This is what makes the agnosticism real rather than aspirational. |
+| `astryx` | **A worked example**, modelled on [Meta's Astryx](https://github.com/facebook/astryx). It is the one design system that exercises the entire contract — self-description via `manifest --json`, a sanctioned extension path via `swizzle`, and real gap intake via `gap-report` — so it shows what a complete adapter looks like. Copy it as a starting point for yours. |
+
+There is deliberately no list of blessed design systems. Maintaining per-vendor adapters would be a treadmill, and it would turn "works with any design system" into "works with the four we got around to". The contract is the product; the adapters are documentation that happens to execute.
 
 ### Writing your own
 
@@ -421,8 +425,8 @@ audit:
 ### Environment Variable Overrides
 
 ```bash
-export SPECKIT_DESIGNSYS_ADAPTER="shadcn"
-export SPECKIT_DESIGNSYS_BIN="npx shadcn@latest"
+export SPECKIT_DESIGNSYS_ADAPTER="static-json"
+export SPECKIT_DESIGNSYS_BIN="npx my-design-system"
 export SPECKIT_DESIGNSYS_CWD="packages/web"
 
 export SPECKIT_DESIGNSYS_GATE_ENFORCE="false"
@@ -587,11 +591,11 @@ Check `bin` in `designsys-config.yml`, and `cwd` if the CLI must run from a subd
 
 ### `adapter '<id>' not found`
 
-**Solution**: `adapter:` must name a file in `.specify/extensions/designsys/adapters/`. Shipped: `astryx`, `shadcn`, `static-json`. Use `custom` to define capabilities inline in your config.
+**Solution**: `adapter:` must name a file in `.specify/extensions/designsys/adapters/`. Ships with `astryx` and `static-json`. Use `custom` to define capabilities inline in your config, or drop your own YAML into that directory.
 
 ### Capability comes back `available: false`
 
-**Solution**: Your adapter does not map it. This is expected for `report_gap` on shadcn and for `extend` on a static inventory — the commands degrade rather than fail. Map it in your config's `capabilities:` block if your CLI does support it.
+**Solution**: Your adapter does not map it. This is expected for `extend` and `report_gap` on a static inventory, which has no write side — the commands degrade rather than fail. Map it in your config's `capabilities:` block if your CLI does support it.
 
 ### The gate keeps failing on `min_candidates_considered`
 
@@ -616,10 +620,9 @@ spec-kit-design-system/
 ├── CHANGELOG.md
 ├── extension.yml               # Extension manifest
 ├── config-template.yml         # Config template, materialized on install
-├── adapters/                   # Design system CLI mappings
-│   ├── astryx.yml
-│   ├── shadcn.yml
-│   └── static-json.yml
+├── adapters/                   # Capability mappings — examples, not a vendor list
+│   ├── astryx.yml              #   worked example exercising the full contract
+│   └── static-json.yml         #   universal fallback, no CLI required
 ├── commands/
 │   ├── speckit.designsys.sync.md
 │   ├── speckit.designsys.check.md
@@ -633,12 +636,14 @@ spec-kit-design-system/
 │   │   └── ds-ledger.sh
 │   └── python/
 │       └── designsys.py        # All logic lives here
-└── preset/                     # Composes sections into core templates
-    ├── preset.yml
-    └── templates/
-        ├── spec-addendum.md
-        ├── plan-addendum.md
-        └── constitution-addendum.md
+├── preset/                     # Composes sections into core templates
+│   ├── preset.yml
+│   └── templates/
+│       ├── spec-addendum.md
+│       ├── plan-addendum.md
+│       └── constitution-addendum.md
+├── tests/                      # pytest over designsys.py
+└── .github/workflows/ci.yml    # unit tests + a real install against Spec Kit
 ```
 
 All logic lives in one Python module; the bash scripts are thin shims that locate an interpreter and forward arguments. There are no PowerShell shims yet — on Windows, invoke the module directly, which behaves identically:
@@ -649,7 +654,18 @@ python3 .specify/extensions/designsys/scripts/python/designsys.py gate --json
 
 PowerShell shims are a welcome contribution.
 
-### Testing Locally
+### Testing
+
+```bash
+pip install pytest pyyaml
+python -m pytest
+```
+
+The suite covers config layering, the ledger (recall across wordings, superseding, tri-state staleness), capability dispatch against a fake CLI that reproduces each failure mode, and the fail-closed probe.
+
+CI additionally runs a **real install** on every push: `specify init`, `specify extension add --dev`, `specify preset add --dev`, then asserts that hooks are registered with `before_plan` blocking, that `strategy: append` composed all three templates without losing core content, and that the gate fails closed against a missing binary. It also runs weekly on a schedule — Spec Kit moves fast, and a catalog entry that silently stops working on a newer release is the failure mode worth catching early.
+
+### Testing against your own project
 
 ```bash
 cd /path/to/your/project
@@ -665,7 +681,15 @@ $DS/ds-ledger.sh --json list
 
 ## Status
 
-Early. The command bodies, the capability contract and the ledger are the stable parts. Adapter coverage beyond Astryx is thin, and the `shadcn` adapter parses prose output rather than a typed envelope. Issues and adapter contributions welcome.
+Early, but no longer unproven. What has actually been exercised, against a real `specify init` project on Spec Kit `1.0.9.dev0`:
+
+- Install via `specify extension add --dev` and `specify preset add --dev`, including config materialization and hook registration in `.specify/extensions.yml`
+- `strategy: append` composition verified on all three templates — core content preserved, design sections appended, `tasks-template` correctly untouched
+- Commands registered as agent skills (`speckit-designsys-*`)
+- The gate running against a real feature created by `create-new-feature.sh`
+- Capability dispatch, config layering, the ledger, and the fail-closed probe, under `pytest`
+
+What has **not** been exercised: any command body end-to-end with an agent actually following it, and the Astryx adapter against a real Astryx install — it is modelled on the published CLI reference, so its flag mapping is unverified against a live binary. Issues and adapter contributions welcome.
 
 ## Contributing
 

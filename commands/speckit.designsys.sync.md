@@ -14,7 +14,7 @@ This command does not decide what to build — that is the ladder's job in `/spe
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty). Pass `--refresh` to re-derive the capability mapping from the design system's own self-description before querying.
+You **MUST** consider the user input before proceeding (if not empty).
 
 ## Prerequisites
 
@@ -33,15 +33,15 @@ Parse for `FEATURE_SPEC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNR
 
 **If `REACHABLE` is `false`**: report `UNREACHABLE_REASON` plainly and stop. Do not fill the spec with remembered component names — a wrong inventory is worse than none, because the ladder will then be walked against fiction.
 
-### Refreshing the mapping
+### Checking the mapping
 
-If `--refresh` was passed and the adapter maps `describe`, run:
+Where the adapter maps `describe`, the design system can state its own command surface:
 
 ```
 .specify/extensions/designsys/scripts/bash/ds-query.sh --json describe
 ```
 
-Use the returned self-description to verify that each mapped capability still matches the CLI's real command surface. Report any capability whose invocation no longer exists, and prefer the live description over the adapter file.
+Run this when a capability starts failing in a way that looks like a flag change rather than an outage. Compare the returned commands against the adapter's mapped invocations and report any that no longer exist — the adapter file is then out of date and a human should update it. Nothing rewrites it automatically: an adapter is committed repository content, and silently editing it would hide a breaking upstream change rather than surface it.
 
 ## Outline
 

@@ -12,7 +12,7 @@ Walk every UI surface this feature needs down the reuse ladder, using the design
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty). Arguments may name a specific surface to re-check, or pass `--refresh` to re-derive the CLI mapping from the design system's own self-description.
+You **MUST** consider the user input before proceeding (if not empty). Arguments may name a specific surface to re-check.
 
 ## Prerequisites
 
