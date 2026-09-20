@@ -35,11 +35,11 @@ If you only need a reminder before planning, a hook of your own is enough. If yo
 
 ### Does it actually help?
 
-The headline: *"used the component the system already had in 9 of 10 runs, against 4 of 10 without it"*. Same model (Opus), same design systems (shadcn/ui, Radix, MUI), one measurement: did it reuse what already existed?
+[`benchmarks/`](benchmarks/) answers this with numbers instead of conviction: the same RFC run by the agent alone, with Spec Kit, and with this extension, against trimmed snapshots of shadcn/ui, Radix UI and MUI. Every arm is handed the design system in the same place, and every measure is computable from any arm's output, so none of them rewards the extension for merely having run.
 
-[`benchmarks/`](benchmarks/) is the apparatus for answering with numbers. Every metric is computed from the work itself (never a heuristic), and every arm gets the design system in the same place, so the comparison is fair. A result that scores higher and costs three times as much is a trade, not a win, so token and cost accounting lives alongside the scores.
+The scores also read as pass or fail, so a result can be stated plainly — *"used the component the system already had in 9 of 10 runs, against 4 of 10 without it"* — beside what each arm cost in tokens and money, because scoring higher at three times the cost is a trade, not a win.
 
-**No results are published yet.** The suite ships the methodology, cases and scorer. Running it is one command per arm. See [benchmarks/README.md](benchmarks/README.md) for what a complete result looks like.
+**No results are published yet.** The suite ships the harness, the cases and the scorer; the numbers need an agent, many runs and a stated model. [benchmarks/README.md](benchmarks/README.md) says what to publish alongside one.
 
 ## What is an RFC?
 
@@ -82,18 +82,6 @@ There is no fixed set of RFC types and nothing to declare. Write what fits:
 | UI feature | "Newsletter signup in the footer" | Full workflow, your design system is consulted at every phase |
 | UI change | "Make the toolbar usable on mobile" | Same, held to rules such as reflow and touch targets |
 | UI bug | "The error message on the login form is unreadable" | Same, checked against your tokens and states instead of a one-off fix |
-
-### Headings it reads
-
-Every section is optional. These headings (and close synonyms such as *Background*, *Motivation*, *Non-goals*, *Success criteria*) are picked up, so using them means fewer questions back:
-
-| Heading | Holds |
-|---|---|
-| Problem | What is wrong today, for whom |
-| Proposal | What the user can do afterwards, by capability |
-| Out of scope | What this does not cover |
-| Acceptance criteria | How anyone can tell it is done |
-| Open questions | What you do not know yet; clarify starts here |
 
 Start from [templates/rfc-template.md](templates/rfc-template.md).
 
