@@ -1,0 +1,514 @@
+{
+  "_source": "Trimmed snapshot of MUI (mui.com) Material UI v6, written by hand for benchmarking. MUI has no inventory CLI, so the mui adapter reads a file like this one; generate yours from your theme and component metadata.",
+  "_snapshot": "2026-09",
+  "breakpoints": {
+    "xs": "0px",
+    "sm": "600px",
+    "md": "900px",
+    "lg": "1200px",
+    "xl": "1536px"
+  },
+  "tokens": {
+    "palette": {
+      "primary.main": "theme.palette.primary.main",
+      "primary.contrastText": "theme.palette.primary.contrastText",
+      "secondary.main": "theme.palette.secondary.main",
+      "error.main": "theme.palette.error.main",
+      "warning.main": "theme.palette.warning.main",
+      "success.main": "theme.palette.success.main",
+      "text.primary": "theme.palette.text.primary",
+      "text.secondary": "theme.palette.text.secondary",
+      "background.paper": "theme.palette.background.paper",
+      "background.default": "theme.palette.background.default",
+      "divider": "theme.palette.divider"
+    },
+    "spacing": {
+      "unit": "theme.spacing(1) = 8px",
+      "scale": "theme.spacing(n), or the sx shorthands p, px, py, m, gap"
+    },
+    "typography": {
+      "h6": "theme.typography.h6",
+      "body1": "theme.typography.body1",
+      "body2": "theme.typography.body2",
+      "caption": "theme.typography.caption"
+    },
+    "shape": {
+      "borderRadius": "theme.shape.borderRadius"
+    }
+  },
+  "components": [
+    {
+      "name": "AppBar",
+      "description": "Top application bar surface",
+      "variants": [
+        "elevation",
+        "outlined"
+      ],
+      "states": [
+        "default",
+        "scrolled"
+      ],
+      "props": [
+        "position",
+        "color",
+        "elevation",
+        "sx"
+      ],
+      "accessibility": "Renders a header landmark. Keep one per page.",
+      "usage": "Wraps a Toolbar. position=\"sticky\" keeps it available while scrolling.",
+      "avoid": "Do not put more than one primary action row inside."
+    },
+    {
+      "name": "Toolbar",
+      "description": "Horizontal row inside an AppBar, with the right height and gutters per breakpoint",
+      "variants": [
+        "regular",
+        "dense"
+      ],
+      "states": [
+        "default"
+      ],
+      "props": [
+        "variant",
+        "disableGutters",
+        "sx"
+      ],
+      "accessibility": "A layout row; the controls inside carry their own semantics.",
+      "usage": "variant=\"dense\" at small widths. Use the sx breakpoint object to change what is shown.",
+      "avoid": "Do not hide overflowing controls with display:none alone; they stay in the tab order."
+    },
+    {
+      "name": "IconButton",
+      "description": "Icon-only action trigger",
+      "variants": [
+        "default",
+        "contained",
+        "outlined"
+      ],
+      "states": [
+        "default",
+        "hover",
+        "focusVisible",
+        "active",
+        "disabled"
+      ],
+      "props": [
+        "size",
+        "color",
+        "edge",
+        "aria-label",
+        "sx"
+      ],
+      "accessibility": "Has no text, so aria-label is required. size=\"large\" reaches a 48px target.",
+      "usage": "Toolbar actions and overflow triggers.",
+      "avoid": "size=\"small\" is a 34px target: too small as the primary control on touch."
+    },
+    {
+      "name": "Button",
+      "description": "Action trigger with a label",
+      "variants": [
+        "text",
+        "outlined",
+        "contained"
+      ],
+      "states": [
+        "default",
+        "hover",
+        "focusVisible",
+        "active",
+        "disabled",
+        "loading"
+      ],
+      "props": [
+        "variant",
+        "color",
+        "size",
+        "startIcon",
+        "endIcon",
+        "disabled",
+        "sx"
+      ],
+      "accessibility": "Native button semantics with a visible focus ring.",
+      "usage": "The action the user came for.",
+      "avoid": "Do not style with literal colours; use the palette through color or sx."
+    },
+    {
+      "name": "Menu",
+      "description": "Menu anchored to a trigger, with MenuItem children",
+      "variants": [],
+      "states": [
+        "closed",
+        "open"
+      ],
+      "props": [
+        "anchorEl",
+        "open",
+        "onClose",
+        "MenuListProps",
+        "sx"
+      ],
+      "accessibility": "Focus moves into the list, arrow keys navigate, Escape closes and returns focus to the anchor.",
+      "usage": "Overflow actions, including toolbar actions collapsed at small widths.",
+      "avoid": "Not for form fields.",
+      "parts": [
+        "MenuList"
+      ]
+    },
+    {
+      "name": "MenuItem",
+      "description": "One action or option inside a Menu or Select",
+      "variants": [],
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "selected",
+        "disabled"
+      ],
+      "props": [
+        "value",
+        "disabled",
+        "onClick",
+        "sx"
+      ],
+      "accessibility": "role=menuitem inside a Menu, option inside a Select.",
+      "usage": "Carries the same label as the control it replaces.",
+      "avoid": "Do not nest controls inside an item."
+    },
+    {
+      "name": "Drawer",
+      "description": "Panel anchored to an edge",
+      "variants": [
+        "temporary",
+        "persistent",
+        "permanent"
+      ],
+      "states": [
+        "closed",
+        "open"
+      ],
+      "props": [
+        "anchor",
+        "open",
+        "onClose",
+        "variant",
+        "sx"
+      ],
+      "accessibility": "The temporary variant traps focus and closes on Escape.",
+      "usage": "Navigation and filter panels at small widths.",
+      "avoid": "Not for confirmations; it is dismissed by clicking the backdrop."
+    },
+    {
+      "name": "Dialog",
+      "description": "Modal surface for a focused task or a confirmation",
+      "variants": [],
+      "states": [
+        "closed",
+        "open"
+      ],
+      "props": [
+        "open",
+        "onClose",
+        "fullScreen",
+        "maxWidth",
+        "aria-labelledby",
+        "sx"
+      ],
+      "accessibility": "Focus trapped while open. DialogTitle referenced by aria-labelledby is the accessible name.",
+      "usage": "Confirmations get disableEscapeKeyDown and no backdrop close.",
+      "avoid": "Do not let a destructive confirmation be dismissed by the backdrop.",
+      "parts": [
+        "DialogTitle",
+        "DialogContent",
+        "DialogContentText",
+        "DialogActions"
+      ]
+    },
+    {
+      "name": "Stack",
+      "description": "One-dimensional layout with a gap from the spacing scale",
+      "variants": [],
+      "states": [
+        "default"
+      ],
+      "props": [
+        "direction",
+        "spacing",
+        "divider",
+        "alignItems",
+        "sx"
+      ],
+      "accessibility": "Layout only.",
+      "usage": "direction accepts a breakpoint object: { xs: 'column', md: 'row' }.",
+      "avoid": "Do not set margins on the children instead of spacing."
+    },
+    {
+      "name": "Box",
+      "description": "Layout primitive with the sx prop",
+      "variants": [],
+      "states": [
+        "default"
+      ],
+      "props": [
+        "component",
+        "sx"
+      ],
+      "accessibility": "Renders a div unless component says otherwise.",
+      "usage": "sx values accept breakpoint objects: sx={{ display: { xs: 'none', md: 'flex' } }}.",
+      "avoid": "Do not reach for it when Stack or Grid says what you mean."
+    },
+    {
+      "name": "Grid",
+      "description": "Two-dimensional responsive layout",
+      "variants": [],
+      "states": [
+        "default"
+      ],
+      "props": [
+        "container",
+        "size",
+        "spacing",
+        "columns",
+        "sx"
+      ],
+      "accessibility": "Layout only.",
+      "usage": "Column counts are given per breakpoint name.",
+      "avoid": "Do not write pixel widths into a grid child."
+    },
+    {
+      "name": "Typography",
+      "description": "Text with a variant from the type scale",
+      "variants": [
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "subtitle1",
+        "body1",
+        "body2",
+        "caption",
+        "overline"
+      ],
+      "states": [
+        "default"
+      ],
+      "props": [
+        "variant",
+        "component",
+        "color",
+        "noWrap",
+        "sx"
+      ],
+      "accessibility": "variant is visual; component sets the tag, so a visually small heading stays a heading.",
+      "usage": "All text that is not inside another component's slot.",
+      "avoid": "Do not set font sizes in px."
+    },
+    {
+      "name": "TextField",
+      "description": "Label, input, helper text and error state in one field",
+      "variants": [
+        "outlined",
+        "filled",
+        "standard"
+      ],
+      "states": [
+        "default",
+        "focused",
+        "filled",
+        "error",
+        "disabled"
+      ],
+      "props": [
+        "label",
+        "value",
+        "onChange",
+        "error",
+        "helperText",
+        "required",
+        "size",
+        "sx"
+      ],
+      "accessibility": "error plus helperText wires the message to the input through aria-describedby and marks it invalid.",
+      "usage": "Any text field, including the ones that can fail validation.",
+      "avoid": "Do not render your own error text next to the field; it is seen but not announced."
+    },
+    {
+      "name": "FormControlLabel",
+      "description": "Binds a label to a Checkbox, Switch or Radio",
+      "variants": [],
+      "states": [
+        "default",
+        "disabled"
+      ],
+      "props": [
+        "control",
+        "label",
+        "labelPlacement"
+      ],
+      "accessibility": "Clicking the label toggles the control.",
+      "usage": "Every checkbox, switch and radio.",
+      "avoid": "Do not place bare text next to a control."
+    },
+    {
+      "name": "Switch",
+      "description": "Immediate on/off control",
+      "variants": [],
+      "states": [
+        "off",
+        "on",
+        "disabled",
+        "focusVisible"
+      ],
+      "props": [
+        "checked",
+        "onChange",
+        "size",
+        "color"
+      ],
+      "accessibility": "role=switch. Wrap in FormControlLabel for its name.",
+      "usage": "Settings that apply on change.",
+      "avoid": "Not inside a form that needs submitting."
+    },
+    {
+      "name": "Alert",
+      "description": "In-page message block",
+      "variants": [
+        "standard",
+        "filled",
+        "outlined"
+      ],
+      "states": [
+        "default"
+      ],
+      "props": [
+        "severity",
+        "variant",
+        "onClose",
+        "action",
+        "sx"
+      ],
+      "accessibility": "severity=\"error\" renders role=alert so the message is announced when it appears.",
+      "usage": "Form-level and page-level messages.",
+      "avoid": "Not for per-field validation; that is TextField's error state.",
+      "parts": [
+        "AlertTitle"
+      ]
+    },
+    {
+      "name": "Snackbar",
+      "description": "Transient message at the edge of the screen",
+      "variants": [],
+      "states": [
+        "open",
+        "closed"
+      ],
+      "props": [
+        "open",
+        "onClose",
+        "autoHideDuration",
+        "message",
+        "action"
+      ],
+      "accessibility": "Rendered in a live region.",
+      "usage": "Confirmation after an action, with an undo where one exists.",
+      "avoid": "Not for errors that need a decision."
+    },
+    {
+      "name": "Tooltip",
+      "description": "Hover and focus hint",
+      "variants": [],
+      "states": [
+        "closed",
+        "open"
+      ],
+      "props": [
+        "title",
+        "placement",
+        "enterTouchDelay"
+      ],
+      "accessibility": "Opens on focus. It is not a substitute for aria-label on an IconButton.",
+      "usage": "Naming icon-only actions for sighted mouse users.",
+      "avoid": "Unavailable on touch; never the only place the name lives."
+    },
+    {
+      "name": "Table",
+      "description": "Table primitives: TableContainer, TableHead, TableBody, TableRow, TableCell",
+      "variants": [],
+      "states": [
+        "default",
+        "hover",
+        "selected"
+      ],
+      "props": [
+        "size",
+        "stickyHeader",
+        "sx"
+      ],
+      "accessibility": "Real table semantics; TableCell scope carries the header relationship.",
+      "usage": "Tabular data.",
+      "avoid": "Do not rebuild rows from Boxes.",
+      "parts": [
+        "TableContainer",
+        "TableHead",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "TableSortLabel",
+        "TablePagination"
+      ]
+    },
+    {
+      "name": "Chip",
+      "description": "Compact marker for an attribute or an active filter",
+      "variants": [
+        "filled",
+        "outlined"
+      ],
+      "states": [
+        "default",
+        "clickable",
+        "deletable",
+        "disabled"
+      ],
+      "props": [
+        "label",
+        "color",
+        "size",
+        "onDelete",
+        "variant"
+      ],
+      "accessibility": "A deletable chip needs an accessible name on its delete affordance.",
+      "usage": "Active filters and statuses.",
+      "avoid": "Colour alone does not carry the meaning."
+    }
+  ],
+  "patterns": [
+    {
+      "name": "ResponsiveAppBar",
+      "description": "AppBar + Toolbar where the actions that do not fit collapse into a Menu below the md breakpoint, driven by an sx breakpoint object or useMediaQuery",
+      "composes": [
+        "AppBar",
+        "Toolbar",
+        "IconButton",
+        "Menu",
+        "MenuItem",
+        "Box"
+      ],
+      "usage": "The documented way to make a toolbar work on small screens: the primary action stays in the bar, the rest move into a Menu behind an IconButton with an aria-label.",
+      "avoid": "Do not hide the overflow actions with display:none alone; they remain reachable by keyboard and are then invisible."
+    },
+    {
+      "name": "FormField",
+      "description": "TextField carrying its own label, helper text and error state",
+      "composes": [
+        "TextField",
+        "FormControlLabel"
+      ],
+      "usage": "Validation messages go in helperText with error set, so they are announced.",
+      "avoid": "Do not pair a bare input with your own message element."
+    }
+  ],
+  "guidelines": "Everything visual comes from the theme: palette, spacing, typography and shape. Responsive behaviour is written with the breakpoint names, through sx objects or useMediaQuery(theme.breakpoints.down('md')), never with literal media queries."
+}

@@ -9,11 +9,9 @@
 # Which adapter to load from .specify/extensions/design/adapters/<id>.yml
 #
 #   auto          detect it (the default): components.json -> shadcn,
-#                 @astryxdesign/cli -> astryx, then @mui/material, antd,
-#                 @chakra-ui/react, @ark-ui/react, radix-ui / @radix-ui/*
-#                 in package.json, otherwise static-json.
+#                 @mui/material, antd, @chakra-ui/react, @ark-ui/react,
+#                 radix-ui / @radix-ui/* in package.json, otherwise static-json.
 #                 Leave this alone unless detection picks wrong.
-#   astryx        the Astryx CLI
 #   shadcn        the shadcn/ui CLI
 #   mui, antd, chakra, radix, ark-ui
 #                 read a generated inventory file, like static-json
@@ -24,7 +22,7 @@ adapter: auto
 
 # Override the binary the adapter invokes. Leave empty to use the adapter's own.
 # Split on whitespace, so wrappers work:
-#   "npx astryx"  ·  "npm run ds --"  ·  "pnpm --filter @acme/web exec ds"  ·  "./bin/ds"
+#   "npm run ds --"  ·  "pnpm --filter @acme/web exec ds"  ·  "./bin/ds"
 bin: ""
 
 # Working directory for the design system, relative to repo root. Empty = repo

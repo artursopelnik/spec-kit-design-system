@@ -1,0 +1,30 @@
+# Harness metadata for the Radix workspace.
+#
+# No guidelines file here, deliberately: Radix publishes no machine-readable
+# rules, so this workspace is the case where the extension falls back to its own
+# default set (GL-*). Cases on this system are scored against those rules.
+
+id: radix
+name: "Radix UI"
+adapter: radix
+inventory: inventory.json
+guidelines: null
+
+install:
+  inventory_path: ".design-system/inventory.json"
+
+stack: "React + TypeScript, Radix primitives with CSS Modules and CSS variables"
+
+# Imports from here are claims about the design system: a name imported from one
+# of these and absent from the inventory is a component the run invented. A name
+# imported from anywhere else is a dependency decision, not a claim, and is left
+# out of the fidelity count.
+ds_module_pattern: "@radix-ui/|@/components/ui|components/ui"
+
+token_signals:
+  - "var\\(--(?:color|space|radius|size)-[a-z-]+\\)"
+  - "\\bstyles\\.[a-zA-Z]"
+
+raw_value_allow: ["0", "1px", "2px", "100%"]
+
+ignore_refs: ["Link", "Head", "Image", "Script", "Outlet", "Route", "Routes", "Providers", "Slot", "Portal"]

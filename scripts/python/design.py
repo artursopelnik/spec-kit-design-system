@@ -283,8 +283,6 @@ def detect_adapter(root: Path, config: dict) -> str:
             deps.update(package.get(key) or {})
     except (OSError, ValueError, AttributeError):
         pass
-    if "@astryxdesign/cli" in deps or (base / "node_modules" / "@astryxdesign").is_dir():
-        return "astryx"
     for package, adapter_id in LIBRARY_ADAPTERS:
         if package in deps or (package.endswith("/") and any(d.startswith(package) for d in deps)):
             return adapter_id

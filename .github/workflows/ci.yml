@@ -31,9 +31,21 @@ jobs:
 
       - name: Check YAML parses
         run: |
-          for f in extension.yml config-template.yml adapters/*.yml guidelines/*.yml preset/preset.yml; do
+          for f in extension.yml config-template.yml adapters/*.yml guidelines/*.yml \
+                   preset/preset.yml benchmarks/systems/*/*.yml benchmarks/cases/*/case.yml; do
             python -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" "$f"
           done
+
+      - name: Benchmark harness runs end to end
+        run: |
+          # No agent: the harness builds the workspace, scores the starting point
+          # and reports on it. Catches a broken case or scorer without spending a
+          # model call.
+          python benchmarks/harness/runner.py --case toolbar-mobile --arm unaided \
+            --no-agent --score --label ci --out "$RUNNER_TEMP/bench" > /dev/null
+          python benchmarks/harness/score.py \
+            --run "$RUNNER_TEMP/bench/toolbar-mobile/unaided/ci-01" > /dev/null
+          python benchmarks/harness/report.py "$RUNNER_TEMP/bench" | head -20
 
   format:
     name: Prettier (docs and adapters)
@@ -185,6 +197,29 @@ jobs:
           assert "ConfirmDialog" not in json.dumps(context)
           assert "component" in context["available_on_demand"], context
           print("walkthrough ok")
+          PY
+
+      - name: The demo wires up a real design system too
+        run: |
+          "$GITHUB_WORKSPACE/extension/examples/setup-demo.sh" "$RUNNER_TEMP/shadcn-demo" \
+            --system shadcn --case date-range-filter
+          cd "$RUNNER_TEMP/shadcn-demo"
+          DS=.specify/extensions/design/scripts/bash/ds.sh
+          $DS gate --json > gate.json
+          $DS query component Calendar --json > calendar.json
+          python - <<'PY'
+          import json
+          gate = json.load(open("gate.json"))
+          assert gate["REACHABLE"] is True, gate
+          # shadcn publishes no rules of its own, so the house file has to be
+          # what answers, not the extension's defaults.
+          assert gate["GUIDELINES_SOURCE"] == "adapter", gate
+
+          calendar = json.load(open("calendar.json"))
+          assert calendar["found"] is True, calendar
+          assert "range" in json.dumps(calendar["data"]), calendar
+          assert open("rfc.md").read().startswith("# RFC:")
+          print("shadcn demo ok")
           PY
 
       - name: The autonomous workflow reports where it is

@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `benchmarks/`: a suite for measuring whether the extension produces better
+  work, rather than asserting it. The same RFC runs in three arms — the agent
+  alone, the agent with Spec Kit, the agent with the extension — against trimmed
+  inventories of shadcn/ui, Radix UI and MUI, and is scored on five
+  deterministic, arm-neutral measures: inventory fidelity, ladder outcome, token
+  discipline, guideline coverage and criteria traceability. Four cases, one per
+  RFC kind, each with the code the RFC is about. No results are published yet;
+  the suite ships the apparatus.
+- Benchmark results in the three forms a claim actually takes: seven pass/fail
+  checks per run, reported as `k/n` per arm; token, cost, turn and wall-clock
+  accounting read from the agent's own output (or a `usage.json` any agent can
+  write), printed beside the scores rather than omitted; and
+  `benchmarks/harness/judge.py`, blind pairwise judging of two runs with the
+  arms hidden, the tooling redacted, the sides swapped, and a tally that
+  unblinds only at the end.
+- `examples/setup-demo.sh --system shadcn|radix|mui [--case <id>]`: the demo
+  project can now be wired to one of those inventories, with a benchmark case's
+  RFC and starting code, instead of the Acme fixture.
+
 ### Fixed
 
 - Prose or empty output from a CLI adapter written for JSON is now
@@ -34,7 +55,7 @@ First release.
   (`after_specify`), `check` (`before_plan`, blocking) and `validate`
   (`after_implement`).
 - Adapters, each a declarative map from the capability contract onto a CLI call
-  or a file read: `astryx`, `shadcn`, `mui`, `antd`, `chakra`, `radix`,
+  or a file read: `shadcn`, `mui`, `antd`, `chakra`, `radix`,
   `ark-ui`, `static-json`, and an `example` template. The library adapters
   read a generated inventory file, since those libraries have no query CLI.
   `adapter: auto` picks one from the project.

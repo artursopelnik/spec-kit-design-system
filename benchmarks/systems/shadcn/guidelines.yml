@@ -1,0 +1,75 @@
+schema_version: "1.0"
+
+# House guidelines for the benchmark's shadcn workspace.
+#
+# shadcn/ui publishes guidance as prose on its site, not as machine-readable
+# rules, so these are house rules written for this benchmark. They stand in for
+# what a team using shadcn would keep in their own repo. Both arms of a run see
+# this file; only the extension arm resolves it through the guidelines
+# capability, which is the difference being measured.
+
+prose: |
+  Components are copied into the repo and owned there. Style through the theme
+  variables, never with literal colours. Reach for a composition of primitives
+  before adding a dependency.
+
+rules:
+  - id: SHADCN-THEME-TOKENS
+    dimension: tokens
+    applies_to: any
+    requirement: >-
+      Colour, radius and spacing MUST come from the theme variables or the
+      Tailwind scale. Literal hex, rgb() or hsl() values MUST NOT appear outside
+      the theme definition itself.
+    verify: "Grep the diff for hex and rgb() literals outside the globals stylesheet."
+
+  - id: SHADCN-CONFIRM-SURFACE
+    dimension: interaction
+    applies_to: interactive
+    requirement: >-
+      A destructive or irreversible confirmation MUST use AlertDialog. Dialog,
+      Drawer, Sheet and Popover MUST NOT be used, because all four can be
+      dismissed without a decision.
+    verify: "Every confirmation surface in the diff renders AlertDialog."
+
+  - id: SHADCN-FIELD-ERRORS
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Field validation errors MUST be rendered through FormMessage so they are
+      wired to the control by aria-describedby and aria-invalid. A bespoke error
+      paragraph MUST NOT be used.
+    verify: "Each invalid field in the diff renders FormMessage; no hand-written error element."
+
+  - id: SHADCN-BREAKPOINT-NAMES
+    dimension: responsive
+    applies_to: layout
+    requirement: >-
+      Responsive behaviour MUST be expressed with the named breakpoints
+      (sm, md, lg, xl, 2xl). Literal pixel media queries MUST NOT be written.
+    verify: "No @media (max-width: ...px) in the diff; responsive classes use the named prefixes."
+
+  - id: SHADCN-TARGET-SIZE
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Controls that are primary on touch MUST have a target of at least 44x44
+      CSS pixels, reached through the size prop or the spacing scale.
+    verify: "Measure the rendered target of each touch-primary control."
+
+  - id: SHADCN-CONTRAST
+    dimension: accessibility
+    applies_to: text
+    requirement: >-
+      Body and status text MUST reach a contrast ratio of at least 4.5:1 against
+      its own background, using the foreground, muted-foreground and destructive
+      pairs from the theme rather than a lightened one-off colour.
+    verify: "Measure the rendered pair; confirm the colour comes from a theme variable."
+
+  - id: SHADCN-STATUS-NOT-COLOUR-ALONE
+    dimension: accessibility
+    applies_to: any
+    requirement: >-
+      An error or status MUST be carried by text or an icon as well as colour.
+      Colour MUST NOT be the only signal that something failed.
+    verify: "Render in greyscale; the state is still readable."

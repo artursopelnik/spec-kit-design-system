@@ -2,8 +2,7 @@
 #
 # Nothing here describes a real product. `your-design-system-cli` is a
 # placeholder and the flags are invented, so this file will not run as-is.
-# For adapters that do run, see `astryx.yml` and `shadcn.yml`, each written
-# from that CLI's documented surface.
+# For adapters that do run, see `shadcn.yml`, which maps a real CLI surface.
 #
 # If your CLI can describe itself (some emit a JSON manifest of their commands,
 # arguments and response types), ask it first and write the mapping from what it

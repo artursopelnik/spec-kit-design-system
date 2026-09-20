@@ -1,0 +1,105 @@
+# What a good answer looks like for this RFC on this design system.
+#
+# Written from the system's own inventory, not from a preferred implementation:
+# every name under `satisfied_by` exists in benchmarks/systems/shadcn, and a
+# test fails if one stops existing.
+
+id: date-range-filter
+title: "Narrow the booking list by period"
+kind: ui-feature
+design_system: shadcn
+rfc: rfc.md
+
+# Why this case is here: shadcn ships no date range component, but it ships a
+# Calendar that takes mode="range" and documents the Popover + Button + Calendar
+# composition. The wrong answers are all cheaper than the right one, which is
+# what makes it worth measuring.
+surfaces:
+  - id: period-selection
+    capability: "choosing a start and an end date"
+    expected_resolution: compose-components
+    rationale: >-
+      No component covers it, so rung 1 fails honestly. Calendar with
+      mode="range" inside a Popover does, and the registry documents that
+      composition, so rung 3 is the lowest that holds.
+    satisfied_by:
+      - [Calendar, Popover]
+      - [Calendar, Popover, Button]
+    forbidden:
+      - pattern: '<input[^>]*type=["'']date'
+        because: >-
+          native date inputs drop the theme, the range semantics and the
+          locale handling the Calendar already has
+      - pattern: 'react-datepicker|@mui/x-date-pickers|rc-picker|react-day-picker/range'
+        because: "a new dependency for a control the system already reaches"
+
+  - id: invalid-period-feedback
+    capability: "saying that the period is impossible"
+    expected_resolution: reuse
+    rationale: "Form carries FormMessage, which is wired to the control it belongs to."
+    satisfied_by:
+      - [Form]
+      - [Alert]
+    forbidden:
+      - pattern: 'alert\('
+        because: "a browser alert is not a form error"
+
+  - id: filtered-results
+    capability: "the list the filter acts on"
+    expected_resolution: reuse
+    rationale: "Table exists and carries the semantics; nothing needs building."
+    satisfied_by:
+      - [Table]
+    forbidden:
+      - pattern: '<table[^>]*>\s*<t(?:head|body|r)'
+        because: "raw table markup next to the system's own Table primitives"
+
+# A guideline counts as carried when any one of its evidence patterns appears in
+# the produced work.
+guidelines:
+  - id: SHADCN-THEME-TOKENS
+    evidence:
+      - 'var\(--'
+      - '\b(?:bg|text|border|ring)-(?:background|foreground|muted|primary|secondary|accent|destructive|border|input|ring)'
+  - id: SHADCN-FIELD-ERRORS
+    evidence:
+      - 'FormMessage'
+      - 'aria-describedby'
+      - 'aria-invalid'
+  - id: SHADCN-BREAKPOINT-NAMES
+    evidence:
+      - '\b(?:sm|md|lg|xl):'
+      - '\bbreakpoint'
+  - id: SHADCN-TARGET-SIZE
+    evidence:
+      - '\bsize="(?:default|lg)"'
+      - '\bmin-h-(?:10|11|12)\b'
+      - '\b44\b'
+
+criteria:
+  - text: "The list shows only the bookings inside the chosen period"
+    evidence:
+      - '(?i)within the (?:selected|chosen) (?:period|range)'
+      - '(?i)filter(?:s|ed|ing)? .{0,40}(?:period|range|dates)'
+  - text: "An end before the start is refused, with the reason on the control"
+    evidence:
+      - '(?i)end .{0,30}before .{0,30}start'
+      - '(?i)invalid (?:period|range)'
+  - text: "The chosen period survives a reload"
+    evidence:
+      - '(?i)(?:survives|persist\w*|restored).{0,40}(?:reload|refresh)'
+      - '(?i)(?:search ?param|query string|url state|localStorage)'
+  - text: "Operable from the keyboard alone"
+    evidence:
+      - '(?i)keyboard'
+      - '(?i)focus (?:order|trap|return)'
+  - text: "Usable down to a 375 pixel wide viewport"
+    evidence:
+      - '(?i)375'
+      - '(?i)(?:mobile|small screen|narrow viewport)'
+
+# Files the RFC is about. They are seeded into the workspace, and unlike the rest
+# of the seed they are always scored, whether the run touched them or not:
+# leaving the subject of the change alone is an outcome, not an absence of one.
+always_score:
+  - src/app/bookings/page.tsx

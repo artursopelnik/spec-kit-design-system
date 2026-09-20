@@ -25,3 +25,9 @@ node_modules/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# Benchmark runs: the scores and the manifest are worth committing, the
+# workspace a run happened in (a whole spec-kit project, plus whatever the
+# agent installed) is not.
+benchmarks/results/**/workspace/
+benchmarks/results/**/agent.std*.txt

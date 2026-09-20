@@ -27,6 +27,31 @@ $DS guidelines --json | python3 -c "import json,sys; d=json.load(sys.stdin); pri
 # adapter ['ACME-TARGET-SIZE', 'ACME-OVERLAY-CHOICE', ...]   — no GL-* anywhere
 ```
 
+## Against a real design system
+
+The same demo can be wired to one of the inventories the benchmarks use —
+trimmed snapshots of shadcn/ui, Radix UI and MUI — together with the RFC and the
+starting code of a benchmark case:
+
+```bash
+./examples/setup-demo.sh /tmp/shadcn-demo --system shadcn --case date-range-filter
+./examples/setup-demo.sh /tmp/radix-demo  --system radix  --case destructive-confirm
+./examples/setup-demo.sh /tmp/mui-demo    --system mui    --case toolbar-mobile
+cd /tmp/shadcn-demo && /speckit.design.run rfc.md
+```
+
+Each of those cases is built around a decision the system has an answer to and
+the obvious shortcut does not: shadcn has no date range component but a Calendar
+that takes `mode="range"`; Radix has `AlertDialog` for exactly the confirmation
+the RFC asks for; MUI documents collapsing an overflowing toolbar into a `Menu`.
+Radix publishes no rules of its own, so that one is also where the extension's
+default guidelines apply instead of a file the system ships.
+
+What a good answer looks like for each is written down in
+`benchmarks/cases/<id>/case.yml`, and `benchmarks/README.md` explains how a run
+gets scored against it — including how to run the same RFC without the extension
+and compare.
+
 ## The fixture
 
 `acme-design-system/inventory.json` is built so the ladder has to work rather than short-circuit:

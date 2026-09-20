@@ -1,0 +1,8 @@
+{
+  "case": "destructive-confirm",
+  "arm": "sample",
+  "design_system": "radix",
+  "workspace": "workspace",
+  "note": "Hand-written fixture: the run built its own confirmation and argued the case in a gap record. Pins the partial credit for documented divergence. Not a measurement.",
+  "provided": {}
+}

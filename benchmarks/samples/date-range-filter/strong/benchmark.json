@@ -1,0 +1,8 @@
+{
+  "case": "date-range-filter",
+  "arm": "sample",
+  "design_system": "shadcn",
+  "workspace": "workspace",
+  "note": "Hand-written fixture that pins the scorer. Not a measurement, not the output of any agent.",
+  "provided": {}
+}

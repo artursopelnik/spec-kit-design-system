@@ -119,11 +119,6 @@ def test_auto_adapter_detects_from_the_project(design, project):
     config = design.load_config(root)
     assert design.load_adapter(root, config)["id"] == "static-json"
 
-    (root / "package.json").write_text(
-        '{"devDependencies": {"@astryxdesign/cli": "1.0.0"}}', encoding="utf-8"
-    )
-    assert design.load_adapter(root, config)["id"] == "astryx"
-
     (root / "components.json").write_text("{}", encoding="utf-8")
     assert design.load_adapter(root, config)["id"] == "shadcn"
 
