@@ -6,7 +6,7 @@ description: "Validate the implementation against the design system contract and
 
 Check what was actually built against what the spec and the ladder committed to. This runs as an **`after_implement` hook** and closes the loop: the decisions recorded in `design-system.md` become assertions about the code.
 
-This is the only part of the extension that looks backwards, and it is deliberately the last one — by the time it runs, most design failures should already have been prevented rather than detected.
+This is the only part of the extension that looks backwards, and it is deliberately the last one. By the time it runs, most design failures should already have been prevented rather than detected.
 
 ## User Input
 
@@ -20,7 +20,7 @@ You **MUST** consider the user input before proceeding (if not empty). Arguments
 
 Run `.specify/extensions/designsys/scripts/bash/check-design-gate.sh --json` and parse for `FEATURE_DIR`, `DESIGN_DOC`, `IMPL_PLAN`, `CONFIG`, `CAPABILITIES`.
 
-**If `DESIGN_DOC` does not exist**: the gate never ran for this feature. Report that the audit has no contract to check against and recommend `/speckit.designsys.check`. Do not improvise a contract now — an audit against a contract invented after the fact tells you nothing.
+**If `DESIGN_DOC` does not exist**: the gate never ran for this feature. Report that the audit has no contract to check against and recommend `/speckit.designsys.check`. Do not improvise a contract now. An audit against a contract invented after the fact tells you nothing.
 
 ## Outline
 
@@ -43,18 +43,18 @@ Flag anything built bespoke that never appeared in `DESIGN_DOC` at all. This is 
 
 For each dimension in `audit.required_dimensions`, check the corresponding `DS-` requirements from the spec:
 
-- **States** — are default, hover, focus, active, disabled, loading, error and empty handled where applicable? Missing loading and error states are the most common real defect here.
-- **Responsive** — does the layout behave at every project breakpoint, per the spec's stated behaviour?
-- **Accessibility** — accessible names present, keyboard operability, focus order following visual order, roles correct, focus visible. Check against the obligations the component's own documentation states, retrieved via `ds-query.sh --json component "<Name>"`.
-- **Tokens** — when `audit.forbid_raw_values` is true, flag raw hex colors, raw px spacing and hardcoded font stacks wherever the system provides a token. Report the token that should have been used, not just the violation.
-- **Interaction** — is the feedback the spec required actually implemented?
+- **States**: are default, hover, focus, active, disabled, loading, error and empty handled where applicable? Missing loading and error states are the most common real defect here.
+- **Responsive**: does the layout behave at every project breakpoint, per the spec's stated behaviour?
+- **Accessibility**: accessible names present, keyboard operability, focus order following visual order, roles correct, focus visible. Check against the obligations the component's own documentation states, retrieved via `ds-query.sh --json component "<Name>"`.
+- **Tokens**: when `audit.forbid_raw_values` is true, flag raw hex colors, raw px spacing and hardcoded font stacks wherever the system provides a token. Report the token that should have been used, not just the violation.
+- **Interaction**: is the feedback the spec required actually implemented?
 
 ### 4. Report
 
 Write findings into `DESIGN_DOC` under `## Audit`, most severe first:
 
 ```markdown
-## Audit — <date>
+## Audit: <date>
 
 | Severity | Surface | Finding | Fix |
 |---|---|---|---|
@@ -65,15 +65,15 @@ Write findings into `DESIGN_DOC` under `## Audit`, most severe first:
 
 Classify honestly:
 
-- **violation** — contradicts a `DS-` requirement or a recorded ladder decision
-- **warning** — a required dimension is unanswered, but nothing was contradicted
-- **note** — a defensible deviation, recorded so the next reader knows it was deliberate
+- **violation**: contradicts a `DS-` requirement or a recorded ladder decision
+- **warning**: a required dimension is unanswered, but nothing was contradicted
+- **note**: a defensible deviation, recorded so the next reader knows it was deliberate
 
 Do not pad the report. An audit that always finds something teaches people to ignore it; the cleanest useful outcome is "no violations" and it should be reachable.
 
 ### 5. On violations
 
-Report them and state clearly that the feature does not yet satisfy its design requirements. Where a fix is small, local and unambiguous — a raw value that has an obvious token, a missing `aria-label` — apply it and say so. Where a fix means reversing an implementation decision, report it with the recommended change and let the user decide; silently rewriting a built feature during an audit hook is not your call.
+Report them and state clearly that the feature does not yet satisfy its design requirements. Where a fix is small, local and unambiguous (a raw value that has an obvious token, a missing `aria-label`), apply it and say so. Where a fix means reversing an implementation decision, report it with the recommended change and let the user decide; silently rewriting a built feature during an audit hook is not your call.
 
 ## Completion Report
 

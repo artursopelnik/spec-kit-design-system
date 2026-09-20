@@ -14,7 +14,7 @@ the summary the plan is accountable to.
 | [capability phrase] | Reuse / Compose (pattern) / Compose (components) / Extend / Create | [component, pattern or composition] | recalled `dd-001` / newly walked |
 
 **Design system impact**: none | extension proposal | new component proposal
-**Open gaps**: [gap records filed, with identifiers — or none]
+**Open gaps**: [gap records filed, with identifiers, or none]
 **Decisions recorded**: [ids added to `.specify/memory/design-decisions.yml`, and any superseded]
 
 ### Constraints carried into the plan
@@ -30,7 +30,7 @@ Pulled from the components' own documentation, not invented:
 ### Design Complexity Tracking
 
 Fill ONLY if the Design System Check resolved any surface at Extend or Create.
-Each row must justify why the lower rungs do not hold — an empty or hand-waving
+Each row must justify why the lower rungs do not hold. An empty or hand-waving
 justification is a gate failure, not a formality.
 
 | Surface | Rung taken | Lower rungs rejected because | Design system impact |

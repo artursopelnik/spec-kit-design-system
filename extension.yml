@@ -14,7 +14,7 @@ extension:
 
 requires:
   # Verified against 1.0.9.dev0. Earlier versions are untested rather than known
-  # broken — a floor of 0.2.0 was claimed before anything was actually installed,
+  # broken. A floor of 0.2.0 was claimed before anything was actually installed,
   # which is the failure mode that makes catalog entries unusable.
   speckit_version: ">=1.0.0,<2.0.0"
   tools:
@@ -45,7 +45,7 @@ provides:
       required: true
 
 hooks:
-  # Design requirements enter the spec while it is still a spec — not as an
+  # Design requirements enter the spec while it is still a spec, not as an
   # after-the-fact audit.
   after_specify:
     command: speckit.designsys.sync

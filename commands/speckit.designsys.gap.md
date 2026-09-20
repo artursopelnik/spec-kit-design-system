@@ -20,13 +20,13 @@ You **MUST** consider the user input before proceeding (if not empty). Arguments
 
 Run `.specify/extensions/designsys/scripts/bash/check-design-gate.sh --json` and parse for `FEATURE_DIR`, `DESIGN_DOC`, `CONFIG`, `CAPABILITIES`.
 
-The surface must already appear in `DESIGN_DOC` with rungs 1–4 documented as insufficient. **If it does not, stop** and run `/speckit.designsys.check` first. A gap report without a recorded search is exactly the failure mode this extension exists to prevent.
+The surface must already appear in `DESIGN_DOC` with rungs 1 through 4 documented as insufficient. **If it does not, stop** and run `/speckit.designsys.check` first. A gap report without a recorded search is exactly the failure mode this extension exists to prevent.
 
 ## Outline
 
 ### 1. Re-test the ladder once more
 
-Before recording a gap, search once more with wording you have not tried yet — a synonym, the user-facing term, the term a designer would use, the term the system's own docs use for a neighbouring concept. Gaps found on the fifth search are common; gaps that survive a deliberate final attempt are real.
+Before recording a gap, search once more with wording you have not tried yet: a synonym, the user-facing term, the term a designer would use, the term the system's own docs use for a neighbouring concept. Gaps found on the fifth search are common; gaps that survive a deliberate final attempt are real.
 
 If this surfaces a viable candidate, **abandon the gap report**, update `DESIGN_DOC` to the lower rung, and say so. That is a good outcome, not a wasted step.
 
@@ -34,7 +34,7 @@ If this surfaces a viable candidate, **abandon the gap report**, update `DESIGN_
 
 Write it to **its own file**, `design-system-gap-<slug>.md` in the feature directory, and link it from the surface's section in `DESIGN_DOC`.
 
-A standalone file matters: a gap record is the argued case for a new component, and it usually has to travel — to the design system's repo, to an issue tracker, to a review. A section buried inside `design-system.md` cannot be handed to another tool or another team. This file is written so it can be, unchanged.
+A standalone file matters: a gap record is the argued case for a new component, and it usually has to travel: to the design system's repo, to an issue tracker, to a review. A section buried inside `design-system.md` cannot be handed to another tool or another team. This file is written so it can be, unchanged.
 
 Use this structure:
 
@@ -60,7 +60,7 @@ Use this structure:
 
 ## Composition attempted
 
-Calendar inside Popover with two DatePickers — rejected because range validation and the
+Calendar inside Popover with two DatePickers, rejected because range validation and the
 shared hover preview have to live above both fields, which the composition cannot express
 without reaching into DatePicker internals.
 
@@ -71,7 +71,7 @@ state model rather than using a supported escape hatch.
 
 ## Proposal
 
-**Scope**: <what it must do — and, importantly, what it must not grow into>
+**Scope**: <what it must do, and importantly what it must not grow into>
 **Impact**: new component | extension to <Component>
 **Proposed owner**: <package or team, from the CLI's routing if available>
 **Interim approach**: <what this feature does while the gap is open>
@@ -81,11 +81,11 @@ Be specific about why each alternative fails. "Doesn't fit" is not a reason; "no
 
 ### 3. Route it
 
-The RFC file is the deliverable and it is complete on its own. Routing it is a handoff, and how you hand it off depends on what the project already runs — **do not build a path that an installed extension already provides**.
+The RFC file is the deliverable and it is complete on its own. Routing it is a handoff, and how you hand it off depends on what the project already runs. **Do not build a path that an installed extension already provides.**
 
 In order of preference:
 
-**The design system's own intake.** If the adapter maps `report_gap`, file it there — this is the most direct route, because it reaches the people who own the component:
+**The design system's own intake.** If the adapter maps `report_gap`, file it there. This is the most direct route, because it reaches the people who own the component:
 
 ```
 .specify/extensions/designsys/scripts/bash/ds-query.sh --json report_gap "<title>" "<body>"
@@ -93,11 +93,11 @@ In order of preference:
 
 Record the returned identifier or URL in the RFC's header so the proposal can be tracked.
 
-**An issue tracker the project already syncs with.** If `report_gap` is unmapped, check `.specify/extensions.yml` for an installed tracker extension and tell the user which one can carry this — core `/speckit.taskstoissues` targets GitHub Issues, and extensions such as `jira`, `jira-mirror`, `linear` or `azure-devops` retarget it. Name the command; do not invoke it yourself. Which tracker a component request belongs in, and under which project key, is the user's call — a design system request usually belongs in the **design system's** project, not the product team's.
+**An issue tracker the project already syncs with.** If `report_gap` is unmapped, check `.specify/extensions.yml` for an installed tracker extension and tell the user which one can carry this. Core `/speckit.taskstoissues` targets GitHub Issues, and extensions such as `jira`, `jira-mirror`, `linear` or `azure-devops` retarget it. Name the command; do not invoke it yourself. Which tracker a component request belongs in, and under which project key, is the user's call, and a design system request usually belongs in the **design system's** project, not the product team's.
 
 **Nothing installed.** Then the RFC file *is* the artifact. Say so plainly: it is a complete, reviewable proposal that can be committed, pasted into a tracker by hand, or opened as a pull request against the design system repo. Do not treat the absence of a tracker as a failure, and do not invent an intake path.
 
-A design system with no intake route at all is worth surfacing once to the user — it is the missing link between product teams finding gaps and the system closing them — but say it as an observation, not as a blocker.
+A design system with no intake route at all is worth surfacing once to the user, since it is the missing link between product teams finding gaps and the system closing them, but say it as an observation, not as a blocker.
 
 ### 4. Constrain the local build
 

@@ -6,7 +6,7 @@ description: "Resolve design system context for the current specification and wr
 
 Give the specification its design system context while it is still a specification. This runs as an **`after_specify` hook**, so the spec that reaches `/speckit.plan` already states which parts of the system are in play and which design dimensions must be answered.
 
-This command does not decide what to build — that is the ladder's job in `/speckit.designsys.check`. It establishes what the design system already offers for this problem, so the decision is made against evidence rather than memory.
+This command does not decide what to build. That is the ladder's job in `/speckit.designsys.check`. It establishes what the design system already offers for this problem, so the decision is made against evidence rather than memory.
 
 ## User Input
 
@@ -24,14 +24,14 @@ Run:
 .specify/extensions/designsys/scripts/bash/check-design-gate.sh --json
 ```
 
-Where bash is unavailable, call the module directly — it behaves identically:
+Where bash is unavailable, call the module directly. It behaves identically:
 `python3 .specify/extensions/designsys/scripts/python/designsys.py gate --json`
 
 Parse for `FEATURE_SPEC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON`, `UI_BEARING`.
 
 **If `UI_BEARING` is `false`**: report that no user-facing surface was found and stop without editing the spec.
 
-**If `REACHABLE` is `false`**: report `UNREACHABLE_REASON` plainly and stop. Do not fill the spec with remembered component names — a wrong inventory is worse than none, because the ladder will then be walked against fiction.
+**If `REACHABLE` is `false`**: report `UNREACHABLE_REASON` plainly and stop. Do not fill the spec with remembered component names. A wrong inventory is worse than none, because the ladder will then be walked against fiction.
 
 ### Checking the mapping
 
@@ -41,7 +41,7 @@ Where the adapter maps `describe`, the design system can state its own command s
 .specify/extensions/designsys/scripts/bash/ds-query.sh --json describe
 ```
 
-Run this when a capability starts failing in a way that looks like a flag change rather than an outage. Compare the returned commands against the adapter's mapped invocations and report any that no longer exist — the adapter file is then out of date and a human should update it. Nothing rewrites it automatically: an adapter is committed repository content, and silently editing it would hide a breaking upstream change rather than surface it.
+Run this when a capability starts failing in a way that looks like a flag change rather than an outage. Compare the returned commands against the adapter's mapped invocations and report any that no longer exist, which means the adapter file is out of date and a human should update it. Nothing rewrites it automatically: an adapter is committed repository content, and silently editing it would hide a breaking upstream change rather than surface it.
 
 ## Outline
 
@@ -57,7 +57,7 @@ For each surface, look it up in the decision ledger first:
 .specify/extensions/designsys/scripts/bash/ds-ledger.sh --json lookup "<capability phrase>"
 ```
 
-A hit means another feature already resolved this surface. Surfacing it here — while the spec is still being written — is cheaper than surfacing it at the gate, because the spec can simply state the established answer as a requirement. Note the decision id in the candidates table so the gate can adopt it rather than re-deriving it.
+A hit means another feature already resolved this surface. Surfacing it here, while the spec is still being written, is cheaper than surfacing it at the gate, because the spec can simply state the established answer as a requirement. Note the decision id in the candidates table so the gate can adopt it rather than re-deriving it.
 
 A hit does not end the search: still query the design system in step 3, because the spec's requirements should describe real component capabilities, and because a `stale` hit needs re-validation anyway.
 
@@ -71,7 +71,7 @@ For each surface, run at least two differently-worded searches:
 
 Pull detail on the strongest hits (`ds-query.sh --json component "<Name>"`, `--json pattern "<Name>"`). Also fetch the token vocabulary once (`ds-query.sh --json tokens`) so the spec can reference real token names.
 
-Record what you find. Do not yet rule anything in or out — that is the gate's decision, made deliberately, with its reasoning written down.
+Record what you find. Do not yet rule anything in or out. That is the gate's decision, made deliberately, with its reasoning written down.
 
 ### 4. Write the spec section
 
@@ -94,17 +94,17 @@ Use `DS-` prefixed, testable requirement IDs in the same MUST/SHOULD style as th
   name; focus order follows visual order.
 ```
 
-Cover each dimension in `audit.required_dimensions` from `CONFIG` — states, responsive, accessibility, tokens, interaction — with at least one requirement, or state explicitly why a dimension does not apply to this feature.
+Cover each dimension in `audit.required_dimensions` from `CONFIG` (states, responsive, accessibility, tokens, interaction) with at least one requirement, or state explicitly why a dimension does not apply to this feature.
 
 Where the design system's answer is genuinely unclear, use the spec's own idiom rather than guessing:
 
 ```
-[NEEDS CLARIFICATION: system offers both Drawer and Modal for this flow — which is correct for a destructive confirmation?]
+[NEEDS CLARIFICATION: system offers both Drawer and Modal for this flow. Which is correct for a destructive confirmation?]
 ```
 
 ### 5. Add measurable success criteria
 
-Add technology-agnostic entries under `## Success Criteria` for what design compliance means here — for example that the feature introduces no new component outside the design system, or that every interactive element is reachable by keyboard. Keep them measurable; "looks consistent" is not a criterion.
+Add technology-agnostic entries under `## Success Criteria` for what design compliance means here, for example that the feature introduces no new component outside the design system, or that every interactive element is reachable by keyboard. Keep them measurable; "looks consistent" is not a criterion.
 
 ## Completion Report
 

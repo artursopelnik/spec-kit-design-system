@@ -1,16 +1,16 @@
-# Design System Requirements — project configuration
+# Design System Requirements: project configuration
 #
 # This file tells the extension how to talk to YOUR design system.
 # The extension never models the design system itself; it only knows how to
 # ask. The CLI stays the single source of truth.
 
 # Which adapter to load from .specify/extensions/designsys/adapters/<id>.yml
-# Shipped: astryx, shadcn, static-json
+# Ships with: astryx, static-json
 # Set to "custom" to define everything inline under `capabilities:` below.
 adapter: astryx
 
 # Override the binary the adapter invokes. Leave empty to use the adapter default.
-# Examples: "npx astryx", "npm run astryx --", "pnpm dlx shadcn@latest", "./bin/ds"
+# Examples: "npx astryx", "npm run astryx --", "./bin/ds"
 bin: ""
 
 # Working directory for the design system, relative to repo root. Empty = repo
@@ -18,10 +18,10 @@ bin: ""
 # monorepo can point at one package.
 cwd: ""
 
-# Override the adapter's inventory path (static-json) or registry list (shadcn).
+# Override the adapter's inventory path (static-json) or its registry list.
 # Leave empty to use the adapter default.
 # source: ".design-system/inventory.json"
-# registries: ["@shadcn", "@acme"]
+# registries: ["@acme"]
 
 # --- Capability contract -----------------------------------------------------
 #
@@ -56,7 +56,7 @@ cwd: ""
 #
 # Every ladder walk produces a decision. Without somewhere to put it, that
 # decision lives in one feature directory and the next feature re-derives it
-# from scratch — often differently. The ledger is a plain YAML file at
+# from scratch, often differently. The ledger is a plain YAML file at
 # .specify/memory/design-decisions.yml, committed with the repository.
 #
 # It is deliberately not an ADR system: these decisions are numerous, cheap, and
@@ -77,7 +77,7 @@ ledger:
 
 # The design system version currently in use. Lookups compare prior decisions
 # against it and flag the ones taken against an older version as stale. Leave
-# empty and staleness simply is not checked — lookups then report
+# empty and staleness simply is not checked. Lookups then report
 # "staleness_checked": false rather than claiming decisions are fresh.
 # /speckit.designsys.check passes this explicitly when the CLI can report it.
 design_system_version: ""

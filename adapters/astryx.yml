@@ -1,9 +1,9 @@
-# Adapter: Astryx (Meta) — @astryxdesign/cli
+# Adapter: Astryx (Meta), @astryxdesign/cli
 #
 # Astryx is self-describing: `astryx manifest --json` returns every command,
 # argument and response discriminator. Where this file and the live manifest
-# disagree, the manifest wins — run /speckit.designsys.sync --refresh to
-# re-derive the mapping from it.
+# disagree, the manifest wins. Query `describe` to compare the live surface
+# against this file, then update it by hand; nothing rewrites it automatically.
 #
 # Response envelope: { "type": "<discriminator>", "data": { ... } }
 # Errors carry stable codes, e.g. ERR_UNKNOWN_COMPONENT.
@@ -27,7 +27,7 @@ capabilities:
     result_path: "data"
 
   search:
-    # Ranked across components, hooks, docs and templates in one call — this is
+    # Ranked across components, hooks, docs and templates in one call. This is
     # the single most valuable call for the reuse ladder.
     args: ["search", "{query}", "--detail", "compact"]
     result_path: "data"
@@ -56,7 +56,7 @@ capabilities:
       theme: "default"
 
   extend:
-    # swizzle copies component source for legitimate customization — this is the
+    # swizzle copies component source for legitimate customization. This is the
     # Extend rung, and it is deliberately a real command rather than advice.
     args: ["swizzle", "{name}", "--dry-run"]
     result_path: "data"

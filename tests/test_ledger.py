@@ -70,7 +70,7 @@ def test_superseded_decisions_are_hidden(designsys, project):
     ],
 )
 def test_staleness_is_tri_state(designsys, project, current, expected_stale, expected_checked):
-    """Unknown staleness must not read as freshness — that would make an
+    """Unknown staleness must not read as freshness, which would make an
     unchecked decision look verified."""
     record(designsys)
     result = lookup(designsys, "date range selection", version=current)

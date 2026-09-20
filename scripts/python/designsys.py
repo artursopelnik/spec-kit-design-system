@@ -225,7 +225,7 @@ def probe_adapter(root: Path, config: dict, adapter: dict) -> dict:
 
     Reading capabilities off the adapter YAML alone would report a full set for
     a CLI that is not installed, which would make the commands' fail-closed
-    guard unreachable — the gate would pass precisely when it cannot check
+    guard unreachable: the gate would pass precisely when it cannot check
     anything. So this spends one call to find out.
     """
     mapped = mapped_capabilities(adapter)
@@ -255,7 +255,7 @@ def substitute(args: list[str], params: dict[str, Any]) -> list[str]:
     registries reach the CLI as multiple arguments rather than one space-joined
     blob that matches nothing.
 
-    A placeholder with no value drops its argument — and the flag immediately
+    A placeholder with no value drops its argument, and the flag immediately
     before it, if any. Dropping only the value would leave a dangling flag that
     swallows whatever argument follows it.
     """
@@ -311,7 +311,7 @@ def run_capability(
     # monorepos whichever kind of capability the adapter maps.
     base = root / config["cwd"] if config.get("cwd") else root
 
-    # File-backed capability (static inventories, shadcn tokens).
+    # File-backed capability, such as a static inventory.
     if spec.get("read_file"):
         target = substitute([spec["read_file"]], {**params, "source": adapter.get("source", "")})
         path = base / target[0] if target else None
@@ -394,7 +394,7 @@ def run_capability(
         return {
             "capability": capability,
             "available": False,
-            "reason": f"'{argv[0]}' not found — is the design system CLI installed?",
+            "reason": f"'{argv[0]}' not found. Is the design system CLI installed?",
         }
     except subprocess.TimeoutExpired:
         return {"capability": capability, "available": False, "reason": "CLI timed out after 120s"}
@@ -423,7 +423,7 @@ def run_capability(
 
     # Anything else that failed is a failure to ask, not an answer. Reporting it
     # as "nothing found" would let a registry outage read as an empty design
-    # system and push the ladder toward Create — the exact outcome this
+    # system and push the ladder toward Create, the exact outcome this
     # extension exists to prevent.
     if code or proc.returncode != 0:
         detail = (proc.stderr or "").strip() or (raw if parsed is None else json.dumps(parsed))
@@ -565,7 +565,7 @@ UI_SIGNALS = re.compile(
 
 
 def detect_ui_bearing(spec_path: Path | None) -> bool | None:
-    """Heuristic. The command may override it — a spec can describe a user-facing
+    """Heuristic. The command may override it: a spec can describe a user-facing
     surface without using any of these words, and a backend spec can mention
     'render' in passing."""
     if not spec_path or not spec_path.is_file():
@@ -596,7 +596,7 @@ def cmd_gate(args: argparse.Namespace) -> None:
             "LEDGER_COUNT": len(load_ledger(root)["decisions"]),
             "ADAPTER": adapter.get("id", ""),
             "ADAPTER_NAME": adapter.get("name", ""),
-            # Empty when the design system could not actually be reached — the
+            # Empty when the design system could not actually be reached. The
             # commands treat that as a gate failure, not a pass.
             "CAPABILITIES": probe["capabilities"],
             "MAPPED_CAPABILITIES": mapped_capabilities(adapter),

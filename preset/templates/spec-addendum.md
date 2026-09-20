@@ -3,12 +3,12 @@
 
 <!--
   Populated by /speckit.designsys.sync against the design system CLI.
-  Do not fill these from memory — a remembered component inventory is the exact
+  Do not fill these from memory. A remembered component inventory is the exact
   failure this section exists to prevent. If the CLI is unreachable, leave the
   section marked unresolved rather than guessing.
 -->
 
-**Design system**: [NAME — resolved from designsys-config.yml]
+**Design system**: [NAME, resolved from designsys-config.yml]
 **Surfaces identified**: [capability phrases, not component names]
 
 ### Requirements
@@ -17,13 +17,13 @@ Written as testable MUST/SHOULD statements with `DS-` IDs, in the same style as 
 functional requirements above.
 
 - **DS-001**: [System MUST reuse ... / MUST NOT introduce bespoke ...]
-- **DS-002**: [Token requirement — reference real token names from the system]
+- **DS-002**: [Token requirement, referencing real token names from the system]
 - **DS-003**: [State coverage requirement]
 - **DS-004**: [Responsive behaviour requirement]
 - **DS-005**: [Accessibility requirement]
 
 Mark genuine ambiguity rather than resolving it silently:
-`[NEEDS CLARIFICATION: system offers both Drawer and Modal here — which is correct?]`
+`[NEEDS CLARIFICATION: system offers both Drawer and Modal here. Which is correct?]`
 
 ### Dimensions
 
@@ -40,7 +40,7 @@ Every dimension must be answered or explicitly excluded with a reason.
 ### Candidates surfaced
 
 What the design system offered for each surface. This is evidence for the reuse
-ladder in `/speckit.designsys.check`, not a decision — the decision is made there,
+ladder in `/speckit.designsys.check`, not a decision. The decision is made there,
 deliberately, and recorded in `design-system.md`.
 
 | Surface | Candidates | Source |

@@ -2,7 +2,7 @@
 
 The rule under test throughout: a failure to *ask* the design system must never
 be reported as the design system *answering* that it has nothing. That confusion
-would push the reuse ladder toward Create — the outcome this extension exists to
+would push the reuse ladder toward Create, the outcome this extension exists to
 prevent.
 """
 
@@ -100,7 +100,6 @@ def test_registries_reach_the_cli_as_separate_arguments(
 
 def test_absent_placeholder_drops_its_flag(designsys, project, write_config, fake_cli):
     """Dropping only the value leaves a dangling flag that eats the next arg."""
-    argv = None
     write_config({"adapter": "fake"})
     argv = run(designsys, "report_gap", title="MyTitle")["data"]
     assert "--body" not in argv

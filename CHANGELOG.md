@@ -51,9 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deliberately not built
 
-Issue import and export. The catalog already covers both directions —
+Issue import and export. The catalog already covers both directions:
 `github-issues`, `issue` and `gh-triage` inbound; core `speckit.taskstoissues`
-plus `jira`, `linear` and `azure-devops` outbound — so the gap RFC is shaped to
+plus `jira`, `linear` and `azure-devops` outbound, so the gap RFC is shaped to
 be carried by whichever of those a project already runs. The ledger sits in
 `.specify/memory/` for the same reason: `memory-loader` already loads that
 directory into agent context.

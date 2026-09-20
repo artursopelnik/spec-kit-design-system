@@ -41,7 +41,7 @@ def test_environment_beats_local_override(designsys, project, write_config, monk
 
 
 def test_falsy_overrides_are_not_dropped(designsys, project, write_config):
-    """`false` and `0` are real values, not absence — a naive merge loses them."""
+    """`false` and `0` are real values, not absence. A naive merge loses them."""
     write_config({"gate": {"enforce": False, "min_candidates_considered": 0}})
     config = designsys.load_config(Path.cwd())
     assert config["gate"]["enforce"] is False
