@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Prose or empty output from a CLI adapter written for JSON is now
+  `available: false` / `found: false` instead of `found: true` with garbage, so
+  a changed flag no longer passes the gate.
+- A non-mapping inventory file, or `search` without a query, no longer crashes
+  or dumps the whole inventory.
+- Unexpected exceptions and refusals (`die`) now also emit JSON on stdout; a
+  closed pipe no longer raises.
+- Gate probe times out after 30s rather than 120s.
+- `ledger record` accepts inline JSON; `rfc` warns when a path-like argument
+  does not exist.
+
 ## [0.1.0] - 2026-09-20
 
 First release.
