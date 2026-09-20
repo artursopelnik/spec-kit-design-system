@@ -1,0 +1,107 @@
+schema_version: "1.0"
+
+extension:
+  id: designsys
+  name: "Design System Requirements"
+  version: "0.1.0"
+  description: "Makes the existing design system an active constraint and knowledge source throughout spec-driven development"
+  category: integration
+  effect: read-write
+  author: "artursopelnik"
+  repository: https://github.com/artursopelnik/spec-kit-design-system
+  homepage: https://github.com/artursopelnik/spec-kit-design-system
+  license: MIT
+
+requires:
+  speckit_version: ">=0.2.0"
+  tools:
+    # The design system CLI itself is named in designsys-config.yml, not here,
+    # because it differs per project (astryx, shadcn, an in-house binary, ...).
+    - name: jq
+      required: false
+
+provides:
+  commands:
+    - name: speckit.designsys.sync
+      file: commands/speckit.designsys.sync.md
+      description: "Pull relevant components, patterns and tokens from the design system CLI into the spec"
+    - name: speckit.designsys.check
+      file: commands/speckit.designsys.check.md
+      description: "Run the Reuse -> Compose -> Extend -> Create ladder and gate the plan on its outcome"
+    - name: speckit.designsys.audit
+      file: commands/speckit.designsys.audit.md
+      description: "Validate implemented UI against the design system contract and report violations"
+    - name: speckit.designsys.gap
+      file: commands/speckit.designsys.gap.md
+      description: "Record a justified design system gap and route it to the owning package"
+
+  config:
+    - name: "designsys-config.yml"
+      template: "config-template.yml"
+      description: "Design system CLI adapter and gate configuration"
+      required: true
+
+hooks:
+  # Design requirements enter the spec while it is still a spec — not as an
+  # after-the-fact audit.
+  after_specify:
+    command: speckit.designsys.sync
+    optional: false
+    description: "Resolve design system context for the new specification"
+
+  # The gate. Planning must not begin until the reuse ladder has been walked.
+  before_plan:
+    command: speckit.designsys.check
+    optional: false
+    priority: 5
+    description: "Enforce Reuse -> Compose -> Extend -> Create before planning"
+
+  # Verification closes the loop.
+  after_implement:
+    command: speckit.designsys.audit
+    optional: false
+    description: "Validate the implementation against the design system"
+
+tags:
+  - "design-system"
+  - "design-tokens"
+  - "accessibility"
+  - "governance"
+  - "reuse"
+
+config:
+  defaults:
+    # Which adapter under adapters/ describes the project's design system CLI.
+    adapter: astryx
+
+    ledger:
+      # Consult prior ladder decisions before querying the design system, and
+      # record each new one. Without this, every feature re-litigates settled
+      # questions against an empty context.
+      enabled: true
+      # Minimum token-overlap score for a prior decision to be surfaced.
+      match_threshold: 0.34
+      # Re-validate a prior decision when the design system has moved on since
+      # it was taken. A cached decision against a stale inventory is worse than
+      # no decision, because it looks authoritative.
+      revalidate_when_stale: true
+
+    gate:
+      # Block planning when the ladder was not walked or its rungs are unjustified.
+      enforce: true
+      # Creating a new component requires a written, searched-alternatives record.
+      require_gap_report: true
+      # Minimum number of existing candidates that must be considered before
+      # a rung may be rejected.
+      min_candidates_considered: 3
+
+    audit:
+      # Fail the audit on hardcoded values where a token exists.
+      forbid_raw_values: true
+      # Dimensions every UI feature must answer for in the spec.
+      required_dimensions:
+        - states
+        - responsive
+        - accessibility
+        - tokens
+        - interaction

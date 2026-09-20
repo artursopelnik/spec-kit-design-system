@@ -1,0 +1,52 @@
+# Adapter: shadcn/ui — `shadcn` CLI against one or more registries
+#
+# shadcn has no self-description command and no gap intake, so `describe` and
+# `report_gap` are unmapped; the Create rung falls back to writing its record
+# into the feature directory only.
+
+id: shadcn
+name: "shadcn/ui"
+bin: "npx shadcn@latest"
+
+global_args: []
+
+# The shadcn CLI prints human-readable output by default; these calls are parsed
+# leniently rather than as a typed envelope.
+envelope:
+  type_key: ""
+  data_key: ""
+  error_code_key: ""
+
+# Registries to search, in order. "@acme" style namespaces resolve through
+# components.json.
+registries: ["@shadcn"]
+
+capabilities:
+  search:
+    args: ["search", "{registries}", "--query", "{query}", "--limit", "20"]
+    result_path: ""
+
+  list_components:
+    args: ["search", "{registries}"]
+    result_path: ""
+
+  component:
+    args: ["view", "{name}"]
+    result_path: ""
+
+  pattern:
+    # shadcn "blocks" are the closest thing to composed patterns.
+    args: ["view", "{name}"]
+    result_path: ""
+
+  tokens:
+    # Tokens live in the project's CSS variables and components.json, not behind
+    # a CLI call. The extension reads them from disk instead.
+    read_file: "components.json"
+
+  extend:
+    # `add` vendors the source into the project, which is shadcn's extend model.
+    args: ["add", "{name}", "--dry-run"]
+    result_path: ""
+
+  # report_gap: unmapped — shadcn has no upstream intake.
