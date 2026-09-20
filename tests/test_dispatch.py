@@ -275,3 +275,43 @@ def test_a_system_without_tokens_is_not_required_to_answer_for_them(
     config = design.load_config(root)
     assert "tokens" in design.effective_dimensions(config, ["search", "component", "tokens"])
     assert "tokens" not in design.effective_dimensions(config, ["search", "component"])
+
+
+# --- failure modes found by running the adapters against real-shaped output --
+
+
+def _script(project: Path, body: str) -> str:
+    path = project / "fakebin.sh"
+    path.write_text("#!/bin/sh\n" + body + "\n", encoding="utf-8")
+    path.chmod(0o755)
+    return "./fakebin.sh"
+
+
+def test_prose_from_a_json_adapter_is_unavailable(design, project, write_config, fake_cli):
+    """A changed flag that turns JSON into prose must not read as an answer."""
+    write_config({"adapter": "fake", "bin": _script(project, "echo '<html>oops</html>'")})
+    result = run(design, "search", query="btn")
+    assert result["available"] is False and "expected JSON" in result["reason"]
+
+
+def test_empty_cli_output_is_not_found(design, project, write_config, fake_cli):
+    write_config({"adapter": "fake", "bin": _script(project, "exit 0")})
+    result = run(design, "search", query="btn")
+    assert result["available"] is True and result["found"] is False
+
+
+def test_inventory_that_is_not_a_mapping_is_unavailable(
+    design, project, write_config, inventory
+):
+    inventory.write_text("[]", encoding="utf-8")
+    write_config({"adapter": "static-json"})
+    result = run(design, "search", query="date")
+    assert result["available"] is False and "mapping" in result["reason"]
+
+
+def test_search_without_a_query_does_not_dump_the_inventory(
+    design, project, write_config, inventory
+):
+    write_config({"adapter": "static-json"})
+    result = run(design, "search")
+    assert result["available"] is False and "query" in result["reason"]

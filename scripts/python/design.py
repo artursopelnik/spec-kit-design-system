@@ -77,13 +77,23 @@ STOPWORDS = {
 
 def die(message: str, code: int = 1) -> None:
     print(f"[design] {message}", file=sys.stderr)
+    # Callers parse stdout, so a refusal is JSON there too, not just stderr text.
+    emit({"available": False, "error": message})
     raise SystemExit(code)
 
 
 def emit(obj: Any) -> None:
     """One compact JSON object on stdout, per spec-kit script convention."""
-    json.dump(obj, sys.stdout, separators=(",", ":"), default=str)
-    sys.stdout.write("\n")
+    try:
+        json.dump(obj, sys.stdout, separators=(",", ":"), default=str)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+    except BrokenPipeError:
+        # Reader closed early (`| head`); nothing left to tell it.
+        try:
+            sys.stdout = open(os.devnull, "w")
+        except OSError:
+            pass
 
 
 def load_yaml(path: Path) -> dict:
@@ -332,7 +342,9 @@ def probe_adapter(root: Path, config: dict, adapter: dict) -> dict:
         return {"capabilities": [], "reachable": False, "reason": "adapter maps no capabilities"}
 
     probe = next((name for name in PROBE_ORDER if name in mapped), mapped[0])
-    result = run_capability(root, config, adapter, probe, dict(PROBE_PARAMS.get(probe, {})))
+    result = run_capability(
+        root, config, adapter, probe, dict(PROBE_PARAMS.get(probe, {})), timeout=30
+    )
 
     if not result.get("available"):
         return {
@@ -396,7 +408,12 @@ def dig(data: Any, path: str) -> Any:
 
 
 def run_capability(
-    root: Path, config: dict, adapter: dict, capability: str, params: dict[str, str]
+    root: Path,
+    config: dict,
+    adapter: dict,
+    capability: str,
+    params: dict[str, str],
+    timeout: int = 120,
 ) -> dict:
     spec = (adapter.get("capabilities") or {}).get(capability)
     if not spec:
@@ -420,6 +437,12 @@ def run_capability(
             data = read_structured(path)
         except ValueError as exc:
             return {"capability": capability, "available": False, "reason": str(exc)}
+        if not isinstance(data, dict):
+            return {
+                "capability": capability,
+                "available": False,
+                "reason": f"{path} must hold a mapping at top level, got {type(data).__name__}",
+            }
         result = dig(data, spec.get("result_path", ""))
 
         key_field = spec.get("key_field")
@@ -440,6 +463,13 @@ def run_capability(
                 "found": match is not None,
                 "source": str(path),
                 "data": match,
+            }
+
+        if spec.get("match_fields") and wanted is None and not params.get("query"):
+            return {
+                "capability": capability,
+                "available": False,
+                "reason": f"'{capability}' needs a query",
             }
 
         if spec.get("match_fields") and wanted is None and params.get("query"):
@@ -501,7 +531,7 @@ def run_capability(
 
     try:
         proc = subprocess.run(
-            argv, cwd=base, capture_output=True, text=True, timeout=120, check=False
+            argv, cwd=base, capture_output=True, text=True, timeout=timeout, check=False
         )
     except FileNotFoundError:
         return {
@@ -510,7 +540,7 @@ def run_capability(
             "reason": f"'{argv[0]}' not found. Is the design system CLI installed?",
         }
     except subprocess.TimeoutExpired:
-        return {"capability": capability, "available": False, "reason": "CLI timed out after 120s"}
+        return {"capability": capability, "available": False, "reason": f"CLI timed out after {timeout}s"}
 
     raw = proc.stdout.strip()
     parsed: Any
@@ -550,6 +580,25 @@ def run_capability(
         }
 
     result_path = spec.get("result_path", "")
+    if raw and parsed is None and (result_path or envelope):
+        # The adapter was written against a JSON CLI. Prose here means a flag
+        # or output format changed, which is a failure to ask, not an answer.
+        return {
+            "capability": capability,
+            "available": False,
+            "reason": f"expected JSON from the CLI, got: {raw[:200]}",
+            "exit_code": proc.returncode,
+            "command": " ".join(argv),
+        }
+    if not raw:
+        return {
+            "capability": capability,
+            "available": True,
+            "found": False,
+            "command": " ".join(argv),
+            "result_path_missed": False,
+            "data": None,
+        }
     if parsed is None:
         data: Any = raw
         missed = False
@@ -1321,7 +1370,10 @@ def cmd_rfc(args: argparse.Namespace) -> None:
         return
     # Not a file: treat the argument itself as the RFC. A one-line RFC is a
     # legitimate starting point; the clarify phase exists for exactly that.
-    emit(parse_rfc(source, origin="argument"))
+    result = parse_rfc(source, origin="argument")
+    if "\n" not in source and re.search(r"\.(md|markdown|txt)$", source.strip(), re.I):
+        result["warnings"].insert(0, f"{source} looks like a path but no such file exists")
+    emit(result)
 
 
 def cmd_query(args: argparse.Namespace) -> None:
@@ -1365,6 +1417,8 @@ def cmd_ledger(args: argparse.Namespace) -> None:
     elif args.action == "record":
         if args.value in (None, "-"):
             raw = sys.stdin.read()
+        elif args.value.lstrip().startswith("{"):
+            raw = args.value
         else:
             try:
                 raw = Path(args.value).read_text(encoding="utf-8")
@@ -1443,7 +1497,12 @@ def main() -> None:
     ledger.set_defaults(func=cmd_ledger)
 
     args = parser.parse_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001 - commands degrade on JSON, never a traceback
+        emit({"available": False, "error": f"internal error: {type(exc).__name__}: {exc}"})
 
 
 if __name__ == "__main__":
