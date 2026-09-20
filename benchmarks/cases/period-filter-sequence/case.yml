@@ -1,0 +1,62 @@
+# Ledger benchmark: sequential features with shared surface resolution.
+#
+# Feature 1 decides how to pick a date range (Calendar + Popover in shadcn).
+# Feature 2 asks for the same surface (period selection) worded differently,
+# in the same workspace with the same ledger.
+#
+# Measures: does the agent hit Recall (rung 0) on Feature 2 instead of re-deriving?
+# The extension's ledger is the only way Feature 2 avoids re-walking the ladder
+# for "period" selection when Feature 1 already decided "date range" selection.
+
+id: period-filter-sequence
+title: "Period selection across features (ledger benchmark)"
+kind: ledger-test
+design_system: shadcn
+
+features:
+  - id: feature1
+    rfc: feature1/rfc.md
+    title: "Narrow the booking list by period"
+    surfaces:
+      - id: period-selection
+        capability: "choosing a start and an end date"
+        expected_resolution: compose-components
+        satisfied_by:
+          - [Calendar, Popover]
+          - [Calendar, Popover, Button]
+        forbidden:
+          - pattern: '<input[^>]*type=["'']date'
+            because: "native date inputs drop the theme"
+
+  - id: feature2
+    rfc: feature2/rfc.md
+    title: "Filter invoices by billing period"
+    surfaces:
+      - id: period-selection
+        capability: "selecting a start and end date for the filter"
+        expected_resolution: reuse-from-ledger
+        rationale: "Feature 1 already recorded how to select a date range; recall should hit"
+        satisfied_by:
+          - [Calendar, Popover]
+          - [Calendar, Popover, Button]
+
+# Deterministic measures:
+# - Feature 2 ladder walk: if recall hits, the cost is lower (fewer candidates searched)
+# - Ledger lookup: Feature 2 must call ledger lookup for "date range" or similar term
+# - Token delta: Feature 2 with ledger should cost fewer tokens than Feature 1 did
+measures:
+  - metric: recall_hit
+    description: "Feature 2's period-selection surface resolved via Recall (rung 0)"
+  - metric: ledger_lookup_called
+    description: "Feature 2 invoked ledger lookup, suggesting decision retrieval"
+  - metric: token_savings
+    description: "Feature 2 total tokens vs Feature 1 (savings if ledger recall worked)"
+
+# Subject files for both features (always scored).
+# These are the files the RFCs are about and must be scored whether edited or not.
+always_score:
+  - src/app/bookings/page.tsx
+  - src/app/invoices/page.tsx
+
+# For sequence cases, seed structure is feature<N>/seed/
+# build_workspace() copies feature1/seed to workspace root

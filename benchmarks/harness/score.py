@@ -496,12 +496,68 @@ def metric_criteria_traceability(files, case, system) -> dict:
     }
 
 
+def metric_recall(files: list[dict], case: dict, system: dict) -> dict:
+    """Measure whether a sequence case's second feature hit Recall via the ledger.
+
+    Only applicable to sequence cases. Looks for evidence that feature2's decision
+    came from the ledger (rung 0 Recall) rather than re-derived.
+
+    Evidence: "recalled from ledger", "rung: 0", "recall" in plan/spec for feature2.
+    """
+    if "features" not in case:
+        return {
+            "id": "recall",
+            "applicable": False,
+            "reason": "not a sequence case",
+        }
+
+    # Find design-system.md which contains ladder decisions
+    design_doc = None
+    for f in files:
+        if f["path"] == "design-system.md":
+            design_doc = f.get("content", "")
+            break
+
+    if not design_doc:
+        return {
+            "id": "recall",
+            "applicable": False,
+            "reason": "no design-system.md found",
+        }
+
+    # Look for evidence of recall (rung 0) in the ladder walk
+    # Feature 2 is marked by "## Feature 2" or similar section
+    recall_patterns = [
+        r"(?i)recall(?:ed)?.*(?:ledger|from\s+prior)",
+        r"(?i)rung:\s*0",
+        r"(?i)decision\s+recall",
+    ]
+
+    has_recall = any(re.search(p, design_doc) for p in recall_patterns)
+
+    # Also check if ledger was actually used
+    ledger_called = "ledger" in design_doc.lower() and "lookup" in design_doc.lower()
+
+    score = 1.0 if (has_recall and ledger_called) else 0.0
+
+    return {
+        "id": "recall",
+        "applicable": True,
+        "score": score,
+        "detail": {
+            "ledger_called": ledger_called,
+            "recall_found": has_recall,
+        },
+    }
+
+
 METRICS = (
     metric_inventory_fidelity,
     metric_ladder_outcome,
     metric_token_discipline,
     metric_guideline_coverage,
     metric_criteria_traceability,
+    metric_recall,
 )
 
 

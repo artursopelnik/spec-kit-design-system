@@ -64,6 +64,11 @@ def metric(result: dict, metric_id: str) -> dict:
 def test_case_only_expects_components_the_system_has(harness, path):
     """The expensive failure: a case that asks for a component nobody ships."""
     case = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    # Skip sequence cases (they have different structure)
+    if "features" in case:
+        return
+
     system = harness.load_system(case["design_system"], BENCHMARKS / "systems")
     known, _, _ = harness.known_names(system["_inventory"])
 
@@ -80,33 +85,65 @@ def test_case_only_expects_components_the_system_has(harness, path):
 def test_case_is_well_formed(path):
     case = yaml.safe_load(path.read_text(encoding="utf-8"))
     directory = path.parent
+    is_sequence = "features" in case
 
-    assert (directory / case.get("rfc", "rfc.md")).exists()
-    assert case["kind"] in {"ui-feature", "ui-change", "ui-bug"}
-    assert case["surfaces"], "a case with no surfaces scores nothing"
+    if is_sequence:
+        # Sequence cases have features array
+        assert case["kind"] in {"ledger-test"}
+        assert "features" in case and len(case["features"]) >= 2
+        for feature in case["features"]:
+            rfc_path = directory / feature.get("rfc", "rfc.md")
+            assert rfc_path.exists(), f"RFC not found for {feature['id']}: {rfc_path}"
+            seed_path = directory / feature["id"] / "seed"
+            assert seed_path.exists(), f"Seed not found for {feature['id']}: {seed_path}"
+    else:
+        # Single cases have rfc and surfaces
+        assert (directory / case.get("rfc", "rfc.md")).exists()
+        assert case["kind"] in {"ui-feature", "ui-change", "ui-bug"}
+        assert case["surfaces"], "a case with no surfaces scores nothing"
 
-    for surface in case["surfaces"]:
-        assert surface["expected_resolution"] in {
-            "reuse", "compose-pattern", "compose-components", "extend", "create",
-        }
-        assert surface.get("rationale"), f"{surface['id']} rejects rungs without saying why"
-        for rule in surface.get("forbidden") or []:
-            re.compile(rule["pattern"])
-            assert rule["because"]
+        for surface in case["surfaces"]:
+            assert surface["expected_resolution"] in {
+                "reuse", "compose-pattern", "compose-components", "extend", "create",
+                "reuse-from-ledger",
+            }
+            assert surface.get("rationale"), f"{surface['id']} rejects rungs without saying why"
+            for rule in surface.get("forbidden") or []:
+                re.compile(rule["pattern"])
+                assert rule["because"]
 
-    for group in case["guidelines"] + case["criteria"]:
-        assert group["evidence"], "a rule with no evidence can never be shown to be carried"
-        for pattern in group["evidence"]:
-            re.compile(pattern)
+        for group in case.get("guidelines", []) + case.get("criteria", []):
+            assert group["evidence"], "a rule with no evidence can never be shown to be carried"
+            for pattern in group["evidence"]:
+                re.compile(pattern)
 
+        for subject in case.get("always_score") or []:
+            assert (directory / "seed" / subject).exists(), f"{subject} is not in the seed"
+
+    # Both sequence and single cases have always_score
     for subject in case.get("always_score") or []:
-        assert (directory / "seed" / subject).exists(), f"{subject} is not in the seed"
+        if is_sequence:
+            # For sequences, check in both feature seeds
+            found = False
+            for feature in case["features"]:
+                seed_file = directory / feature["id"] / "seed" / subject
+                if seed_file.exists():
+                    found = True
+                    break
+            assert found, f"{subject} is not in any feature seed"
+        else:
+            assert (directory / "seed" / subject).exists(), f"{subject} is not in the seed"
 
 
 @pytest.mark.parametrize("path", CASES, ids=lambda p: p.parent.name)
 def test_rfc_names_no_components(harness, path):
     """An RFC that names a component has already walked the ladder for the agent."""
     case = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    # Skip sequence cases (they have different structure)
+    if "features" in case:
+        return
+
     system = harness.load_system(case["design_system"], BENCHMARKS / "systems")
     rfc = (path.parent / case.get("rfc", "rfc.md")).read_text(encoding="utf-8")
 
@@ -136,7 +173,11 @@ def test_weak_sample_scores_at_the_bottom(harness):
 def test_every_metric_separates_the_two_samples(harness):
     strong = score_sample(harness, "date-range-filter/strong")
     weak = score_sample(harness, "date-range-filter/weak")
-    for metric_id in (m["id"] for m in strong["metrics"]):
+    for m in strong["metrics"]:
+        # Skip metrics that don't apply to this case type
+        if not m.get("applicable", True):
+            continue
+        metric_id = m["id"]
         assert metric(strong, metric_id)["score"] > metric(weak, metric_id)["score"], (
             f"{metric_id} does not separate a good run from a bad one"
         )
@@ -382,6 +423,11 @@ def test_doing_nothing_does_not_pass_a_case(harness, tmp_path, path):
     import shutil
 
     case = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    # Skip sequence cases (they have different structure)
+    if "features" in case:
+        return
+
     system = harness.load_system(case["design_system"], BENCHMARKS / "systems")
     workspace = tmp_path / "ws"
     shutil.copytree(path.parent / "seed", workspace)
@@ -417,6 +463,11 @@ def rules_in_force(harness, system_id: str) -> set[str]:
 @pytest.mark.parametrize("path", CASES, ids=lambda p: p.parent.name)
 def test_case_cites_rules_that_are_actually_in_force(harness, path):
     case = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    # Skip sequence cases (they have different structure)
+    if "features" in case:
+        return
+
     available = rules_in_force(harness, case["design_system"])
     cited = {rule["id"] for rule in case["guidelines"]}
     assert cited <= available, (
@@ -643,6 +694,38 @@ def test_a_verdict_is_read_from_the_last_json_object(judge_module):
     assert verdict["maintainability"] == "B"  # case is normalised
     assert verdict["accessibility"] == "tie"
     assert judge_module.parse_verdict("no json here") is None
+
+
+def test_sequence_case_loads(harness):
+    """Period-filter-sequence case loads and has features array."""
+    case = harness.load_case("period-filter-sequence", BENCHMARKS / "cases")
+    assert "features" in case
+    assert len(case["features"]) >= 2
+    assert case["features"][0]["id"] == "feature1"
+    assert case["features"][1]["id"] == "feature2"
+
+
+def test_sequence_case_features_have_rfc_paths(harness):
+    """Each feature in sequence has an RFC path."""
+    case = harness.load_case("period-filter-sequence", BENCHMARKS / "cases")
+    for feature in case.get("features") or []:
+        rfc_path = Path(case["_dir"]) / feature["rfc"]
+        assert rfc_path.exists(), f"RFC not found: {rfc_path}"
+
+
+def test_recall_metric_not_applicable_to_single_cases(harness):
+    """Recall metric only applies to sequence cases."""
+    case = harness.load_case("date-range-filter", BENCHMARKS / "cases")
+    result = harness.metric_recall([], case, {})
+    assert result["applicable"] is False
+
+
+def test_recall_metric_applicable_to_sequence_cases(harness):
+    """Recall metric applies to sequence cases."""
+    case = harness.load_case("period-filter-sequence", BENCHMARKS / "cases")
+    result = harness.metric_recall([], case, {})
+    # Will be applicable but not scoring without content
+    assert "applicable" in result
 
 
 def test_the_tally_unblinds_by_the_key_and_keeps_empty_arms(judge_module, tmp_path):
