@@ -90,24 +90,40 @@ ledger:
 # /speckit.designsys.check passes this explicitly when the CLI can report it.
 design_system_version: ""
 
-# --- Baseline ------------------------------------------------------------------
+# --- Rules ---------------------------------------------------------------------
 #
-# Requirements that hold for every design system: accessible, responsive, works
-# with pointer and touch and keyboard, every state defined, no raw values where a
-# token exists. Specs leave these out because they are obvious, which is exactly
-# why nothing checks them and every feature decides for itself.
+# Design requirements come in two layers, because design systems agree on what
+# they want and disagree on the numbers.
 #
-# The rules live in baseline.yml. They contain no colors, no breakpoint widths and
-# no spacing values; those come from YOUR design system through the `tokens` and
-# `breakpoints` capabilities. A rule carrying a concrete value would be inventing
-# the thing it exists to prevent.
-baseline:
-  enabled: true
+# BASELINE (baseline.yml, ships with the extension)
+#   What every design system wants regardless of which one it is: operable by
+#   keyboard, focus visible, works on touch, every state defined, no raw values
+#   where a token exists. Specs leave these out because they are obvious, which
+#   is exactly why nothing checks them.
+#   It deliberately carries no colors, no breakpoint widths and no sizes. Those
+#   belong to a specific system, and a baseline rule holding one would invent
+#   the thing it exists to prevent.
+#
+# HOUSE RULES (rules.yml, yours)
+#   What YOUR design system requires specifically, and where concrete values
+#   belong: a 48px target instead of 44, AAA contrast instead of AA, a motion
+#   budget, a naming convention, a rule about when a Drawer is correct and a
+#   Modal is not.
+#   A house rule sharing an id with a baseline rule REPLACES it. That is how you
+#   tighten the floor rather than switching it off. Copy rules.example.yml to
+#   rules.yml to start.
+#
+# The two stay distinguishable in output via `source`, because relaxing your own
+# house rule is a product decision, while switching off a baseline rule means
+# going below what design systems generally expect.
+rules:
+  baseline: true
+  house_rules: "rules.yml"
 
-  # Rule ids to skip, for example ["BL-MOTION-REDUCED"] in a product with no
-  # animation. A disabled rule is reported in the spec with its reason, never
-  # dropped silently. Run `ds-baseline.sh --json` to list the ids.
-  disabled_rules: []
+  # Rule ids to switch off, from either layer. A disabled rule is reported in
+  # the spec with its reason, never dropped silently.
+  # Run `ds-rules.sh --json` to list the ids currently in force.
+  disabled: []
 
 # --- Gate --------------------------------------------------------------------
 gate:

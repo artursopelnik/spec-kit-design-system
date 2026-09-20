@@ -100,9 +100,29 @@ DatePicker internals.
 
 This is not paperwork. It is the mechanism that distinguishes a real gap the design system should close from a search that was not thorough enough.
 
-## Baseline requirements
+## Rules
 
-Some requirements hold for every design system, which is exactly why no spec states them. "It has to be accessible" and "it has to work on a phone" are too obvious to write down, so they are never written down, so nothing checks them, so the agent decides each time and decides differently each time.
+Design systems have rules. Almost none of them are machine-readable.
+
+Astryx publishes principles through `astryx docs principles`. Radix documents accessibility per component. shadcn leaves a free `meta` field on registry items. All of it is prose, written for a human or an agent to read, and there is no standard for stating a rule in a form something can check against code. So a design system's rules exist, and nothing enforces them.
+
+This extension resolves rules in three layers, in descending authority:
+
+| Layer | Where it lives | Who owns it |
+|---|---|---|
+| **1. The design system's own guidance** | `guidelines` capability | Your design system |
+| **2. House rules** | `rules.yml` | Your team |
+| **3. Baseline** | `baseline.yml`, ships here | Nobody, by design |
+
+**Layer 1 wins.** `/speckit.designsys.sync` asks the system for its own guidance before applying anything assumed on its behalf. Where the system's prose and a lower layer disagree, the system is right and the spec records the conflict.
+
+**Layer 2 is where values belong.** Your minimum target size, your contrast floor, your motion budget, your rule about when a Drawer is wrong. A house rule that reuses a baseline rule's id **replaces** it, which is how you tighten the floor instead of just switching it off.
+
+**Layer 3 claims no authority.** Every baseline rule either cites a WCAG criterion or states a structural obligation design systems already intend. Nothing in it is this extension's opinion about how UI should look. It exists because layer 1 is prose and layer 2 is often empty, and a spec with neither ends up with the agent deciding for itself.
+
+If your design system states its rules properly, set `rules: {baseline: false}` and drop the third layer entirely. That is the correct setting, not a workaround.
+
+### The baseline
 
 `baseline.yml` holds 20 rules covering the five dimensions:
 
@@ -114,7 +134,7 @@ Some requirements hold for every design system, which is exactly why no spec sta
 | **States** | default, hover, focus, active, disabled, loading, error, empty; slow actions acknowledge themselves; failures surface |
 | **Tokens** | no raw hex, px or font stacks where a token exists; no new values added to a scale |
 
-Two properties make this useful rather than noisy, and both are enforced by tests:
+Two properties keep it from overstepping, and both are enforced by tests:
 
 **No rule carries a design value.** There are no colors, no breakpoint widths, no spacing numbers. Those come from your system through the `tokens` and `breakpoints` capabilities. A rule that hardcoded them would invent exactly what it exists to prevent. `320px` and `200%` appear only because WCAG defines them.
 
@@ -124,9 +144,9 @@ Rules are filtered to what the feature actually involves, so a static text block
 
 ```bash
 DS=.specify/extensions/designsys/scripts/bash
-$DS/ds-baseline.sh --json                                # all 20
-$DS/ds-baseline.sh --json --applies-to interactive,layout
-$DS/ds-baseline.sh --json --dimension accessibility
+$DS/ds-rules.sh --json                                # all 20
+$DS/ds-rules.sh --json --applies-to interactive,layout
+$DS/ds-rules.sh --json --dimension accessibility
 ```
 
 Specs cite rules by id rather than restating them, since the text lives in one place and copying it into every spec creates a second source of truth:
@@ -144,12 +164,71 @@ Note that the breakpoint names in that table are real, read back from the design
 Turn individual rules off in config when they genuinely do not apply. A disabled rule is reported in the spec with its reason, never dropped quietly:
 
 ```yaml
-baseline:
-  enabled: true
-  disabled_rules: ["BL-MOTION-REDUCED"]   # product has no animation
+rules:
+  disabled: ["BL-MOTION-REDUCED"]   # product has no animation
 ```
 
 Where a rule maps to a standard it cites the criterion instead of paraphrasing it, so WCAG stays the source of truth for what the rule means.
+
+### House rules
+
+Copy `rules.example.yml` to `rules.yml` and state what your system requires. Same schema as the baseline, and this is where numbers belong, because numbers are what design systems actually disagree about. Two systems both want adequate touch targets; one says 44px and one says 48px.
+
+```yaml
+rules:
+  # Reusing a baseline id replaces that rule. The id stays stable, so anything
+  # already citing it keeps working.
+  - id: BL-A11Y-TARGET-SIZE
+    dimension: accessibility
+    applies_to: interactive
+    requirement: "Pointer targets MUST be at least 48x48px, including padding."
+    verify: "Measure the hit area, not the visible box, at every breakpoint."
+    standard: "WCAG 2.5.8"
+
+  # Or add what only your system has.
+  - id: ACME-OVERLAY-CHOICE
+    dimension: interaction
+    applies_to: interactive
+    requirement: "Destructive confirmations MUST use Modal, never Drawer."
+    verify: "Each overlay matches the kind of decision it asks for."
+    standard: null
+```
+
+Output marks every rule with `source: baseline | house`, because relaxing your own house rule is a product decision while switching off a baseline rule means going below what design systems generally expect. Those are different acts and should not look the same in a review.
+
+### Several repos, one design system
+
+`house_rules` is resolved against the extension directory, then the repository root, then as an absolute path. That second lookup is what makes a multi-repo setup work, because the rules can live inside the design system package itself:
+
+```yaml
+rules:
+  house_rules: "node_modules/@acme/design-system/spec-kit-rules.yml"
+```
+
+Now every repository that installs the package gets the same rules, versioned with the design system that owns them. Nobody copies a rules file into each consumer, and nothing drifts, because there is one file and the package manager distributes it.
+
+This also answers a question the layering raises on its own: if the design system should own its rules, where do they go? Into the design system. Shipping `spec-kit-rules.yml` alongside your components is the closest thing to a machine-readable rule set a design system can publish today, and it costs one file.
+
+The rest of the configuration is per repository, which is what you want. A core components repo, a product repo and a monorepo package each point `bin` and `cwd` at the right place while sharing the same rules:
+
+```yaml
+# packages/web in the monorepo
+adapter: acme
+bin: "pnpm --filter @acme/web exec ds"
+cwd: "packages/web"
+rules:
+  house_rules: "node_modules/@acme/design-system/spec-kit-rules.yml"
+```
+
+```yaml
+# the standalone core-components repo, contributing to the system itself
+adapter: acme
+bin: "pnpm exec ds"
+rules:
+  house_rules: "spec-kit-rules.yml"   # the source of truth lives here
+```
+
+The workflow is identical in both. Only the paths move.
 
 ## The lifecycle
 
@@ -710,7 +789,7 @@ spec-kit-design-system/
 │   │   ├── designsys-common.sh
 │   │   ├── check-design-gate.sh
 │   │   ├── ds-query.sh
-│   │   ├── ds-baseline.sh
+│   │   ├── ds-rules.sh
 │   │   └── ds-ledger.sh
 │   └── python/
 │       └── designsys.py        # All logic lives here
@@ -756,6 +835,22 @@ $DS/check-design-gate.sh --json | python3 -m json.tool
 $DS/ds-query.sh --json component Button
 $DS/ds-ledger.sh --json list
 ```
+
+## Where this came from
+
+This started while working out how to build features for a bank's design system with spec-driven development.
+
+The consumer side already had an answer, and the shape of it was borrowed fairly directly from [Astryx](https://github.com/facebook/astryx): a CLI plus an MCP server, so that a product team's agent can ask the design system what exists instead of guessing. That works. An agent with a component inventory in reach builds with the system rather than around it.
+
+The question that had no answer was the other direction. **What does this look like for contributors?**
+
+A product team consuming the design system is a solved problem once the CLI exists. But someone adding a feature *to* the design system, or building a product feature that turns out to need something the system does not have, sits in a different position. They are the person who decides whether a new component gets created. They are the one whose local, reasonable, working solution becomes the second date picker. No amount of consumer-side tooling reaches them, because by the time they are writing code the decision is already made.
+
+So the tooling had to move earlier, into the spec and the plan, which is exactly where Spec Kit already operates. Hence a gate at `before_plan` rather than a linter at review time, a ladder that has to be walked before planning starts, and a ledger so the second contributor to face the same question inherits the first one's answer.
+
+The multi-repo shape came from the same place. Several repositories assemble into one monorepo, but work happens in individual layers, including the core components themselves. A workflow anchored in the monorepo would have been useless to anyone working in a single repo, so configuration is per repository while the rules travel with the design system package.
+
+None of this is specific to that design system, and nothing about it ships here. What shipped is the part that turned out to be general: the contributor-side half of a design system that already has consumer-side tooling.
 
 ## Status
 

@@ -67,6 +67,18 @@ def baseline_installed(project):
 
 
 @pytest.fixture
+def write_house_rules(project):
+    """Write a project rules.yml, the layer where concrete values belong."""
+
+    def _write(rules: list[dict], name: str = "rules.yml"):
+        path = project / ".specify" / "extensions" / "designsys" / name
+        path.write_text(yaml.safe_dump({"schema_version": "1.0", "rules": rules}), encoding="utf-8")
+        return path
+
+    return _write
+
+
+@pytest.fixture
 def write_config(project):
     def _write(data: dict, local: bool = False):
         name = "designsys-config.local.yml" if local else "designsys-config.yml"

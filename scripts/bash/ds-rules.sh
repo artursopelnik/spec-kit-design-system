@@ -3,9 +3,9 @@
 # are too obvious to write down.
 #
 # Usage:
-#   ds-baseline.sh --json
-#   ds-baseline.sh --json --applies-to interactive,layout
-#   ds-baseline.sh --json --dimension accessibility
+#   ds-rules.sh --json
+#   ds-rules.sh --json --applies-to interactive,layout
+#   ds-rules.sh --json --dimension accessibility
 #
 # `--applies-to` filters to what the feature actually involves, so a static text
 # block does not carry twenty rules about interactive states. Rules marked
@@ -24,4 +24,4 @@ for arg in "$@"; do
     args+=("$arg")
 done
 
-designsys_run baseline "${args[@]}"
+designsys_run rules "${args[@]}"

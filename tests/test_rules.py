@@ -75,11 +75,8 @@ def test_standards_are_cited_not_restated(rules):
 # --- loading and filtering ---------------------------------------------------
 
 
-def test_loads_all_rules_unfiltered(designsys, project, write_config):
-    (project / ".specify" / "extensions" / "designsys" / "baseline.yml").write_text(
-        (REPO / "baseline.yml").read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    result = designsys.load_baseline(Path.cwd(), {})
+def test_loads_all_rules_unfiltered(designsys, project, baseline_installed):
+    result = designsys.load_rules(Path.cwd(), {})
     assert result["enabled"] is True
     assert len(result["rules"]) == len(
         yaml.safe_load((REPO / "baseline.yml").read_text())["rules"]
@@ -91,16 +88,16 @@ def test_filtering_keeps_unconditional_rules(designsys, project, baseline_instal
     the feature is 'just text' is a silently missing requirement."""
     unconditional = {
         rule["id"]
-        for rule in designsys.load_baseline(Path.cwd(), {})["rules"]
+        for rule in designsys.load_rules(Path.cwd(), {})["rules"]
         if rule["applies_to"] == "any"
     }
     for kinds in (["text"], ["media"], ["motion"], ["interactive", "layout"]):
-        got = {rule["id"] for rule in designsys.load_baseline(Path.cwd(), {}, kinds)["rules"]}
+        got = {rule["id"] for rule in designsys.load_rules(Path.cwd(), {}, kinds)["rules"]}
         assert unconditional <= got, kinds
 
 
 def test_filtering_excludes_irrelevant_rules(designsys, project, baseline_installed):
-    text_only = designsys.load_baseline(Path.cwd(), {}, ["text"])
+    text_only = designsys.load_rules(Path.cwd(), {}, ["text"])
     ids = {rule["id"] for rule in text_only["rules"]}
     assert "BL-A11Y-KEYBOARD" not in ids  # interactive
     assert "BL-RESP-FLUID" not in ids  # layout
@@ -109,18 +106,95 @@ def test_filtering_excludes_irrelevant_rules(designsys, project, baseline_instal
 
 
 def test_disabled_rules_are_removed_but_reported(designsys, project, baseline_installed):
-    config = {"baseline": {"disabled_rules": ["BL-MOTION-REDUCED"]}}
-    result = designsys.load_baseline(Path.cwd(), config)
+    config = {"rules": {"disabled": ["BL-MOTION-REDUCED"]}}
+    result = designsys.load_rules(Path.cwd(), config)
     assert "BL-MOTION-REDUCED" not in {rule["id"] for rule in result["rules"]}
     # Reported, so a switched-off rule stays visible in the spec.
     assert result["disabled"] == ["BL-MOTION-REDUCED"]
 
 
-def test_baseline_can_be_turned_off(designsys, project, baseline_installed):
-    result = designsys.load_baseline(Path.cwd(), {"baseline": {"enabled": False}})
-    assert result["enabled"] is False and result["rules"] == []
+def test_baseline_layer_can_be_turned_off(designsys, project, baseline_installed):
+    result = designsys.load_rules(Path.cwd(), {"rules": {"baseline": False}})
+    assert result["rules"] == []
 
 
 def test_breakpoints_is_a_capability(designsys):
     """"Use our breakpoints" is unenforceable unless they can be looked up."""
     assert "breakpoints" in designsys.CAPABILITIES
+
+
+# --- house rules: the layer where a design system states its own policy -------
+
+
+def test_house_rule_adds_a_rule(designsys, project, baseline_installed, write_house_rules):
+    write_house_rules([{
+        "id": "ACME-MOTION-BUDGET", "dimension": "interaction", "applies_to": "motion",
+        "requirement": "Transitions MUST NOT exceed 300ms.", "verify": "Check durations.",
+    }])
+    rules = {r["id"]: r for r in designsys.load_rules(Path.cwd(), {})["rules"]}
+    assert rules["ACME-MOTION-BUDGET"]["source"] == "house"
+    assert rules["BL-A11Y-KEYBOARD"]["source"] == "baseline"
+
+
+def test_house_rule_overrides_a_baseline_rule_by_id(
+    designsys, project, baseline_installed, write_house_rules
+):
+    """Tightening the floor, rather than switching it off and writing a new id
+    that nothing already cites."""
+    write_house_rules([{
+        "id": "BL-A11Y-TARGET-SIZE", "dimension": "accessibility", "applies_to": "interactive",
+        "requirement": "Targets MUST be at least 48x48px.", "verify": "Measure hit areas.",
+    }])
+    result = designsys.load_rules(Path.cwd(), {})
+    rule = next(r for r in result["rules"] if r["id"] == "BL-A11Y-TARGET-SIZE")
+
+    assert "48x48px" in rule["requirement"]
+    assert rule["source"] == "house"
+    assert result["overridden_by_house"] == ["BL-A11Y-TARGET-SIZE"]
+    # Replaced, not duplicated.
+    assert sum(1 for r in result["rules"] if r["id"] == "BL-A11Y-TARGET-SIZE") == 1
+
+
+def test_absent_house_rules_file_is_fine(designsys, project, baseline_installed):
+    result = designsys.load_rules(Path.cwd(), {})
+    assert result["house_rules"] is None
+    assert result["house_rule_count"] == 0
+    assert result["rules"]
+
+
+def test_house_rules_resolve_from_the_repo_root(designsys, project, baseline_installed):
+    """The multi-repo case: rules ship inside the design system package, so every
+    consuming repo reads the same file instead of copying it."""
+    import yaml as _yaml
+
+    vendored = project / "node_modules" / "@acme" / "design-system"
+    vendored.mkdir(parents=True)
+    (vendored / "spec-kit-rules.yml").write_text(
+        _yaml.safe_dump({"rules": [{
+            "id": "ACME-DENSITY", "dimension": "tokens", "applies_to": "layout",
+            "requirement": "A view MUST commit to one density scale.", "verify": "Check tokens.",
+        }]}),
+        encoding="utf-8",
+    )
+    config = {"rules": {"house_rules": "node_modules/@acme/design-system/spec-kit-rules.yml"}}
+    result = designsys.load_rules(Path.cwd(), config)
+
+    assert "ACME-DENSITY" in {r["id"] for r in result["rules"]}
+    assert "node_modules" in result["house_rules"]
+
+
+def test_baseline_can_be_replaced_entirely_by_house_rules(
+    designsys, project, baseline_installed, write_house_rules
+):
+    """A design system that states its own rules should not also inherit ours."""
+    write_house_rules([{
+        "id": "ACME-ONLY", "dimension": "tokens", "applies_to": "any",
+        "requirement": "Everything MUST use tokens.", "verify": "Check.",
+    }])
+    result = designsys.load_rules(Path.cwd(), {"rules": {"baseline": False}})
+    assert [r["id"] for r in result["rules"]] == ["ACME-ONLY"]
+
+
+def test_guidelines_is_a_capability(designsys):
+    """The design system's own prose outranks anything assumed on its behalf."""
+    assert "guidelines" in designsys.CAPABILITIES

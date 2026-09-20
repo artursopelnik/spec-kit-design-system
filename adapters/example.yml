@@ -75,6 +75,14 @@ capabilities:
     args: ["breakpoints"]
     result_path: "data"
 
+  guidelines:
+    # Your design system's own principles and guidance, in whatever form it
+    # publishes them. Systems ship this as prose rather than as checkable rules,
+    # but it is the system speaking for itself, so it outranks anything this
+    # extension assumes on its behalf. Map it if there is anything to map.
+    args: ["docs", "principles"]
+    result_path: "data"
+
   extend:
     # The sanctioned way to customize a component, such as a command that copies
     # its source for local modification. Mapping this makes rung 4 a real check

@@ -1,6 +1,25 @@
 schema_version: "1.0"
 
-# Baseline design requirements.
+# Baseline design requirements: the fallback, not the authority.
+#
+# Your design system owns its rules. This file exists because almost none of
+# them are machine-readable yet. Systems publish principles and accessibility
+# guidance as prose for a human or an agent to read (Astryx has `docs
+# principles`, Radix documents accessibility per component, shadcn leaves a free
+# `meta` field), and there is no standard for stating a rule in a form something
+# can check. So this file states the floor that those prose documents almost
+# always assume, in a form the gate and the audit can actually work with.
+#
+# It claims no authority of its own. Every rule here either cites a WCAG
+# criterion or states a structural obligation that design systems already
+# intend. Nothing here is this extension's opinion about how UI should look.
+#
+# Three things outrank it, in order:
+#   1. What your design system says itself, via the `guidelines` capability.
+#   2. Your house rules in rules.yml, which can replace any rule here by reusing
+#      its id. That is how you tighten the floor rather than merely leaving it.
+#   3. `rules.baseline: false`, which drops this file entirely. If your design
+#      system states its own rules properly, that is the correct setting.
 #
 # These hold for every design system, which is exactly why no spec states them.
 # "It has to be accessible" and "it has to work on a phone" are too obvious to

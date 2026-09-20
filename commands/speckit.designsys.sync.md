@@ -84,21 +84,37 @@ This step exists because "use our colors" and "use our breakpoints" are unenforc
 
 If `breakpoints` is unmapped, check whether the token response already contains them. If neither has them, say so in the spec rather than inventing a set, and mark it `[NEEDS CLARIFICATION]`. A guessed breakpoint set is worse than an admitted gap, because it will look authoritative in every downstream artifact.
 
-### 5. Collect the baseline requirements
+### 5. Ask the design system for its own rules
+
+Before applying anything this extension assumes, ask the system what it says itself:
+
+```
+.specify/extensions/designsys/scripts/bash/ds-query.sh --json guidelines
+```
+
+Design systems publish principles, accessibility commitments and do/don't guidance, almost always as prose rather than as checkable rules. That prose is the system speaking for itself, so **it outranks the baseline in step 6.** Where the two disagree, the system wins and you say so in the spec.
+
+Read it for anything that binds this feature: a rule about which overlay is correct for a destructive action, a stated contrast target, a naming convention. Turn those into `DS-` requirements, because they are this system's law and nothing else will carry them.
+
+If `guidelines` is unmapped, note it. It means the requirements in the next step are the floor with nothing above them.
+
+### 6. Collect the rules in force
 
 Some requirements hold for every design system and therefore appear in no spec. Nobody writes "it has to be accessible" or "it has to work on a phone", so nobody checks them, so each feature decides for itself and decides differently.
 
 First classify what this feature actually involves, from: `interactive`, `layout`, `text`, `media`, `motion`. Then:
 
 ```
-.specify/extensions/designsys/scripts/bash/ds-baseline.sh --json --applies-to interactive,layout
+.specify/extensions/designsys/scripts/bash/ds-rules.sh --json --applies-to interactive,layout
 ```
 
 Classify honestly. Over-claiming buries the spec in rules that do not apply; under-claiming is how a control ships without a focus state. If the feature has anything the user can operate, it is `interactive`. If anything occupies space and reflows, it is `layout`.
 
-The response carries each rule's `id`, `requirement`, `verify` and `standard`. These are not suggestions and they do not need to be re-derived; they are already written as testable requirements.
+The response carries each rule's `id`, `requirement`, `verify`, `standard` and `source`. `source` is `baseline` for the shipped floor and `house` for your project's own rules in `rules.yml`. They are already written as testable requirements and do not need re-deriving.
 
-### 6. Write the spec section
+If a house rule and the system's own guidelines from step 5 disagree, the guidelines win and the conflict belongs in the spec as a `[NEEDS CLARIFICATION]`, because it means the project has codified something its design system contradicts.
+
+### 7. Write the spec section
 
 Fill in the `## Design System Requirements` section of `FEATURE_SPEC`. The `designsys` preset appends this section to the spec template, so it is already scaffolded with its dimension table and candidate table. If the preset is not installed, create the section at the end of the spec instead.
 
@@ -122,10 +138,9 @@ Use `DS-` prefixed, testable requirement IDs in the same MUST/SHOULD style as th
 Then record the applicable baseline rules. Do **not** restate each one in full; cite them by id in a table, since the text lives in `baseline.yml` and duplicating it into every spec creates two sources of truth that will drift:
 
 ```markdown
-### Baseline
+### Rules in force
 
-These apply to every feature in this design system and are not restated here.
-Surface kinds: interactive, layout.
+Cited by id, not restated. Surface kinds: interactive, layout.
 
 | Rule | Dimension | Requirement |
 |---|---|---|
@@ -135,6 +150,7 @@ Surface kinds: interactive, layout.
 | BL-INPUT-NO-HOVER-ONLY | interaction | Nothing reachable only on hover (WCAG 1.4.13) |
 | BL-STATE-COVERAGE | states | default, hover, focus, active, disabled, loading, error, empty |
 | BL-TOKEN-NO-RAW-VALUES | tokens | Use `color.*`, `space.*`, `radius.*`; no raw hex or px |
+| ACME-OVERLAY-CHOICE | interaction | Destructive confirmation uses Modal, not Drawer (house rule) |
 
 Disabled for this project: none.
 ```
@@ -143,7 +159,7 @@ Fill the breakpoint names and token families from step 4, not from memory. A bas
 
 Then cover each dimension in `audit.required_dimensions` from `CONFIG` (states, responsive, accessibility, tokens, interaction). A dimension is covered when a baseline rule or a `DS-` requirement speaks to it. Only write a feature-specific `DS-` requirement where this feature needs something **beyond** the baseline; repeating a baseline rule as a `DS-` entry is noise.
 
-If `BASELINE_DISABLED` from the gate is non-empty, list the disabled rule ids and why. A rule switched off silently is worse than one never written.
+If `RULES_DISABLED` from the gate is non-empty, list the disabled rule ids and why. A rule switched off silently is worse than one never written.
 
 Where the design system's answer is genuinely unclear, use the spec's own idiom rather than guessing:
 
@@ -151,7 +167,7 @@ Where the design system's answer is genuinely unclear, use the spec's own idiom 
 [NEEDS CLARIFICATION: system offers both Drawer and Modal for this flow. Which is correct for a destructive confirmation?]
 ```
 
-### 7. Add measurable success criteria
+### 8. Add measurable success criteria
 
 Add technology-agnostic entries under `## Success Criteria` for what design compliance means here, for example that the feature introduces no new component outside the design system, or that every interactive element is reachable by keyboard. Keep them measurable; "looks consistent" is not a criterion.
 
@@ -163,7 +179,8 @@ Report which surfaces were identified, which components and patterns the system 
 
 - [ ] Every user-facing surface was looked up in the decision ledger
 - [ ] Every user-facing surface in the spec has been searched against the design system
-- [ ] The feature's surface kinds were classified and the matching baseline rules cited by id
+- [ ] The design system was asked for its own guidelines before any assumed rule was applied
+- [ ] The feature's surface kinds were classified and the matching rules cited by id
 - [ ] Breakpoints and token families are named from what the CLI returned, never from memory
 - [ ] `## Design System Requirements` is populated with testable `DS-` IDs for what this feature needs *beyond* the baseline
 - [ ] Every required dimension is covered by a baseline rule or a `DS-` requirement

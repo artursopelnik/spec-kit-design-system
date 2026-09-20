@@ -7,7 +7,7 @@ invoke this module directly and get identical behaviour.
 Subcommands:
     gate                     prerequisites + resolved config as one JSON object
     query <capability> ...   invoke a capability against the design system CLI
-    baseline                 requirements that hold for every design system
+    rules                    the rules in force: baseline plus project house rules
     ledger lookup <phrase>   find prior decisions for a capability
     ledger record <file>     append a decision (JSON object on disk or '-')
     ledger list              all active decisions
@@ -32,6 +32,7 @@ LOCAL_CONFIG_NAME = "designsys-config.local.yml"
 LEDGER_NAME = "design-decisions.yml"
 DESIGN_DOC_NAME = "design-system.md"
 BASELINE_NAME = "baseline.yml"
+HOUSE_RULES_NAME = "rules.yml"
 
 # What a rule can apply to. A feature declares which of these it involves, and
 # only the matching rules reach its spec.
@@ -49,6 +50,10 @@ CAPABILITIES = [
     # Breakpoints are their own query because "use our breakpoints" is
     # unenforceable unless the agent can find out what they actually are.
     "breakpoints",
+    # The design system's own principles and guidance. Systems publish this as
+    # prose rather than as rules, so it cannot be checked mechanically, but it
+    # outranks anything this extension assumes on their behalf.
+    "guidelines",
     "extend",
     "report_gap",
 ]
@@ -457,28 +462,75 @@ def run_capability(
 # --- ledger ------------------------------------------------------------------
 
 
-def load_baseline(root: Path, config: dict, kinds: list[str] | None = None) -> dict:
-    """Requirements that hold for every design system.
+def resolve_house_rules(root: Path, name: str) -> Path | None:
+    """Find the project's rules file.
 
-    Specs omit these because they are obvious, which is exactly why nothing
-    checks them. Filtering by surface kind keeps a spec from carrying twenty
-    rules when the feature is a static text block.
+    Looked up in three places, in order: next to the extension config, relative
+    to the repository root, and as an absolute path. The second is what makes a
+    multi-repo setup work, because it lets the rules live where they belong:
+    inside the design system package itself. Every repo that installs the
+    package then gets the same rules without copying a file into each one, and
+    the design system owns its rules rather than each consumer restating them.
+
+        house_rules: "node_modules/@acme/design-system/spec-kit-rules.yml"
+        house_rules: "../design-system/rules.yml"
     """
-    settings = config.get("baseline") or {}
-    if settings.get("enabled") is False:
-        return {"enabled": False, "rules": [], "disabled": [], "skipped": 0}
+    if not name:
+        return None
+    candidate = Path(name)
+    if candidate.is_absolute():
+        return candidate if candidate.is_file() else None
+    for base in (ext_dir(root), root):
+        path = base / candidate
+        if path.is_file():
+            return path
+    return None
 
-    data = load_yaml(ext_dir(root) / BASELINE_NAME)
-    rules = data.get("rules") or []
 
-    disabled = {str(entry) for entry in (settings.get("disabled_rules") or [])}
+def load_rules(root: Path, config: dict, kinds: list[str] | None = None) -> dict:
+    """The rules in force, in two layers.
+
+    **Baseline** ships with the extension and holds what every design system
+    wants regardless of which one it is. It deliberately carries no colors,
+    breakpoints or sizes, because those belong to a specific system.
+
+    **House rules** are the project's own, and they are where concrete values
+    belong: your minimum target size, your contrast floor, your motion budget.
+    A house rule sharing an id with a baseline rule replaces it, which is how a
+    team tightens the floor rather than merely switching it off.
+
+    The two are distinguishable in the output by `source`, because relaxing your
+    own house rule is a product decision while switching off a baseline rule is
+    a deliberate step below what design systems generally expect.
+    """
+    settings = config.get("rules") or {}
+    disabled = {str(entry) for entry in (settings.get("disabled") or [])}
+
+    layers: list[tuple[str, list]] = []
+    if settings.get("baseline", True):
+        layers.append(("baseline", load_yaml(ext_dir(root) / BASELINE_NAME).get("rules") or []))
+
+    house_path = resolve_house_rules(root, settings.get("house_rules") or HOUSE_RULES_NAME)
+    if house_path:
+        layers.append(("house", load_yaml(house_path).get("rules") or []))
+
+    # Later layers win on id, so a house rule can tighten a baseline one.
+    merged: dict[str, dict] = {}
+    overridden: list[str] = []
+    for source, rules in layers:
+        for rule in rules:
+            if not isinstance(rule, dict) or not rule.get("id"):
+                continue
+            entry = dict(rule)
+            entry["source"] = source
+            if rule["id"] in merged and merged[rule["id"]]["source"] != source:
+                overridden.append(rule["id"])
+            merged[rule["id"]] = entry
+
     wanted = {kind.strip() for kind in (kinds or []) if kind.strip()}
-
     selected, skipped = [], 0
-    for rule in rules:
-        if not isinstance(rule, dict):
-            continue
-        if rule.get("id") in disabled:
+    for rule in merged.values():
+        if rule["id"] in disabled:
             continue
         applies = rule.get("applies_to", "any")
         if wanted and applies != "any" and applies not in wanted:
@@ -486,12 +538,16 @@ def load_baseline(root: Path, config: dict, kinds: list[str] | None = None) -> d
             continue
         selected.append(rule)
 
+    house_count = sum(1 for rule in selected if rule["source"] == "house")
     return {
-        "enabled": True,
+        "enabled": bool(selected) or bool(layers),
         "baseline": str(ext_dir(root) / BASELINE_NAME),
+        "house_rules": str(house_path) if house_path else None,
         "filtered_by": sorted(wanted) or None,
         "rules": selected,
-        # Reported rather than silently dropped: a disabled baseline rule is a
+        "house_rule_count": house_count,
+        "overridden_by_house": sorted(set(overridden)),
+        # Reported rather than silently dropped: a switched-off rule is a
         # decision someone should be able to see and question.
         "disabled": sorted(disabled),
         "skipped_as_not_applicable": skipped,
@@ -634,7 +690,7 @@ def cmd_gate(args: argparse.Namespace) -> None:
     feature = feature_dir(root)
     spec = feature / "spec.md" if feature else None
     probe = probe_adapter(root, config, adapter)
-    baseline = load_baseline(root, config)
+    rules = load_rules(root, config)
 
     emit(
         {
@@ -645,9 +701,11 @@ def cmd_gate(args: argparse.Namespace) -> None:
             "DESIGN_DOC": str(feature / DESIGN_DOC_NAME) if feature else "",
             "LEDGER": str(ledger_path(root)),
             "LEDGER_COUNT": len(load_ledger(root)["decisions"]),
-            "BASELINE_ENABLED": baseline["enabled"],
-            "BASELINE_COUNT": len(baseline["rules"]),
-            "BASELINE_DISABLED": baseline["disabled"],
+            "RULES_COUNT": len(rules["rules"]),
+            "HOUSE_RULE_COUNT": rules["house_rule_count"],
+            "HOUSE_RULES_FILE": rules["house_rules"],
+            "RULES_OVERRIDDEN": rules["overridden_by_house"],
+            "RULES_DISABLED": rules["disabled"],
             "ADAPTER": adapter.get("id", ""),
             "ADAPTER_NAME": adapter.get("name", ""),
             # Empty when the design system could not actually be reached. The
@@ -664,12 +722,14 @@ def cmd_gate(args: argparse.Namespace) -> None:
     )
 
 
-def cmd_baseline(args: argparse.Namespace) -> None:
+def cmd_rules(args: argparse.Namespace) -> None:
     root = repo_root()
     kinds = (args.applies_to or "").split(",") if args.applies_to else None
-    result = load_baseline(root, load_config(root), kinds)
+    result = load_rules(root, load_config(root), kinds)
     if args.dimension:
         result["rules"] = [r for r in result["rules"] if r.get("dimension") == args.dimension]
+    if args.source:
+        result["rules"] = [r for r in result["rules"] if r["source"] == args.source]
     emit(result)
 
 
@@ -744,13 +804,18 @@ def main() -> None:
     query.add_argument("args", nargs="*")
     query.set_defaults(func=cmd_query)
 
-    baseline = sub.add_parser("baseline", parents=[common])
-    baseline.add_argument(
+    rules = sub.add_parser("rules", parents=[common])
+    rules.add_argument(
         "--applies-to",
         help=f"comma-separated surface kinds this feature involves ({', '.join(SURFACE_KINDS)})",
     )
-    baseline.add_argument("--dimension", help="return only rules for one dimension")
-    baseline.set_defaults(func=cmd_baseline)
+    rules.add_argument("--dimension", help="return only rules for one dimension")
+    rules.add_argument(
+        "--source",
+        choices=["baseline", "house"],
+        help="return only the shipped baseline, or only this project's house rules",
+    )
+    rules.set_defaults(func=cmd_rules)
 
     ledger = sub.add_parser("ledger", parents=[common])
     ledger.add_argument("action", choices=["lookup", "record", "list"])

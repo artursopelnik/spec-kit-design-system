@@ -123,8 +123,8 @@ jobs:
       - name: Baseline rules load and filter
         working-directory: proj
         run: |
-          .specify/extensions/designsys/scripts/bash/ds-baseline.sh --json > all.json
-          .specify/extensions/designsys/scripts/bash/ds-baseline.sh --json --applies-to text > text.json
+          .specify/extensions/designsys/scripts/bash/ds-rules.sh --json > all.json
+          .specify/extensions/designsys/scripts/bash/ds-rules.sh --json --applies-to text > text.json
           python - <<'PY'
           import json
           every = json.load(open("all.json"))

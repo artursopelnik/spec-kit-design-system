@@ -33,6 +33,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   aesthetic opinion; both properties are asserted by tests.
 - A `breakpoints` capability, because "use our breakpoints" is unenforceable
   unless the agent can look up what they are.
+- A `guidelines` capability, and a three-layer rule model. The design system's
+  own guidance outranks house rules, which outrank the shipped baseline. The
+  baseline claims no authority: it exists because design systems publish rules
+  as prose (Astryx `docs principles`, Radix per-component accessibility docs,
+  shadcn's free `meta` field) and no standard exists for stating one in a form
+  anything can check. `rules.baseline: false` drops it entirely, which is the
+  correct setting for a system that states its own rules.
+- House rules (`rules.yml`), where concrete values belong. A house rule reusing
+  a baseline rule's id replaces it, so a team tightens the floor rather than
+  switching it off. `house_rules` resolves from the extension directory, the
+  repository root, or an absolute path, so the rules can ship inside the design
+  system package and reach every consuming repository without being copied.
 - Rung-5 gaps are written as standalone `design-system-gap-<slug>.md` RFC files
   so they can travel to another team or tracker unchanged, rather than living
   as a section inside the feature's design doc.

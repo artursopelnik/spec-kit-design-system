@@ -90,13 +90,16 @@ config:
       # no decision, because it looks authoritative.
       revalidate_when_stale: true
 
-    baseline:
-      # Requirements true of every design system, which specs leave out because
-      # they are assumed. Written into the spec so they are stated once and
-      # checkable, rather than re-invented per feature.
-      enabled: true
-      # Rule ids to skip. A disabled rule is reported, not hidden.
-      disabled_rules: []
+    rules:
+      # Two layers. The baseline ships here and holds what every design system
+      # wants, carrying no concrete values. House rules are the project's own,
+      # and are where values belong: your target size, your contrast floor.
+      # A house rule sharing an id with a baseline rule replaces it, so a team
+      # tightens the floor rather than merely switching it off.
+      baseline: true
+      house_rules: "rules.yml"
+      # Rule ids to switch off, from either layer. Reported, not hidden.
+      disabled: []
 
     gate:
       # Block planning when the ladder was not walked or its rungs are unjustified.

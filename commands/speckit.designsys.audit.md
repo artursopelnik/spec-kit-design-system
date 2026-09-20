@@ -39,12 +39,12 @@ For every surface in `DESIGN_DOC`, verify the code did what was decided:
 
 Flag anything built bespoke that never appeared in `DESIGN_DOC` at all. This is the highest-value finding the audit produces: it is the exact failure this extension exists to catch, and it will usually look locally reasonable.
 
-### 3. Check the baseline
+### 3. Check the rules in force
 
-The spec's `### Baseline` table cites rule ids rather than restating them. Fetch the text:
+The spec's `### Rules in force` table cites rule ids rather than restating them. Fetch the text:
 
 ```
-.specify/extensions/designsys/scripts/bash/ds-baseline.sh --json --applies-to <kinds from the spec>
+.specify/extensions/designsys/scripts/bash/ds-rules.sh --json --applies-to <kinds from the spec>
 ```
 
 Each rule carries a `verify` field saying how to check it. Work through them. These are the requirements nobody writes down, so they are also the ones nobody checks, which makes them the most likely to be missing: a control with no focus style, a layout that breaks at 320px, an action reachable only on hover, a raw hex where a token exists.
@@ -57,7 +57,7 @@ Report a baseline finding under its own rule id, so it is traceable to the rule 
 | violation | Filter row | BL-A11Y-FOCUS-VISIBLE: outline:none with no replacement | Restore a focus indicator |
 ```
 
-A rule listed in `BASELINE_DISABLED` is not checked. Note in the report that it was skipped and why, rather than passing over it silently.
+A rule listed in `RULES_DISABLED` is not checked. Note in the report that it was skipped and why, rather than passing over it silently.
 
 ### 4. Check the dimensions
 
