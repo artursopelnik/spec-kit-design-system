@@ -22,6 +22,17 @@ That is the whole interface. You do not drive the phases, manage context, or con
 - **A gate that actually blocks.** `/speckit.plan` does not start until every UI surface has a documented resolution: candidates searched, and why the chosen rung is the lowest that holds. Design rules become numbered spec requirements (`DS-001: … MUST …`) with acceptance criteria.
 - **Validated by your design system, not by the implementer.** After implementing, a separate pass checks the result against the spec and the ladder decisions, and runs your design system's own lint or token audit when the adapter maps one. Findings go back into implementation and are re-validated, up to 3 rounds.
 
+### Why you need this Extension
+
+Spec Kit's hooks (`before_plan`, `after_implement`, …) give you the *when*. You still have to build the *what*:
+
+- **Asking your design system**, not guessing, through an adapter (CLI, MCP, or files) that works with any design system.
+- **A gate that fails closed.** If the design system can't be reached, planning stops. It never silently continues as if the design system had nothing to say.
+- **Validation that converges**: findings are tracked as checkboxes and re-checked in bounded rounds, instead of one prompt that says "review against the design system".
+- **A ledger** of Reuse → Compose → Extend → Create decisions, so the same call isn't re-argued in every feature.
+
+If you only need a reminder before planning, a hook of your own is enough. If you want the design system to be a real constraint, this is that hook set, already built and tested.
+
 ## What is an RFC?
 
 An RFC (request for comments) is a short document that says **what should change and why**, before anyone builds it. It is the only input this extension takes. It is not a spec: no component names, no implementation, no design decisions. Those come out of the workflow.
