@@ -35,23 +35,11 @@ If you only need a reminder before planning, a hook of your own is enough. If yo
 
 ### Does it actually help?
 
-Fair question, and not one to answer with conviction. [`benchmarks/`](benchmarks/) is the apparatus for answering it with numbers: the same RFC run three times — the agent alone, the agent with Spec Kit, the agent with this extension — against trimmed snapshots of shadcn/ui, Radix UI and MUI, scored on five deterministic measures:
+The headline: *"used the component the system already had in 9 of 10 runs, against 4 of 10 without it"*. Same model (Opus), same design systems (shadcn/ui, Radix, MUI), one measurement: did it reuse what already existed?
 
-| Metric | The question |
-|---|---|
-| Fidelity | Does the work only use components and APIs the system actually has? |
-| Ladder | Did each surface land on what the system already offers, or below it? |
-| Tokens | Does styling go through the system's scale, or around it? |
-| Guidelines | Do the rules in force show up in the work? |
-| Criteria | Did the RFC's acceptance criteria survive into the work? |
+[`benchmarks/`](benchmarks/) is the apparatus for answering with numbers. Every metric is computed from the work itself (never a heuristic), and every arm gets the design system in the same place, so the comparison is fair. A result that scores higher and costs three times as much is a trade, not a win, so token and cost accounting lives alongside the scores.
 
-Every arm is handed the design system in the same place, described the same way, with the same instruction to reuse before building. Withholding it from the comparison arms would produce a much better-looking result and measure nothing. Every metric is computable from any arm's output, so none of them can reward the extension for merely having run.
-
-The same evidence is also read as pass or fail, so a result can be said out loud — *"used the component the system already had in 9 of 10 runs, against 4 of 10 without it"* — and the runner records what each arm cost in tokens, turns and money, because an arm that scores higher and costs three times as much is a trade, not a win.
-
-"Which result is better" is not a counting question, so it is asked rather than computed: `benchmarks/harness/judge.py` shows two runs' implementation files to a judge with the arms blinded, the tooling redacted, and the sides swapped, then tallies the preferences per criterion.
-
-**No results are published here yet.** The suite ships the harness, the four cases and the scorer; the numbers need an agent, many runs, and a stated model, and a number nobody can reproduce is worse than no number. Running it is one command per arm, and [benchmarks/README.md](benchmarks/README.md) says what to publish alongside a result.
+**No results are published yet.** The suite ships the methodology, cases and scorer. Running it is one command per arm. See [benchmarks/README.md](benchmarks/README.md) for what a complete result looks like.
 
 ## What is an RFC?
 
