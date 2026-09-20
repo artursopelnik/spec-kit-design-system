@@ -147,15 +147,16 @@ This is not paperwork. It is the mechanism that distinguishes a real gap the des
 ### Install
 
 ```bash
-# From within a spec-kit project, from a local clone
+git clone https://github.com/artursopelnik/spec-kit-design-system
+
+# From within your spec-kit project
 specify extension add --dev /path/to/spec-kit-design-system
 specify preset add --dev /path/to/spec-kit-design-system/preset
-
-# Or from a release archive
-specify extension add designsys --from https://github.com/artursopelnik/spec-kit-design-system/releases/latest/download/designsys.tar.gz
 ```
 
 The extension and preset install separately, because the preset lives in the `preset/` subdirectory of this repo.
+
+No release archive is published yet, so installing from a clone is the only path for now. Once there is one, `specify extension add designsys --from <url>` will work too.
 
 Both ship together on purpose. Extensions can only *replace* templates, which would fork your `spec-template` and strand you on whatever version it was copied from. Presets can `append`, which is how the design sections get composed in without forking anything.
 

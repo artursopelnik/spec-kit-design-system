@@ -17,11 +17,10 @@ requires:
   # broken. A floor of 0.2.0 was claimed before anything was actually installed,
   # which is the failure mode that makes catalog entries unusable.
   speckit_version: ">=1.0.0,<2.0.0"
-  tools:
-    # The design system CLI itself is named in designsys-config.yml, not here,
-    # because it differs per project (astryx, an in-house binary, no CLI at all).
-    - name: jq
-      required: false
+  # No tools are declared here. The design system CLI is named in
+  # designsys-config.yml instead, because it differs per project (astryx, an
+  # in-house binary, or no CLI at all), and declaring one would imply a
+  # dependency this extension does not have.
 
 provides:
   commands:
