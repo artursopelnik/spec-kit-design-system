@@ -1,8 +1,8 @@
 schema_version: "1.0"
 
 preset:
-  id: "designsys"
-  name: "Design System Requirements: templates"
+  id: "design"
+  name: "Spec Kit Design System: templates"
   version: "0.1.0"
   description: "Composes design requirements into the spec, plan and constitution templates so design is a first-class concern of the workflow itself"
   author: "artursopelnik"

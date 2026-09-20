@@ -3,7 +3,7 @@
 The layout mirrors what `specify extension add` actually produces, verified
 against Spec Kit 1.0.9.dev0:
 
-    .specify/extensions/designsys/{extension.yml,designsys-config.yml,adapters/}
+    .specify/extensions/design/{extension.yml,design-config.yml,adapters/,guidelines/}
     .specify/memory/
     .specify/feature.json
     specs/<feature>/spec.md
@@ -25,12 +25,12 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(scope="session")
-def designsys():
+def design():
     spec = importlib.util.spec_from_file_location(
-        "designsys", REPO / "scripts" / "python" / "designsys.py"
+        "design", REPO / "scripts" / "python" / "design.py"
     )
     module = importlib.util.module_from_spec(spec)
-    sys.modules["designsys"] = module
+    sys.modules["design"] = module
     spec.loader.exec_module(module)
     return module
 
@@ -38,7 +38,7 @@ def designsys():
 @pytest.fixture
 def project(tmp_path, monkeypatch):
     """A spec-kit project with the extension installed, cwd set into it."""
-    ext = tmp_path / ".specify" / "extensions" / "designsys"
+    ext = tmp_path / ".specify" / "extensions" / "design"
     (ext / "adapters").mkdir(parents=True)
     (tmp_path / ".specify" / "memory").mkdir(parents=True)
 
@@ -50,29 +50,33 @@ def project(tmp_path, monkeypatch):
         )
 
     monkeypatch.chdir(tmp_path)
-    # Leak-proofing: a stray SPECKIT_DESIGNSYS_* in the developer's shell would
+    # Leak-proofing: a stray SPECKIT_DESIGN_* in the developer's shell would
     # otherwise silently override config under test.
     for key in list(os.environ):
-        if key.startswith(("SPECKIT_DESIGNSYS_", "SPECIFY_")):
+        if key.startswith(("SPECKIT_DESIGN_", "SPECIFY_")):
             monkeypatch.delenv(key, raising=False)
     return tmp_path
 
 
 @pytest.fixture
-def baseline_installed(project):
-    """baseline.yml as the installer places it, next to extension.yml."""
-    target = project / ".specify" / "extensions" / "designsys" / "baseline.yml"
-    target.write_text((REPO / "baseline.yml").read_text(encoding="utf-8"), encoding="utf-8")
+def defaults_installed(project):
+    """guidelines/default.yml as the installer places it, under the extension dir."""
+    target = project / ".specify" / "extensions" / "design" / "guidelines" / "default.yml"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        (REPO / "guidelines" / "default.yml").read_text(encoding="utf-8"), encoding="utf-8"
+    )
     return target
 
 
 @pytest.fixture
-def write_house_rules(project):
-    """Write a project rules.yml, the layer where concrete values belong."""
+def write_ds_guidelines(project):
+    """Guidelines published by the design system itself, as static data it ships."""
 
-    def _write(rules: list[dict], name: str = "rules.yml"):
-        path = project / ".specify" / "extensions" / "designsys" / name
-        path.write_text(yaml.safe_dump({"schema_version": "1.0", "rules": rules}), encoding="utf-8")
+    def _write(payload, name: str = "node_modules/@acme/design-system/guidelines.yml"):
+        path = project / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(payload), encoding="utf-8")
         return path
 
     return _write
@@ -81,8 +85,8 @@ def write_house_rules(project):
 @pytest.fixture
 def write_config(project):
     def _write(data: dict, local: bool = False):
-        name = "designsys-config.local.yml" if local else "designsys-config.yml"
-        path = project / ".specify" / "extensions" / "designsys" / name
+        name = "design-config.local.yml" if local else "design-config.yml"
+        path = project / ".specify" / "extensions" / "design" / name
         path.write_text(yaml.safe_dump(data), encoding="utf-8")
         return path
 
@@ -135,6 +139,7 @@ def inventory(project):
                     {"name": "FilterBar", "description": "Horizontal row of filter controls"}
                 ],
                 "tokens": {"space": {"3": "12px"}},
+                "breakpoints": {"sm": "640px", "md": "768px"},
             }
         ),
         encoding="utf-8",
@@ -151,13 +156,15 @@ def fake_cli(project):
             """\
             #!/usr/bin/env bash
             case "$1" in
-              boom)    echo '{"error":"not found"}'; exit 3 ;;
-              unknown) echo '{"code":"ERR_REGISTRY_DOWN"}' ;;
-              missing) echo '{"code":"ERR_GONE"}' ;;
-              prose)   echo 'not json at all' ;;
-              *)       printf '{"type":"argv","data":' ;
-                       python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]),end="")' "$@" ;
-                       printf '}\\n' ;;
+              boom)       echo '{"error":"not found"}'; exit 3 ;;
+              guidelines) echo '{"type":"docs","data":{"prose":"Acme speaks for itself.","rules":[{"id":"CLI-ONE","dimension":"tokens","applies_to":"any","requirement":"Everything MUST use tokens.","verify":"Check."}]}}' ;;
+              envelopeless) echo '{"loose":"payload"}' ;;
+              unknown)    echo '{"code":"ERR_REGISTRY_DOWN"}' ;;
+              missing)    echo '{"code":"ERR_GONE"}' ;;
+              prose)      echo 'not json at all' ;;
+              *)          printf '{"type":"argv","data":' ;
+                          python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]),end="")' "$@" ;
+                          printf '}\\n' ;;
             esac
             """
         ),
@@ -165,7 +172,7 @@ def fake_cli(project):
     )
     path.chmod(0o755)
 
-    adapter = project / ".specify" / "extensions" / "designsys" / "adapters" / "fake.yml"
+    adapter = project / ".specify" / "extensions" / "design" / "adapters" / "fake.yml"
     adapter.write_text(
         yaml.safe_dump(
             {
@@ -181,6 +188,7 @@ def fake_cli(project):
                 "registries": ["@one", "@two"],
                 "capabilities": {
                     "search": {"args": ["ok", "{query}", "{registries}"], "result_path": "data"},
+                    "guidelines": {"args": ["guidelines"], "result_path": "data"},
                     "component": {
                         "args": ["{name}"],
                         "result_path": "data",

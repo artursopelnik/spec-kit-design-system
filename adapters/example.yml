@@ -2,9 +2,8 @@
 #
 # Nothing here describes a real product. `your-design-system-cli` is a
 # placeholder and the flags are invented, so this file will not run as-is.
-# That is deliberate: an adapter shipped for a specific design system would be
-# a guess about someone else's command surface, and a stale guess in this
-# directory is worse than no example, because it looks authoritative.
+# For adapters that do run, see `astryx.yml` and `shadcn.yml`, each written
+# from that CLI's documented surface.
 #
 # If your CLI can describe itself (some emit a JSON manifest of their commands,
 # arguments and response types), ask it first and write the mapping from what it
@@ -22,9 +21,9 @@ global_args: ["--json"]
 
 # How to read the CLI's response envelope. Omit if it returns bare JSON.
 envelope:
-  type_key: "type"          # key naming the response kind, if any
-  data_key: "data"          # key holding the payload
-  error_code_key: "code"    # key holding a machine-readable error code
+  type_key: "type" # key naming the response kind, if any
+  data_key: "data" # key holding the payload
+  error_code_key: "code" # key holding a machine-readable error code
 
 capabilities:
   # --- required ---------------------------------------------------------------
@@ -77,9 +76,9 @@ capabilities:
 
   guidelines:
     # Your design system's own principles and guidance, in whatever form it
-    # publishes them. Systems ship this as prose rather than as checkable rules,
-    # but it is the system speaking for itself, so it outranks anything this
-    # extension assumes on its behalf. Map it if there is anything to map.
+    # publishes them. Prose, a rule list, or both. When this answers, it IS the
+    # guidelines for the run: the default set shipped with this extension is not
+    # merged in and not consulted. Map it if there is anything to map.
     args: ["docs", "principles"]
     result_path: "data"
 
@@ -94,4 +93,11 @@ capabilities:
     # Where a genuine gap is filed. Mapping this means rung 5 routes into the
     # design system's own intake instead of dead-ending in a document.
     args: ["request", "--title", "{title}", "--body", "{body}"]
+    result_path: "data"
+
+  validate:
+    # Some systems can check an implementation themselves: a lint rule, a token
+    # audit, a codemod in --check mode. Mapping this makes the validate phase
+    # ask the design system rather than only reasoning about it.
+    args: ["lint", "{target}"]
     result_path: "data"

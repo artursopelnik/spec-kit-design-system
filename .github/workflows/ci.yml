@@ -27,13 +27,26 @@ jobs:
         run: python -m pytest
 
       - name: Check shell scripts parse
-        run: for f in scripts/bash/*.sh; do bash -n "$f"; done
+        run: for f in scripts/bash/*.sh examples/*.sh; do bash -n "$f"; done
 
       - name: Check YAML parses
         run: |
-          for f in extension.yml config-template.yml adapters/*.yml preset/preset.yml; do
+          for f in extension.yml config-template.yml adapters/*.yml guidelines/*.yml preset/preset.yml; do
             python -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" "$f"
           done
+
+  format:
+    name: Prettier (docs and adapters)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Scope lives in .prettierignore; commands/*.md are deliberately excluded.
+      - name: Check formatting
+        run: npx --yes prettier@3 --check docs adapters
 
   integration:
     name: Real install against Spec Kit
@@ -69,8 +82,8 @@ jobs:
           python - <<'PY'
           from specify_cli.extensions import ExtensionManifest
           import specify_cli.presets as presets
-          ExtensionManifest(".specify/extensions/designsys/extension.yml")
-          presets.PresetManifest(".specify/extensions/designsys/preset/preset.yml")
+          ExtensionManifest(".specify/extensions/design/extension.yml")
+          presets.PresetManifest(".specify/extensions/design/preset/preset.yml")
           print("manifests valid")
           PY
 
@@ -84,7 +97,7 @@ jobs:
           for event in ("after_specify", "before_plan", "after_implement"):
               entries = hooks.get(event) or []
               assert entries, f"{event} not registered"
-              assert entries[0]["extension"] == "designsys", entries
+              assert entries[0]["extension"] == "design", entries
           gate = hooks["before_plan"][0]
           # The gate is worthless if it is skippable.
           assert gate["optional"] is False, gate
@@ -116,41 +129,43 @@ jobs:
       - name: Scripts run from the installed location
         working-directory: proj
         run: |
-          printf 'adapter: static-json\n' > .specify/extensions/designsys/designsys-config.yml
-          .specify/extensions/designsys/scripts/bash/check-design-gate.sh --json \
+          printf 'adapter: static-json\n' > .specify/extensions/design/design-config.yml
+          .specify/extensions/design/scripts/bash/ds.sh gate --json \
             | python -c "import json,sys; d=json.load(sys.stdin); print('gate ok, adapter', d['ADAPTER'])"
 
-      - name: Baseline rules load and filter
+      - name: Default guidelines load and filter when the system supplies none
         working-directory: proj
         run: |
-          .specify/extensions/designsys/scripts/bash/ds-rules.sh --json > all.json
-          .specify/extensions/designsys/scripts/bash/ds-rules.sh --json --applies-to text > text.json
+          DS=.specify/extensions/design/scripts/bash/ds.sh
+          $DS guidelines --json > all.json
+          $DS guidelines --json --applies-to text > text.json
           python - <<'PY'
           import json
           every = json.load(open("all.json"))
           text = json.load(open("text.json"))
-          assert every["enabled"] and every["rules"], every
+          assert every["source"] == "default", every["source"]
+          assert every["rules"], every
           assert len(text["rules"]) < len(every["rules"]), "filtering did nothing"
           unconditional = {r["id"] for r in every["rules"] if r["applies_to"] == "any"}
-          got = {r["id"] for r in text["rules"]}
-          assert unconditional <= got, "an unconditional rule was filtered away"
-          print(f"baseline ok: {len(every['rules'])} rules, {len(text['rules'])} apply to text")
+          assert unconditional <= {r["id"] for r in text["rules"]}, "an unconditional rule was filtered away"
+          print(f"defaults ok: {len(every['rules'])} guidelines, {len(text['rules'])} apply to text")
           PY
 
       - name: The example walkthrough still works
         run: |
           "$GITHUB_WORKSPACE/extension/examples/setup-demo.sh" "$RUNNER_TEMP/demo"
           cd "$RUNNER_TEMP/demo"
-          DS=.specify/extensions/designsys/scripts/bash
-          $DS/check-design-gate.sh --json > gate.json
-          $DS/ds-query.sh --json search "confirm destructive action" > search.json
-          $DS/ds-rules.sh --json --applies-to interactive,layout > rules.json
+          DS=.specify/extensions/design/scripts/bash/ds.sh
+          $DS gate --json > gate.json
+          $DS query search "confirm destructive action" --json > search.json
+          $DS guidelines --applies-to interactive,layout --json > guidelines.json
+          $DS context implement --json > context.json
           python - <<'PY'
           import json
           gate = json.load(open("gate.json"))
           assert gate["REACHABLE"] is True, gate
-          assert gate["HOUSE_RULE_COUNT"] == 4, gate
-          assert gate["RULES_OVERRIDDEN"] == ["BL-A11Y-TARGET-SIZE"], gate
+          # Acme publishes its own guidelines, so ours are never consulted.
+          assert gate["GUIDELINES_SOURCE"] == "adapter", gate
 
           hits = json.load(open("search.json"))["data"]
           # Ranking has to be meaningful, not insertion order: the pattern built
@@ -158,20 +173,46 @@ jobs:
           assert hits[0]["name"] == "ConfirmDialog", [h["name"] for h in hits]
           assert len({h["score"] for h in hits}) > 1, hits
 
-          rules = json.load(open("rules.json"))
-          sources = {r["source"] for r in rules["rules"]}
-          assert sources == {"baseline", "house"}, sources
+          guidelines = json.load(open("guidelines.json"))
+          ids = {r["id"] for r in guidelines["rules"]}
+          assert ids and all(i.startswith("ACME-") for i in ids), ids
+          assert "keyboard-first" in guidelines["prose"], guidelines["prose"]
+
+          context = json.load(open("context.json"))
+          # Focused: no component arrives unasked for. Not restricted: every
+          # capability is advertised with the call that retrieves it.
+          assert context["components"] == {}, context["components"]
+          assert "ConfirmDialog" not in json.dumps(context)
+          assert "component" in context["available_on_demand"], context
           print("walkthrough ok")
+          PY
+
+      - name: The autonomous workflow reports where it is
+        working-directory: proj
+        run: |
+          DS=.specify/extensions/design/scripts/bash/ds.sh
+          printf '# RFC: Filter bookings\n\n## Problem\nUsers scroll.\n\n## Proposal\nA date range control above the list.\n' > rfc.md
+          $DS rfc rfc.md --json > rfc.json
+          $DS workflow status --json > status.json
+          python - <<'PY'
+          import json
+          rfc = json.load(open("rfc.json"))
+          assert rfc["title"].startswith("RFC:"), rfc
+          assert rfc["ui_bearing"] is True, rfc
+          status = json.load(open("status.json"))
+          # No feature yet, so the run starts by specifying one.
+          assert status["next"] == "specify", status
+          print("workflow status ok")
           PY
 
       - name: Gate fails closed when the design system is unreachable
         working-directory: proj
         run: |
           printf 'adapter: example\nbin: "./not-installed"\n' \
-            > .specify/extensions/designsys/designsys-config.yml
+            > .specify/extensions/design/design-config.yml
           # Capture to a file rather than piping: a heredoc would otherwise take
           # over stdin and the gate output would never reach the checker.
-          .specify/extensions/designsys/scripts/bash/check-design-gate.sh --json > gate.json
+          .specify/extensions/design/scripts/bash/ds.sh gate --json > gate.json
           python - <<'PY'
           import json
           payload = json.load(open("gate.json"))

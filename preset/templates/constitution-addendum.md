@@ -1,6 +1,6 @@
 
 <!--
-  Appended by the designsys preset. Renumber to follow the principles already in
+  Appended by the design preset. Renumber to follow the principles already in
   your constitution, then run /speckit.constitution to materialize and version it.
 
   Why this belongs in the constitution rather than only in the extension:
@@ -33,6 +33,12 @@ Design requirements (states, responsive behaviour, accessibility, tokens and int
 MUST be stated in the specification and carried into the plan. They are requirements,
 not review comments. Raw color, spacing and typography values MUST NOT be used where a
 design token exists.
+
+The design system's own guidelines, where it publishes any, are the authority for how its
+components are used. Nothing MAY be substituted for them or merged into them. An
+implementation MUST be validated against the specification and those guidelines by a pass
+independent of the one that wrote it, and findings MUST be resolved or argued in writing
+before the feature is considered done.
 
 **Rationale**: coding agents are fast enough to build a locally plausible component before
 anyone thinks to look for the existing one, and the result passes review because it works.

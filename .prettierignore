@@ -1,0 +1,9 @@
+# Prettier is for docs/ and adapters/ only; everything else is off limits.
+# commands/*.md are agent-facing prose whose formats (- [ ] DS-F-nnn,
+# ## Validation round N) are a contract with workflow_status.
+*
+!docs/
+!docs/**
+!adapters/
+!adapters/**
+!.prettierrc

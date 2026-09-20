@@ -2,13 +2,13 @@
 ## Design System Requirements *(include if the feature has a user-facing surface)*
 
 <!--
-  Populated by /speckit.designsys.sync against the design system CLI.
+  Populated by /speckit.design.context against the design system.
   Do not fill these from memory. A remembered component inventory is the exact
   failure this section exists to prevent. If the CLI is unreachable, leave the
   section marked unresolved rather than guessing.
 -->
 
-**Design system**: [NAME, resolved from designsys-config.yml]
+**Design system**: [NAME, resolved from design-config.yml]
 **Surfaces identified**: [capability phrases, not component names]
 **Breakpoints**: [the system's own names, retrieved from it, never invented]
 **Token families in play**: [e.g. `color.surface.*`, `space.*`, `radius.*`]
@@ -27,24 +27,25 @@ functional requirements above.
 Mark genuine ambiguity rather than resolving it silently:
 `[NEEDS CLARIFICATION: system offers both Drawer and Modal here. Which is correct?]`
 
-### Baseline
+### Guidelines in force
 
-Requirements that hold for every feature in this design system, cited by id rather
-than restated. The text lives in the extension's `baseline.yml`; copying it here
+Cited by id rather than restated. The text lives at its source; copying it here
 would create a second source of truth that drifts.
 
+**Source**: cli | adapter | default — where these came from. `default` means the
+design system supplied none and the extension's small default set applies.
 **Surface kinds**: [interactive, layout, text, media, motion — whichever apply]
 
-| Rule | Dimension | Requirement |
+| Guideline | Dimension | Requirement |
 |---|---|---|
-| BL-… | … | [one line, with the system's real breakpoint and token names filled in] |
+| … | … | [one line, with the system's real breakpoint and token names filled in] |
 
-**Disabled for this project**: [rule ids and why, or none]
+**Disabled for this project**: [ids and why, or none]
 
 ### Dimensions
 
 Every dimension must be answered or explicitly excluded with a reason. A dimension
-counts as covered when a baseline rule or a `DS-` requirement speaks to it.
+counts as covered when a guideline or a `DS-` requirement speaks to it.
 
 | Dimension | Requirement | Covered by |
 |---|---|---|
@@ -57,7 +58,7 @@ counts as covered when a baseline rule or a `DS-` requirement speaks to it.
 ### Candidates surfaced
 
 What the design system offered for each surface. This is evidence for the reuse
-ladder in `/speckit.designsys.check`, not a decision. The decision is made there,
+ladder in `/speckit.design.check`, not a decision. The decision is made there,
 deliberately, and recorded in `design-system.md`.
 
 | Surface | Candidates | Source |

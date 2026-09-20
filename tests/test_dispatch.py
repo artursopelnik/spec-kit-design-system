@@ -11,55 +11,55 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def run(designsys, capability, **params):
+def run(design, capability, **params):
     root = Path.cwd()
-    config = designsys.load_config(root)
-    adapter = designsys.load_adapter(root, config)
-    return designsys.run_capability(root, config, adapter, capability, params)
+    config = design.load_config(root)
+    adapter = design.load_adapter(root, config)
+    return design.run_capability(root, config, adapter, capability, params)
 
 
 # --- static inventory --------------------------------------------------------
 
 
-def test_static_inventory_returns_one_component(designsys, project, write_config, inventory):
+def test_static_inventory_returns_one_component(design, project, write_config, inventory):
     write_config({"adapter": "static-json"})
-    result = run(designsys, "component", name="Calendar")
+    result = run(design, "component", name="Calendar")
     assert result["found"] is True
     assert result["data"]["name"] == "Calendar"
 
 
-def test_static_inventory_reports_a_real_miss(designsys, project, write_config, inventory):
+def test_static_inventory_reports_a_real_miss(design, project, write_config, inventory):
     write_config({"adapter": "static-json"})
-    result = run(designsys, "component", name="Nonexistent")
+    result = run(design, "component", name="Nonexistent")
     assert result["available"] is True and result["found"] is False
 
 
-def test_static_inventory_search_ranks_by_overlap(designsys, project, write_config, inventory):
+def test_static_inventory_search_ranks_by_overlap(design, project, write_config, inventory):
     write_config({"adapter": "static-json"})
-    result = run(designsys, "search", query="floating container date")
+    result = run(design, "search", query="floating container date")
     assert [hit["name"] for hit in result["data"]][0] == "Popover"
 
 
-def test_missing_inventory_is_unavailable_not_empty(designsys, project, write_config):
+def test_missing_inventory_is_unavailable_not_empty(design, project, write_config):
     write_config({"adapter": "static-json"})
-    assert run(designsys, "component", name="Calendar")["available"] is False
+    assert run(design, "component", name="Calendar")["available"] is False
 
 
-def test_read_file_honours_cwd(designsys, project, write_config, inventory):
+def test_read_file_honours_cwd(design, project, write_config, inventory):
     """`cwd` exists for monorepos; file lookups must respect it like subprocesses do."""
     nested = project / "apps" / "web" / ".design-system"
     nested.mkdir(parents=True)
     (nested / "inventory.json").write_text(inventory.read_text(), encoding="utf-8")
 
     write_config({"adapter": "static-json", "cwd": "apps/web"})
-    result = run(designsys, "component", name="Calendar")
+    result = run(design, "component", name="Calendar")
     assert result["available"] is True
     assert "apps/web" in result["source"]
 
 
-def test_unmapped_capability_degrades(designsys, project, write_config, inventory):
+def test_unmapped_capability_degrades(design, project, write_config, inventory):
     write_config({"adapter": "static-json"})
-    result = run(designsys, "report_gap", title="T", body="B")
+    result = run(design, "report_gap", title="T", body="B")
     assert result["available"] is False and "does not map" in result["reason"]
 
 
@@ -67,79 +67,79 @@ def test_unmapped_capability_degrades(designsys, project, write_config, inventor
 
 
 def test_nonzero_exit_is_unavailable_even_with_parseable_json(
-    designsys, project, write_config, fake_cli
+    design, project, write_config, fake_cli
 ):
     write_config({"adapter": "fake"})
-    result = run(designsys, "component", name="boom")
+    result = run(design, "component", name="boom")
     assert result["available"] is False
     assert result["exit_code"] == 3
 
 
-def test_undeclared_error_code_is_unavailable(designsys, project, write_config, fake_cli):
+def test_undeclared_error_code_is_unavailable(design, project, write_config, fake_cli):
     """A registry outage must not read as 'the design system has nothing'."""
     write_config({"adapter": "fake"})
-    result = run(designsys, "component", name="unknown")
+    result = run(design, "component", name="unknown")
     assert result["available"] is False
     assert result["error_code"] == "ERR_REGISTRY_DOWN"
 
 
-def test_declared_not_found_code_is_a_real_answer(designsys, project, write_config, fake_cli):
+def test_declared_not_found_code_is_a_real_answer(design, project, write_config, fake_cli):
     write_config({"adapter": "fake"})
-    result = run(designsys, "component", name="missing")
+    result = run(design, "component", name="missing")
     assert result["available"] is True and result["found"] is False
 
 
 def test_registries_reach_the_cli_as_separate_arguments(
-    designsys, project, write_config, fake_cli
+    design, project, write_config, fake_cli
 ):
     write_config({"adapter": "fake"})
-    argv = run(designsys, "search", query="btn")["data"]
+    argv = run(design, "search", query="btn")["data"]
     assert "@one" in argv and "@two" in argv
     assert "@one @two" not in argv
 
 
-def test_absent_placeholder_drops_its_flag(designsys, project, write_config, fake_cli):
+def test_absent_placeholder_drops_its_flag(design, project, write_config, fake_cli):
     """Dropping only the value leaves a dangling flag that eats the next arg."""
     write_config({"adapter": "fake"})
-    argv = run(designsys, "report_gap", title="MyTitle")["data"]
+    argv = run(design, "report_gap", title="MyTitle")["data"]
     assert "--body" not in argv
     assert "--json" in argv
     assert "MyTitle" in argv
 
 
-def test_missing_binary_is_unavailable(designsys, project, write_config, fake_cli):
+def test_missing_binary_is_unavailable(design, project, write_config, fake_cli):
     write_config({"adapter": "fake", "bin": "./definitely-not-here"})
-    result = run(designsys, "search", query="btn")
+    result = run(design, "search", query="btn")
     assert result["available"] is False and "not found" in result["reason"]
 
 
 # --- the probe ---------------------------------------------------------------
 
 
-def test_probe_reports_capabilities_when_reachable(designsys, project, write_config, inventory):
+def test_probe_reports_capabilities_when_reachable(design, project, write_config, inventory):
     write_config({"adapter": "static-json"})
     root = Path.cwd()
-    config = designsys.load_config(root)
-    probe = designsys.probe_adapter(root, config, designsys.load_adapter(root, config))
+    config = design.load_config(root)
+    probe = design.probe_adapter(root, config, design.load_adapter(root, config))
     assert probe["reachable"] is True
     assert "component" in probe["capabilities"]
 
 
 def test_probe_fails_closed_when_the_design_system_is_unreachable(
-    designsys, project, write_config
+    design, project, write_config
 ):
     """The gate keys on CAPABILITIES. Trusting the adapter file instead of the
     CLI would report a full set for a design system that is not installed, and
     the commands' fail-closed guard could never fire."""
     write_config({"adapter": "example", "bin": "./definitely-not-here"})
     root = Path.cwd()
-    config = designsys.load_config(root)
-    adapter = designsys.load_adapter(root, config)
+    config = design.load_config(root)
+    adapter = design.load_adapter(root, config)
 
     # The template adapter maps the whole contract, so the gap between what is
     # declared and what is reachable is as wide as it can get.
-    assert designsys.mapped_capabilities(adapter) == designsys.CAPABILITIES
-    probe = designsys.probe_adapter(root, config, adapter)
+    assert design.mapped_capabilities(adapter) == design.CAPABILITIES
+    probe = design.probe_adapter(root, config, adapter)
     assert probe["reachable"] is False
     assert probe["capabilities"] == []
 
@@ -147,47 +147,131 @@ def test_probe_fails_closed_when_the_design_system_is_unreachable(
 # --- gate payload ------------------------------------------------------------
 
 
-def test_gate_resolves_the_active_feature(designsys, project, write_config, inventory, feature):
+def test_gate_resolves_the_active_feature(design, project, write_config, inventory, feature):
     write_config({"adapter": "static-json"})
     root = Path.cwd()
-    assert designsys.feature_dir(root) == feature
-    assert designsys.detect_ui_bearing(feature / "spec.md") is True
+    assert design.feature_dir(root) == feature
+    assert design.detect_ui_bearing(feature / "spec.md") is True
 
 
-def test_backend_spec_is_not_ui_bearing(designsys, project, tmp_path):
+def test_backend_spec_is_not_ui_bearing(design, project, tmp_path):
     spec = tmp_path / "backend.md"
     spec.write_text(
         "# Nightly reconciliation job\n\nAggregate ledger entries and write a report row.\n",
         encoding="utf-8",
     )
-    assert designsys.detect_ui_bearing(spec) is False
+    assert design.detect_ui_bearing(spec) is False
 
 
 # --- search ranking, found by walking the example end to end -----------------
 
 
-def test_camelcase_names_are_tokenized(designsys):
+def test_camelcase_names_are_tokenized(design):
     """Component names are CamelCase. Lowercasing before splitting would make
     `DateRangePicker` one token that "date range picker" can never match, which
     breaks both component search and the ledger's alias recall."""
-    assert designsys.normalize("DateRangePicker") == ["date", "range", "picker"]
-    assert designsys.normalize("ConfirmDialog") == ["confirm", "dialog"]
-    assert designsys.normalize("FilterBar") == ["filter", "bar"]
+    assert design.normalize("DateRangePicker") == ["date", "range", "picker"]
+    assert design.normalize("ConfirmDialog") == ["confirm", "dialog"]
+    assert design.normalize("FilterBar") == ["filter", "bar"]
 
 
 def test_search_ranks_name_matches_above_prose(
-    designsys, project, write_config, inventory
+    design, project, write_config, inventory
 ):
     """A raw overlap count ties every candidate at 1 on short descriptions, so
     results come back in insertion order and "the strongest hits" means nothing."""
     write_config({"adapter": "static-json"})
-    hits = run(designsys, "search", query="calendar")["data"]
+    hits = run(design, "search", query="calendar")["data"]
 
     assert hits[0]["name"] == "Calendar"
     assert hits[0]["score"] > (hits[1]["score"] if len(hits) > 1 else 0)
 
 
-def test_search_scores_are_not_all_equal(designsys, project, write_config, inventory):
+def test_search_scores_are_not_all_equal(design, project, write_config, inventory):
     write_config({"adapter": "static-json"})
-    hits = run(designsys, "search", query="floating container anchored")["data"]
+    hits = run(design, "search", query="floating container anchored")["data"]
     assert len({hit["score"] for hit in hits}) > 1 or len(hits) == 1
+
+
+# --- the adapter stays thin ---------------------------------------------------
+
+ADAPTER_KEYS = {
+    "id", "name", "bin", "global_args", "envelope", "source", "registries", "capabilities",
+}
+CAPABILITY_KEYS = {
+    "args", "read_file", "result_path", "key_field", "search_keys", "match_fields",
+    "defaults", "not_found_codes",
+}
+
+
+def test_adapters_only_map_and_never_model(design):
+    """An adapter is a bridge, not a second design system. The moment one can
+    carry rules, guidance or component knowledge of its own, the design system
+    stops being the source of truth and starts having a rival."""
+    import yaml
+
+    from pathlib import Path as P
+
+    for path in (P(__file__).resolve().parents[1] / "adapters").glob("*.yml"):
+        adapter = yaml.safe_load(path.read_text(encoding="utf-8"))
+        assert set(adapter) <= ADAPTER_KEYS, f"{path.name} carries {set(adapter) - ADAPTER_KEYS}"
+        for name, spec in (adapter.get("capabilities") or {}).items():
+            assert name in design.CAPABILITIES, f"{path.name}: unknown capability {name}"
+            assert set(spec) <= CAPABILITY_KEYS, f"{path.name}:{name} {set(spec) - CAPABILITY_KEYS}"
+
+
+def test_every_shipped_adapter_maps_the_two_required_capabilities(design):
+    """`search` and `component` are what the reuse ladder cannot run without."""
+    import yaml
+
+    from pathlib import Path as P
+
+    for path in (P(__file__).resolve().parents[1] / "adapters").glob("*.yml"):
+        mapped = set(yaml.safe_load(path.read_text(encoding="utf-8")).get("capabilities") or {})
+        assert {"search", "component"} <= mapped, f"{path.name} maps only {mapped}"
+
+
+def test_a_missed_envelope_returns_what_the_cli_said(
+    design, project, write_config, fake_cli
+):
+    """A shipped adapter guesses at a CLI's envelope. When the guess misses, the
+    raw payload is worth more than a null that reads as "nothing found"."""
+    write_config({"adapter": "fake"})
+    result = run(design, "component", name="envelopeless")
+
+    assert result["available"] is True
+    assert result["result_path_missed"] is True
+    assert result["data"] == {"loose": "payload"}
+
+
+def test_a_file_backed_adapter_does_not_guess(
+    design, project, write_config, inventory
+):
+    """The opposite case: an adapter that points at a file knows that file's
+    shape, so a missing section means the section is missing, not mismapped."""
+    write_config({"adapter": "static-json"})
+    result = run(design, "guidelines")
+
+    assert result["available"] is True
+    assert result["found"] is False
+    assert result["data"] is None
+
+
+# --- nothing is mandatory that the design system cannot supply -----------------
+
+
+def test_a_system_without_tokens_is_not_required_to_answer_for_them(
+    design, project, write_config, inventory
+):
+    import json
+
+    data = json.loads(inventory.read_text())
+    data.pop("tokens")
+    inventory.write_text(json.dumps(data), encoding="utf-8")
+    write_config(
+        {"adapter": "static-json", "capabilities": {"tokens": {"read_file": "", "args": []}}}
+    )
+    root = Path.cwd()
+    config = design.load_config(root)
+    assert "tokens" in design.effective_dimensions(config, ["search", "component", "tokens"])
+    assert "tokens" not in design.effective_dimensions(config, ["search", "component"])

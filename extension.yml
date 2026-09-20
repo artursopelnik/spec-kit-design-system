@@ -1,10 +1,10 @@
 schema_version: "1.0"
 
 extension:
-  id: designsys
-  name: "Design System Requirements"
+  id: design
+  name: "Spec Kit Design System"
   version: "0.1.0"
-  description: "Makes the existing design system an active constraint and knowledge source throughout spec-driven development"
+  description: "Give it an RFC. It runs the Spec Kit workflow and implements the change using your design system."
   category: integration
   effect: read-write
   author: "artursopelnik"
@@ -14,69 +14,88 @@ extension:
 
 requires:
   # Verified against 1.0.9.dev0. Earlier versions are untested rather than known
-  # broken. A floor of 0.2.0 was claimed before anything was actually installed,
+  # broken. A floor of 0.1.0 was claimed before anything was actually installed,
   # which is the failure mode that makes catalog entries unusable.
   speckit_version: ">=1.0.0,<2.0.0"
   # No tools are declared here. The design system CLI is named in
-  # designsys-config.yml instead, because it differs per project (astryx, an
-  # in-house binary, or no CLI at all), and declaring one would imply a
-  # dependency this extension does not have.
+  # design-config.yml instead, because it differs per project (astryx,
+  # shadcn, an in-house binary, or no CLI at all), and declaring one would imply
+  # a dependency this extension does not have.
 
 provides:
   commands:
-    - name: speckit.designsys.sync
-      file: commands/speckit.designsys.sync.md
-      description: "Pull relevant components, patterns and tokens from the design system CLI into the spec"
-    - name: speckit.designsys.check
-      file: commands/speckit.designsys.check.md
+    # The one a developer needs to know. Everything below it is the machinery
+    # this drives, and it is also what the hooks fire.
+    - name: speckit.design.run
+      file: commands/speckit.design.run.md
+      description: "Take an RFC and run it to done: clarify, specify, plan, implement, validate, fix, verify"
+
+    - name: speckit.design.context
+      file: commands/speckit.design.context.md
+      description: "Resolve guidelines and design system context into the specification"
+
+    - name: speckit.design.check
+      file: commands/speckit.design.check.md
       description: "Run the Reuse -> Compose -> Extend -> Create ladder and gate the plan on its outcome"
-    - name: speckit.designsys.audit
-      file: commands/speckit.designsys.audit.md
-      description: "Validate implemented UI against the design system contract and report violations"
-    - name: speckit.designsys.gap
-      file: commands/speckit.designsys.gap.md
-      description: "Record a justified design system gap and route it to the owning package"
+
+    - name: speckit.design.validate
+      file: commands/speckit.design.validate.md
+      description: "Check the implementation independently and raise findings that feed back into fixing"
 
   config:
-    - name: "designsys-config.yml"
+    - name: "design-config.yml"
       template: "config-template.yml"
-      description: "Design system CLI adapter and gate configuration"
+      description: "Which design system adapter to use. Usually three lines."
       required: true
 
 hooks:
-  # Design requirements enter the spec while it is still a spec, not as an
-  # after-the-fact audit.
+  # The phases are wired here, not in the run command, so they also hold for
+  # anyone driving spec-kit by hand. /speckit.design.run is the autonomous
+  # path over the same rails, not a second implementation of them.
   after_specify:
-    command: speckit.designsys.sync
+    command: speckit.design.context
     optional: false
-    description: "Resolve design system context for the new specification"
+    description: "Resolve guidelines and design system context for the new specification"
 
   # The gate. Planning must not begin until the reuse ladder has been walked.
   before_plan:
-    command: speckit.designsys.check
+    command: speckit.design.check
     optional: false
     priority: 5
     description: "Enforce Reuse -> Compose -> Extend -> Create before planning"
 
-  # Verification closes the loop.
+  # Independent validation closes the loop, and its findings drive the fix pass.
   after_implement:
-    command: speckit.designsys.audit
+    command: speckit.design.validate
     optional: false
-    description: "Validate the implementation against the design system"
+    description: "Validate the implementation against the spec, the guidelines and the design system"
 
 tags:
   - "design-system"
   - "design-tokens"
   - "accessibility"
-  - "governance"
+  - "autonomous"
   - "reuse"
 
 config:
   defaults:
-    # Which adapter under adapters/ describes the project's design system CLI.
-    # static-json is the only adapter that can work without a CLI, so it is the
-    # default. Copy adapters/example.yml and point it at your own CLI.
-    adapter: static-json
+    # Which adapter under adapters/ describes the project's design system.
+    # "auto" detects one from the project (components.json -> shadcn,
+    # @astryxdesign/cli -> astryx, a known component library in package.json,
+    # else static-json). Name one to pin it.
+    adapter: auto
+
+    guidelines:
+      # Fall back to the small default set when the design system supplies no
+      # guidelines of its own. Set false to run with none rather than ours.
+      default: true
+      # Guideline ids to switch off. Reported, never hidden.
+      disabled: []
+
+    workflow:
+      # Validate -> fix -> validate, bounded. When findings survive this many
+      # rounds the run stops and says so instead of looping.
+      max_validation_rounds: 3
 
     ledger:
       # Consult prior ladder decisions before querying the design system, and
@@ -90,30 +109,17 @@ config:
       # no decision, because it looks authoritative.
       revalidate_when_stale: true
 
-    rules:
-      # Two layers. The baseline ships here and holds what every design system
-      # wants, carrying no concrete values. House rules are the project's own,
-      # and are where values belong: your target size, your contrast floor.
-      # A house rule sharing an id with a baseline rule replaces it, so a team
-      # tightens the floor rather than merely switching it off.
-      baseline: true
-      house_rules: "rules.yml"
-      # Rule ids to switch off, from either layer. Reported, not hidden.
-      disabled: []
-
     gate:
       # Block planning when the ladder was not walked or its rungs are unjustified.
       enforce: true
-      # Creating a new component requires a written, searched-alternatives record.
-      require_gap_report: true
       # Minimum number of existing candidates that must be considered before
       # a rung may be rejected.
       min_candidates_considered: 3
 
-    audit:
-      # Fail the audit on hardcoded values where a token exists.
+    validation:
+      # Fail validation on hardcoded values where a token exists.
       forbid_raw_values: true
-      # Dimensions every UI feature must answer for in the spec.
+      # Dimensions every UI feature must answer for.
       required_dimensions:
         - states
         - responsive

@@ -1,157 +1,84 @@
-# Design System Requirements: project configuration
+# Spec Kit Design System: project configuration
 #
-# This file tells the extension how to talk to YOUR design system.
-# The extension never models the design system itself; it only knows how to
-# ask. The CLI stays the single source of truth.
+# This file says how to reach YOUR design system. That is all it is for. The
+# extension models no design system of its own, it only knows how to ask, and
+# everything else has a working default.
+#
+# For most projects the whole file is one line.
 
-# Which adapter to load from .specify/extensions/designsys/adapters/<id>.yml
+# Which adapter to load from .specify/extensions/design/adapters/<id>.yml
 #
+#   auto          detect it (the default): components.json -> shadcn,
+#                 @astryxdesign/cli -> astryx, then @mui/material, antd,
+#                 @chakra-ui/react, @ark-ui/react, radix-ui / @radix-ui/*
+#                 in package.json, otherwise static-json.
+#                 Leave this alone unless detection picks wrong.
+#   astryx        the Astryx CLI
+#   shadcn        the shadcn/ui CLI
+#   mui, antd, chakra, radix, ark-ui
+#                 read a generated inventory file, like static-json
 #   static-json   no CLI needed; reads a generated inventory file (the default)
 #   example       a template to copy and rename for your own CLI
 #   custom        define everything inline under `capabilities:` below
-#
-# No adapter for any named design system ships here. One would be a guess about
-# someone else's command surface, and a stale guess looks authoritative while
-# being wrong. Write your own from what your CLI actually reports.
-adapter: static-json
+adapter: auto
 
-# Override the binary the adapter invokes. Leave empty to use the adapter default.
+# Override the binary the adapter invokes. Leave empty to use the adapter's own.
 # Split on whitespace, so wrappers work:
-#   "npx my-ds"  ·  "npm run ds --"  ·  "pnpm --filter @acme/web exec ds"  ·  "./bin/ds"
+#   "npx astryx"  ·  "npm run ds --"  ·  "pnpm --filter @acme/web exec ds"  ·  "./bin/ds"
 bin: ""
 
 # Working directory for the design system, relative to repo root. Empty = repo
-# root. Both CLI invocations and inventory file lookups resolve against it, so a
-# monorepo can point at one package.
+# root. Both CLI calls and file lookups resolve against it, so a monorepo can
+# point at one package.
 cwd: ""
 
-# Override the adapter's inventory path (static-json) or its registry list.
-# Leave empty to use the adapter default.
-# source: ".design-system/inventory.json"
-# registries: ["@acme"]
+# static-json only: where the inventory lives. Empty uses the adapter default
+# (.design-system/inventory.json).
+# source: "node_modules/@acme/design-system/inventory.json"
 
-# --- Capability contract -----------------------------------------------------
+# --- everything below is optional --------------------------------------------
+
+# Guidelines are resolved in one order, and the first source that answers wins
+# outright:
 #
-# The extension is written against these capability names only. An adapter maps
-# each one to a concrete invocation. A capability left unmapped is treated as
-# unavailable, and the commands degrade gracefully instead of failing.
+#   1. your design system's CLI       (`guidelines` capability)
+#   2. static data it ships           (inventory key, or the file named here)
+#   3. the small default set in guidelines/default.yml
 #
-#   describe         self-description of the CLI (commands, flags, response types)
-#   search           ranked search across components, patterns, docs
-#   list_components  full component inventory
-#   component        detail for one component (props, variants, states, a11y)
-#   pattern          detail for one composed pattern / template
-#   tokens           design tokens / theme values
-#   breakpoints      the system's breakpoint names and widths
-#   extend           how to legitimately extend a component (e.g. swizzle)
-#   report_gap       route a genuine gap to the design system's own intake
+# They are never merged. A design system that states its own guidelines should
+# not also inherit ours. You normally configure nothing here.
 #
-# Only `search` and `component` are strictly required. Everything else improves
-# the quality of the gate but is optional.
-#
-# Uncomment to override individual capabilities from the chosen adapter:
+# guidelines:
+#   # A guidelines file your design system publishes. Resolved next to this
+#   # config, or from the repo root, so it can live inside the package itself.
+#   source: "node_modules/@acme/design-system/guidelines.yml"
+#   # false runs with no guidelines at all, rather than with the default set.
+#   default: true
+#   # Ids to switch off. Reported in the spec with a reason, never dropped
+#   # silently. Run `ds.sh guidelines` to see the ids currently in force.
+#   disabled: []
+
+# The design system version in use. Prior decisions taken against a different
+# one are flagged stale rather than reused silently. Leave empty and staleness
+# simply is not checked, which lookups report rather than implying freshness.
+# design_system_version: ""
+
+# Capability overrides. The extension is written against capability names only;
+# the adapter maps each to a real invocation. Anything unmapped degrades rather
+# than failing. Override one when your CLI differs from the shipped adapter:
 #
 # capabilities:
 #   search:
 #     args: ["search", "{query}", "--json", "--detail", "compact"]
 #     result_path: "data.results"
-#   component:
-#     args: ["component", "{name}", "--json"]
-#     result_path: "data"
-#     not_found_codes: ["ERR_UNKNOWN_COMPONENT"]
+#   tokens:
+#     read_file: "design/tokens.json"
 
-# --- Decision ledger ---------------------------------------------------------
-#
-# Every ladder walk produces a decision. Without somewhere to put it, that
-# decision lives in one feature directory and the next feature re-derives it
-# from scratch, often differently. The ledger is a plain YAML file at
-# .specify/memory/design-decisions.yml, committed with the repository.
-#
-# It is deliberately not an ADR system: these decisions are numerous, cheap, and
-# keyed by UI capability rather than by file path. Rung 4 and 5 decisions, which
-# do carry design system impact, are the ones worth escalating to whatever
-# decision-record process your team already runs.
-ledger:
-  enabled: true
+# workflow:
+#   # How many validate -> fix rounds before the run stops and asks for a human.
+#   max_validation_rounds: 3
 
-  # Minimum token-overlap score for a prior decision to be surfaced. Lower
-  # surfaces more and risks false matches; higher misses differently-worded
-  # lookups. Aliases recorded at decision time matter more than this number.
-  match_threshold: 0.34
-
-  # Re-validate a prior decision when the design system version has changed
-  # since it was taken.
-  revalidate_when_stale: true
-
-# The design system version currently in use. Lookups compare prior decisions
-# against it and flag the ones taken against an older version as stale. Leave
-# empty and staleness simply is not checked. Lookups then report
-# "staleness_checked": false rather than claiming decisions are fresh.
-# /speckit.designsys.check passes this explicitly when the CLI can report it.
-design_system_version: ""
-
-# --- Rules ---------------------------------------------------------------------
-#
-# Design requirements come in two layers, because design systems agree on what
-# they want and disagree on the numbers.
-#
-# BASELINE (baseline.yml, ships with the extension)
-#   What every design system wants regardless of which one it is: operable by
-#   keyboard, focus visible, works on touch, every state defined, no raw values
-#   where a token exists. Specs leave these out because they are obvious, which
-#   is exactly why nothing checks them.
-#   It deliberately carries no colors, no breakpoint widths and no sizes. Those
-#   belong to a specific system, and a baseline rule holding one would invent
-#   the thing it exists to prevent.
-#
-# HOUSE RULES (rules.yml, yours)
-#   What YOUR design system requires specifically, and where concrete values
-#   belong: a 48px target instead of 44, AAA contrast instead of AA, a motion
-#   budget, a naming convention, a rule about when a Drawer is correct and a
-#   Modal is not.
-#   A house rule sharing an id with a baseline rule REPLACES it. That is how you
-#   tighten the floor rather than switching it off. Copy rules.example.yml to
-#   rules.yml to start.
-#
-# The two stay distinguishable in output via `source`, because relaxing your own
-# house rule is a product decision, while switching off a baseline rule means
-# going below what design systems generally expect.
-rules:
-  baseline: true
-  house_rules: "rules.yml"
-
-  # Rule ids to switch off, from either layer. A disabled rule is reported in
-  # the spec with its reason, never dropped silently.
-  # Run `ds-rules.sh --json` to list the ids currently in force.
-  disabled: []
-
-# --- Gate --------------------------------------------------------------------
-gate:
-  # When false, the ladder still runs and records its findings, but a missing or
-  # unjustified rung no longer blocks /speckit.plan. Useful while adopting.
-  enforce: true
-
-  # A new component may only be proposed with a written record of the existing
-  # alternatives that were searched and why each is insufficient.
-  require_gap_report: true
-
-  # How many existing candidates must be considered before a rung is rejected.
-  min_candidates_considered: 3
-
-# --- Audit -------------------------------------------------------------------
-audit:
-  # Flag hardcoded colors/spacing/typography where a design token exists.
-  forbid_raw_values: true
-
-  # Every UI-bearing feature must answer for these in its spec. Trim the list if
-  # a dimension genuinely does not apply to your product.
-  required_dimensions:
-    - states
-    - responsive
-    - accessibility
-    - tokens
-    - interaction
-
-  # Globs the audit reads when checking implemented UI. Empty = infer from the
-  # plan's Project Structure section.
-  source_globs: []
+# gate:
+#   # false lets the ladder run and record findings without blocking planning.
+#   # Useful while adopting.
+#   enforce: true

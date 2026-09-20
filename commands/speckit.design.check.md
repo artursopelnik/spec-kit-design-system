@@ -19,11 +19,11 @@ You **MUST** consider the user input before proceeding (if not empty). Arguments
 Run:
 
 ```
-.specify/extensions/designsys/scripts/bash/check-design-gate.sh --json
+.specify/extensions/design/scripts/bash/ds.sh gate --json
 ```
 
 Where bash is unavailable, call the module directly. It behaves identically:
-`python3 .specify/extensions/designsys/scripts/python/designsys.py gate --json`
+`python3 .specify/extensions/design/scripts/python/design.py gate --json`
 
 Parse the JSON for `FEATURE_DIR`, `FEATURE_SPEC`, `DESIGN_DOC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON` and `UI_BEARING`.
 
@@ -37,7 +37,7 @@ Parse the JSON for `FEATURE_DIR`, `FEATURE_SPEC`, `DESIGN_DOC`, `CONFIG`, `ADAPT
 
 ### 1. Enumerate the surfaces
 
-From `FEATURE_SPEC`, extract every distinct UI surface the feature requires: a control, a layout region, a flow step, a piece of feedback. Read the `## Design System Requirements` section if `/speckit.designsys.sync` already populated it; otherwise derive the list from the user stories and acceptance scenarios.
+From `FEATURE_SPEC`, extract every distinct UI surface the feature requires: a control, a layout region, a flow step, a piece of feedback. Read the `## Design System Requirements` section if `/speckit.design.context` already populated it; otherwise derive the list from the user stories and acceptance scenarios.
 
 Name surfaces by **capability, not by component**: "a control for picking a start and end date", not "a DateRangePicker". Naming a surface after a component you have in mind pre-decides the ladder and defeats the whole exercise.
 
@@ -48,7 +48,7 @@ For each surface, in order. Stop at the first rung that holds.
 **Rung 0, Recall.** Before asking the design system anything, ask whether this was already decided:
 
 ```
-.specify/extensions/designsys/scripts/bash/ds-ledger.sh --json lookup "<capability phrase>" --current-version "<version>"
+.specify/extensions/design/scripts/bash/ds.sh ledger lookup "<capability phrase>" --current-version "<version>"
 ```
 
 Get `<version>` from the design system itself where the adapter maps `describe`, otherwise from its package version or `design_system_version` in config. Without it the lookup reports `"staleness_checked": false` and every `stale` flag comes back `null`, meaning unknown, which is not the same as fresh. Do not read an unchecked decision as a verified-current one.
@@ -65,18 +65,49 @@ A prior decision is evidence, not an instruction. If adopting it would produce s
 **Rung 1, Reuse.** Query the design system for existing components:
 
 ```
-.specify/extensions/designsys/scripts/bash/ds-query.sh --json search "<capability phrase>"
+.specify/extensions/design/scripts/bash/ds.sh query search "<capability phrase>"
 ```
 
-Run at least two differently-worded queries per surface, because design systems name things in ways you will not guess on the first try. Then pull detail on the promising hits with `ds-query.sh --json component "<Name>"`. A component whose props, variants and states already cover the surface ends the walk.
+Run at least two differently-worded queries per surface, because design systems name things in ways you will not guess on the first try. Then pull detail on the promising hits with `ds.sh query component "<Name>"`. A component whose props, variants and states already cover the surface ends the walk.
 
-**Rung 2, Compose from a pattern.** Query for an existing composed pattern (`ds-query.sh --json pattern "<phrase>"`, and search again with pattern-shaped wording). Design systems often ship the exact arrangement you are about to rebuild.
+**Rung 2, Compose from a pattern.** Query for an existing composed pattern (`ds.sh query pattern "<phrase>"`, and search again with pattern-shaped wording). Design systems often ship the exact arrangement you are about to rebuild.
 
 **Rung 3, Compose from components.** Can two or more existing components be combined to cover the surface? State the composition explicitly (which components, how arranged). Prefer an ugly composition of owned parts over a pretty new abstraction.
 
-**Rung 4, Extend.** Can an existing component be extended through the system's sanctioned mechanism (`ds-query.sh --json extend "<Name>"`)? Extending via a supported escape hatch (a documented prop, a className override, a swizzle) is still reuse. Forking the source and editing it is not; that is Rung 5 wearing a disguise.
+**Rung 4, Extend.** Can an existing component be extended through the system's sanctioned mechanism (`ds.sh query extend "<Name>"`)? Extending via a supported escape hatch (a documented prop, a className override, a swizzle) is still reuse. Forking the source and editing it is not; that is Rung 5 wearing a disguise.
 
-**Rung 5, Create.** Only reachable when rungs 1 through 4 are documented as insufficient. Invoke `/speckit.designsys.gap` for this surface. If `gate.require_gap_report` is true, the gate does not pass until that record exists.
+**Rung 5, Create.** Only reachable when rungs 1 through 4 are documented as insufficient, and it always requires a gap record. Before writing one, search **once more** with wording you have not tried yet: a synonym, the user-facing term, the term a designer would use, the term the system's own docs use for a neighbouring concept. Gaps found on the fifth search are common; gaps that survive a deliberate final attempt are real. If this surfaces a viable candidate, drop back to the lower rung and say so — that is a good outcome, not a wasted step.
+
+Write the record to its own file, `design-system-gap-<slug>.md` in the feature directory, and link it from the surface's section in `DESIGN_DOC`. A standalone file matters because a gap record is the argued case for a new component, and it has to travel: to the design system's repo, to an issue tracker, to a review.
+
+```markdown
+# Gap: <capability phrase>
+
+**Feature**: <feature id> · **Design system**: <name> · **Version**: <version>
+
+## What is needed
+<the capability, described without naming the component you have in mind>
+
+## What was searched
+| Candidate | Rung | Why it is insufficient |
+|---|---|---|
+| DatePicker | reuse | Single date only; no range semantics |
+| Calendar + Popover | compose | Covers display and placement, not cross-field validation |
+
+## What we are building instead
+<scope, and where the source will live>
+
+## What the design system could do
+<the change that would make this unnecessary next time>
+```
+
+Where the adapter maps `report_gap`, route it into the system's own intake so it lands with the people who can close it:
+
+```
+.specify/extensions/design/scripts/bash/ds.sh query report_gap "<title>" "<body>" --json
+```
+
+The gate does not pass until the record exists.
 
 ### 3. Record the walk
 
@@ -107,7 +138,7 @@ Honour `gate.min_candidates_considered` from `CONFIG`: a rung may not be rejecte
 When `ledger.enabled` is true, record each newly-walked surface so the next feature starts from it instead of from nothing:
 
 ```
-.specify/extensions/designsys/scripts/bash/ds-ledger.sh --json record - <<'JSON'
+.specify/extensions/design/scripts/bash/ds.sh ledger record - --json <<'JSON'
 {
   "capability": "selection of a date range",
   "aliases": ["date range picker", "from-to date selection", "period filter"],
@@ -126,7 +157,7 @@ JSON
 Two fields decide whether this ledger is worth having:
 
 - **`aliases`**: record every wording you actually searched with, including the ones that missed. These are what make a future lookup hit when the next author phrases the same need differently. A decision with no aliases is a decision that will be re-derived.
-- **`design_system_version`**: so a later lookup can tell that the system has moved on. Get it from the CLI (`ds-query.sh --json describe`) where available; otherwise from the design system package's version.
+- **`design_system_version`**: so a later lookup can tell that the system has moved on. Get it from the CLI (`ds.sh query describe`) where available; otherwise from the design system package's version.
 
 Do not record a surface that was adopted unchanged from a prior decision, because it is already there. When re-walking produced a *different* answer, add `"supersedes": "<id>"` so the old decision is retired rather than left to contradict the new one.
 
@@ -149,9 +180,9 @@ Omit a dimension only when the component's own documentation makes it inapplicab
 The gate **fails** when any of these hold:
 
 - a surface has no recorded resolution
-- a Create resolution has no gap record while `gate.require_gap_report` is true
+- a Create resolution has no gap record
 - a rung was rejected on fewer candidates than `gate.min_candidates_considered`
-- a required dimension from `audit.required_dimensions` is unanswered for a resolved surface
+- a dimension in `REQUIRED_DIMENSIONS` from the gate is unanswered for a resolved surface
 
 On failure with `gate.enforce: true`: **ERROR and stop.** Name every unmet condition and what would satisfy it. Do not proceed to planning, and do not soften a Create decision into a Reuse one to get past the gate. An honest Create with a gap report is a pass, a dishonest Reuse is a defect you will pay for in review.
 

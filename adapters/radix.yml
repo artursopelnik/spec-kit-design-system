@@ -1,30 +1,24 @@
-# Adapter: static JSON, for design systems with no CLI at all
+# Adapter: Radix UI (https://www.radix-ui.com)
 #
-# Point this at a generated inventory file and the gate still works. Many teams
-# can produce such a file from Storybook, a token pipeline, or their component
-# registry with a few lines of build script.
+# Radix UI has no CLI that answers "what components exist and what is this one",
+# which is what the reuse ladder needs. So this adapter reads an inventory file
+# your project generates, exactly like `static-json`, and exists so that
+# `adapter: radix` names the system you use and `auto` can pick it from
+# `radix-ui or @radix-ui/react-*` in package.json.
 #
-# Expected shape:
-# {
-#   "components": [
-#     { "name": "Button",
-#       "description": "...",
-#       "props": [...], "variants": [...], "states": [...],
-#       "accessibility": "...", "usage": "...", "avoid": "..." }
-#   ],
-#   "patterns":  [ { "name": "...", "description": "...", "composes": [...] } ],
-#   "tokens":    { "color": {...}, "space": {...}, "type": {...} },
-#   "breakpoints": { "sm": "640px", "md": "768px", "lg": "1024px", "xl": "1280px" },
-#   "guidelines": "Prose: your principles, do/don't guidance, house policy.",
-#                 // or { "prose": "...", "rules": [ { "id": ..., "requirement": ... } ] }
-# }
+#   # design-config.yml
+#   adapter: radix
+#   source: ".design-system/inventory.json"   # default
 #
-# Include "breakpoints" even if they live in your tokens too. Responsive
-# requirements are written using these names, and a name the agent cannot look
-# up is a name it will invent.
+# Radix ships unstyled primitives, so list your own styled wrappers as `components` and record the primitive each one composes in `patterns`. Tokens live in whatever styling layer you put on top.
+#
+# The inventory shape is documented in `static-json.yml`. Generate it from
+# Storybook, your component metadata, or a short build script, and commit it or
+# build it in CI. Include "breakpoints": responsive requirements are written
+# using those names, and a name the agent cannot look up is a name it will invent.
 
-id: static-json
-name: "Static JSON inventory"
+id: radix
+name: "Radix UI"
 bin: ""
 
 source: ".design-system/inventory.json"

@@ -1,25 +1,31 @@
-# Examples
+# Example
 
 A fixture design system and a throwaway project, so the workflow can be walked end to end without a real design system CLI installed.
 
-This exists because the gate logic lives in four command files as prose, and prose is the part a test suite cannot check. The only way to find out whether those instructions actually work is to follow them.
+This exists because most of the workflow lives in the command files as prose, and prose is the part a test suite cannot check. The only way to find out whether those instructions actually work is to follow them.
 
 ## Setup
 
 ```bash
-./examples/setup-demo.sh /tmp/designsys-demo
-cd /tmp/designsys-demo
+./examples/setup-demo.sh /tmp/design-demo
+cd /tmp/design-demo
 ```
 
 That runs `specify init`, installs the extension and preset from your working copy, and wires up the Acme fixture as though it were an npm package:
 
 ```
 node_modules/@acme/design-system/
-├── inventory.json        # 10 components, 2 patterns, tokens, breakpoints, guidelines
-└── spec-kit-rules.yml    # 4 house rules, one of them overriding a baseline rule
+├── inventory.json     # 10 components, 2 patterns, tokens, breakpoints, guidelines prose
+└── guidelines.yml     # Acme's own guidelines: 4 rules plus prose
 ```
 
-The config points at it the way a real multi-repo setup would, with the rules living inside the design system package rather than copied into the project.
+The config points at it the way a real multi-repo setup would, with the guidelines living inside the design system package rather than copied into the project. Because Acme publishes its own, the extension's default guidelines are never read — which you can see for yourself:
+
+```bash
+DS=.specify/extensions/design/scripts/bash/ds.sh
+$DS guidelines --json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['source'], [r['id'] for r in d['rules']])"
+# adapter ['ACME-TARGET-SIZE', 'ACME-OVERLAY-CHOICE', ...]   — no GL-* anywhere
+```
 
 ## The fixture
 
@@ -27,7 +33,7 @@ The config points at it the way a real multi-repo setup would, with the rules li
 
 | Surface | What should happen |
 |---|---|
-| Confirming a cancellation | **Rung 2.** `ConfirmDialog` pattern covers it exactly, and both the guidelines and `ACME-OVERLAY-CHOICE` forbid Drawer here. |
+| Confirming a cancellation | **Rung 2.** `ConfirmDialog` pattern covers it exactly, and both the prose and `ACME-OVERLAY-CHOICE` forbid Drawer here. |
 | The filter row | **Rung 2.** `FilterBar` pattern exists and states its own collapse behaviour. |
 | Selecting a date range | **Rung 3.** Every single-date candidate disqualifies itself in its own `avoid` text, so composition is the lowest rung that holds. |
 
@@ -41,33 +47,51 @@ That field is worth copying into your own inventory. It does more work than anyt
 
 ## Walking it
 
+The short way, which is also the way a developer would actually use this:
+
 ```bash
-cd /tmp/designsys-demo
-DS=.specify/extensions/designsys/scripts/bash
+cd /tmp/design-demo
+cat > booking-filters-rfc.md <<'MD'
+# RFC: Filter bookings by date range
 
-# Prerequisites, as every command body starts
-$DS/check-design-gate.sh --json | python3 -m json.tool
+## Problem
+Users with many bookings cannot narrow the list, so they scroll.
 
-# A feature to walk
-.specify/scripts/bash/create-new-feature.sh --json --short-name "booking-filters" \
-  "Let users filter their bookings by a date range and cancel a booking from the list"
+## Proposal
+A control for selecting a start and end date above the booking list, and a way to
+cancel a booking from the list with a confirmation step.
+
+## Acceptance criteria
+- [ ] The list narrows to bookings within the selected range
+- [ ] Cancelling asks for confirmation and cannot be triggered accidentally
+MD
+
+# then, in your agent:
+/speckit.design.run booking-filters-rfc.md
 ```
 
-Then follow `commands/speckit.designsys.sync.md` step by step, then `commands/speckit.designsys.check.md`. The commands are written to be executed by an agent, so read them as instructions and do what they say.
+The long way, one call at a time, which is what the run command does internally:
 
 ```bash
-$DS/ds-ledger.sh --json lookup "selection of a date range"   # rung 0, empty at first
-$DS/ds-query.sh   --json search "date range selection"
-$DS/ds-query.sh   --json component DatePicker                # read its `avoid`
-$DS/ds-query.sh   --json breakpoints                         # sm md lg xl, by name
-$DS/ds-query.sh   --json guidelines                          # the system's own law
-$DS/ds-rules.sh   --json --applies-to interactive,layout
+DS=.specify/extensions/design/scripts/bash/ds.sh
+
+$DS gate --json | python3 -m json.tool        # prerequisites, as every command starts
+$DS rfc booking-filters-rfc.md --json         # what the RFC does and does not say
+$DS workflow status --json                    # where the run is, and what is next
+
+$DS context specify --applies-to interactive,layout --query "date range selection" --json
+$DS query search "confirm destructive action" --json
+$DS query component DatePicker --json         # read its `avoid`
+$DS query breakpoints --json                  # sm md lg xl, by name
+$DS guidelines --applies-to interactive,layout --json
 ```
 
-Record the walk, then prove the point of the ledger:
+Note what `context` returns and what it does not: guidelines that apply, the candidates for the query you asked about, and `available_on_demand` listing every other call you can still make. It never dumps the inventory, and it never stops you asking for it.
+
+Then prove the point of the ledger:
 
 ```bash
-$DS/ds-ledger.sh --json record - <<'JSON'
+$DS ledger record - --json <<'JSON'
 {"capability":"selection of a date range for filtering",
  "aliases":["date range selection","filter by period","from-to date selection"],
  "resolution":"compose-components",
@@ -75,8 +99,8 @@ $DS/ds-ledger.sh --json record - <<'JSON'
  "design_system":"acme","design_system_version":"2.1.0","decided_in":"001-booking-filters"}
 JSON
 
-$DS/ds-ledger.sh --json lookup "period filter for bookings"   # hits, differently worded
-$DS/ds-ledger.sh --json lookup "DateRangePicker"              # hits, by the component
+$DS ledger lookup "period filter for bookings" --json   # hits, differently worded
+$DS ledger lookup "DateRangePicker" --json              # hits, by the component
 ```
 
 That last lookup is the one worth watching. Someone who arrives already thinking "we need a DateRangePicker" finds the decision that says the system composes one instead.
@@ -89,6 +113,6 @@ Running it is not ceremony. The first pass produced three fixes:
 
 **CamelCase names were one token.** `ConfirmDialog` never matched "confirm", and `DateRangePicker` never matched "date range picker". Since design system components are uniformly CamelCase, this broke component search and ledger recall at the same time. Tokenization now splits on case boundaries.
 
-**Surface-kind classification only looked at the feature description.** A booking filter does not sound like it involves motion, so `ACME-MOTION-BUDGET` was filtered out even though the feature opens a Popover and a Modal, both of which animate. `sync` now says to classify from the components you are about to use as well.
+**Surface-kind classification only looked at the feature description.** A booking filter does not sound like it involves motion, so `ACME-MOTION-BUDGET` was filtered out even though the feature opens a Popover and a Modal, both of which animate. The context command now says to classify from the components you are about to use as well.
 
 If you walk it and something reads as ambiguous, that is a finding about the command bodies, not about you. Open an issue.

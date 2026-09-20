@@ -1,0 +1,78 @@
+schema_version: "1.0"
+
+# Example: guidelines published BY a design system.
+#
+# This file shows the shape the adapter reads when your design system has no CLI
+# but does have something to say. Ship it inside the design system package and
+# point at it once:
+#
+#   # design-config.yml
+#   guidelines:
+#     source: "node_modules/@acme/design-system/guidelines.yml"
+#
+# Every consuming repo then reads the same guidelines, and the design system
+# owns them, rather than each project restating what the system already knows.
+#
+# When this resolves, it IS the guidelines for the run. The default set shipped
+# with the extension is not merged in, not consulted, and not used as a floor.
+# A design system that has stated its own rules should not also inherit ours.
+#
+# Nothing here is required. Prose is valid on its own:
+#
+#   prose: |
+#     Destructive confirmations use Modal, never Drawer.
+#     Icon-only controls carry a visible label from md up.
+#
+# A rule list is better where you can manage it, because a rule with an id can
+# be cited by a spec and checked by validation one at a time.
+#
+# Fields, all optional except id and requirement:
+#   id          stable and citable; specs reference this rather than the text
+#   dimension   accessibility | responsive | interaction | states | tokens
+#   applies_to  interactive | layout | text | media | motion | any  (default: any)
+#   requirement the MUST statement, written so it can become a spec requirement
+#   verify      how validation checks it
+#   standard    a WCAG criterion where one applies
+#
+# Keep `requirement` normative and `verify` concrete. A rule nobody can check is
+# a preference, not a rule.
+
+prose: |
+  Acme UI is a compact, keyboard-first system. Prefer the smallest component
+  that carries the meaning, and prefer composition over configuration: a
+  component with more than a handful of props is usually two components.
+
+rules:
+  - id: ACME-TARGET-SIZE
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Pointer targets MUST be at least 48x48px including padding. Adjacent targets
+      MUST be separated by at least one spacing step.
+    verify: "Measure the hit area, not the visible box, at every breakpoint."
+    standard: "WCAG 2.5.8"
+
+  - id: ACME-CONTRAST
+    dimension: accessibility
+    applies_to: text
+    requirement: >-
+      Body text MUST meet WCAG AAA contrast (7:1). Large text and non-text elements
+      MUST meet at least 4.5:1, in every theme.
+    verify: "Check each text/background pair per theme against 7:1."
+    standard: "WCAG 1.4.6"
+
+  - id: ACME-MOTION-BUDGET
+    dimension: interaction
+    applies_to: motion
+    requirement: >-
+      Transitions MUST use the system's duration tokens and MUST NOT exceed 300ms.
+      Anything longer reads as lag rather than as feedback.
+    verify: "Every transition references a duration token within budget."
+
+  - id: ACME-OVERLAY-CHOICE
+    dimension: interaction
+    applies_to: interactive
+    requirement: >-
+      Destructive confirmations MUST use Modal. Drawer is for non-blocking secondary
+      content and MUST NOT be used to confirm an irreversible action.
+    verify: "Each overlay's component matches the kind of decision it asks for."

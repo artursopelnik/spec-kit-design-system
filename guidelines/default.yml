@@ -1,0 +1,167 @@
+schema_version: "1.0"
+
+# Default guidelines: the fallback, used only when your design system has none.
+#
+# These are NOT merged with your design system's guidelines. If the adapter can
+# answer `guidelines` — from the CLI or from static data the system ships — that
+# answer is the authority for the run and this file is not read at all. Merging
+# would hold your design system to rules it never wrote.
+#
+# So this file is deliberately modest. It states the handful of things every
+# design system already intends and no specification ever writes down, because
+# "it has to be accessible" and "it has to work on a phone" go without saying,
+# which is exactly why nothing checks them.
+#
+# Nothing here is an aesthetic opinion, and nothing here carries a concrete
+# value. There are no colors, no breakpoint widths, no spacing scale: those come
+# from YOUR design system through the `tokens` and `breakpoints` capabilities. A
+# guideline that hardcoded one would invent the thing it exists to prevent.
+#
+# `applies_to` decides which guidelines reach a given feature:
+#   interactive  anything the user can operate
+#   layout       anything that occupies space and reflows
+#   text         anything that renders copy
+#   media        images, video, icons carrying meaning
+#   motion       transitions, animation, autoplay
+#   any          unconditional
+#
+# Switch individual ids off in design-config.yml under `guidelines.disabled`.
+# A disabled guideline is reported, never hidden.
+
+rules:
+  # --- Accessibility ----------------------------------------------------------
+  # WCAG is cited, never restated. The standard is the source of truth for what
+  # the rule means; this file only records that it applies here.
+
+  - id: GL-SEMANTIC-HTML
+    dimension: accessibility
+    applies_to: any
+    requirement: >-
+      Interface elements MUST use the semantically correct element or role for what
+      they do. A control that behaves as a button MUST be a button, not a styled div.
+    verify: "Inspect the rendered markup: roles match behaviour."
+    standard: "WCAG 4.1.2"
+
+  - id: GL-KEYBOARD
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Every interactive element MUST be fully operable by keyboard alone, including
+      any action otherwise reachable only by pointer.
+    verify: "Tab to each control and operate it without a mouse."
+    standard: "WCAG 2.1.1"
+
+  - id: GL-FOCUS-VISIBLE
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Keyboard focus MUST be visible at all times, and MUST NOT be removed without an
+      equally visible replacement. Focus MUST NOT become trapped, and anything that
+      takes focus MUST return it when dismissed.
+    verify: "Tab through the feature; a focus indicator is visible at every stop. Open and dismiss each overlay."
+    standard: "WCAG 2.4.7"
+
+  - id: GL-ACCESSIBLE-NAME
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Every control MUST expose an accessible name that describes its action. An
+      icon-only control MUST carry a text alternative.
+    verify: "Read the accessibility tree; every control has a meaningful name."
+    standard: "WCAG 4.1.2"
+
+  - id: GL-NOT-COLOR-ALONE
+    dimension: accessibility
+    applies_to: any
+    requirement: >-
+      Meaning MUST NOT be conveyed by color alone. Any state signalled by color MUST
+      also be signalled by text, shape or icon.
+    verify: "View in greyscale; every state is still distinguishable."
+    standard: "WCAG 1.4.1"
+
+  - id: GL-CONTRAST
+    dimension: accessibility
+    applies_to: text
+    requirement: >-
+      Text and meaningful non-text elements MUST meet the contrast ratio your design
+      system's tokens are built for, in every theme it ships.
+    verify: "Measure contrast for each text and icon style, in each theme."
+    standard: "WCAG 1.4.3"
+
+  - id: GL-TARGET-SIZE
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Touch targets MUST meet the minimum size your design system specifies, with
+      adequate spacing between adjacent targets.
+    verify: "Measure the hit area of each control on a touch viewport."
+    standard: "WCAG 2.5.8"
+
+  # --- Responsive and input ----------------------------------------------------
+
+  - id: GL-RESPONSIVE
+    dimension: responsive
+    applies_to: layout
+    requirement: >-
+      Behaviour MUST be specified at every breakpoint the design system defines, by
+      the system's own breakpoint names, and content MUST reflow rather than be
+      truncated, clipped or horizontally scrolled.
+    verify: "Resize to each named breakpoint and to 320px wide; nothing is lost."
+    standard: "WCAG 1.4.10"
+
+  - id: GL-INPUT-MODALITIES
+    dimension: interaction
+    applies_to: interactive
+    requirement: >-
+      Every action MUST be reachable by pointer, touch and keyboard. Nothing MUST be
+      available only on hover, and nothing MUST depend on a gesture with no
+      single-pointer alternative.
+    verify: "Operate the feature by touch and by keyboard with no pointer."
+    standard: "WCAG 1.4.13"
+
+  - id: GL-REDUCED-MOTION
+    dimension: interaction
+    applies_to: motion
+    requirement: >-
+      Motion MUST respect the user's reduced-motion preference, and no motion MUST be
+      required to understand or complete an action.
+    verify: "Enable reduced motion at OS level; animation is suppressed or minimal."
+    standard: "WCAG 2.3.3"
+
+  # --- States ------------------------------------------------------------------
+
+  - id: GL-STATE-COVERAGE
+    dimension: states
+    applies_to: any
+    requirement: >-
+      Every state the feature can be in MUST be defined: default, hover, focus,
+      active, disabled, loading, error and empty, wherever each is possible.
+    verify: "Walk each state; none falls back to an undesigned default."
+
+  - id: GL-STATE-FEEDBACK
+    dimension: states
+    applies_to: interactive
+    requirement: >-
+      Every action MUST produce visible feedback, and anything that can fail MUST have
+      a defined error state saying what happened and what to do next.
+    verify: "Trigger each action, including its failure path, and observe the response."
+
+  # --- Design system fidelity ---------------------------------------------------
+
+  - id: GL-TOKENS
+    dimension: tokens
+    applies_to: any
+    requirement: >-
+      Where the design system has tokens, color, spacing, typography, radius, elevation
+      and motion values MUST reference them. A raw value MUST NOT be used where a token
+      exists. A system with no token layer is not held to this.
+    verify: "Grep the diff for literal colors, lengths and font stacks."
+
+  - id: GL-NO-BESPOKE-PRIMITIVES
+    dimension: tokens
+    applies_to: any
+    requirement: >-
+      A UI primitive the design system already provides MUST NOT be rebuilt locally.
+      Where the system falls short, its sanctioned extension mechanism MUST be used
+      and the gap recorded.
+    verify: "Every primitive in the diff traces to a design system component or a recorded gap."

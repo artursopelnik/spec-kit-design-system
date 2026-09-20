@@ -1,0 +1,62 @@
+# Adapter: shadcn/ui (https://ui.shadcn.com)
+#
+# shadcn is a registry rather than an installed library: components are copied
+# into your repo. The CLI can still answer what exists and what a component is,
+# which is what the reuse ladder needs.
+#
+#   # design-config.yml
+#   adapter: shadcn
+#   bin: "npx shadcn@latest"
+#   registries: ["@shadcn"]      # add your own registries here too
+#
+# Two caveats worth knowing before you rely on it:
+#
+#   * Only `docs` and `info` document a `--json` flag. `search` and `view` print
+#     for humans, so their output comes back as text. That is usable — the agent
+#     reads it — but if you want structure, generate a registry file with
+#     `npx shadcn@latest build` and point the `static-json` adapter at it.
+#
+#   * shadcn has no token command. Its tokens are CSS variables in your own
+#     stylesheet, so `tokens` is unmapped here on purpose rather than mapped to
+#     something that would return the wrong thing. Point it at your generated
+#     token file if you have one:
+#
+#       capabilities:
+#         tokens:
+#           read_file: "app/globals.css"
+
+id: shadcn
+name: "shadcn/ui"
+
+bin: "npx shadcn@latest"
+registries: ["@shadcn"]
+
+capabilities:
+  describe:
+    args: ["info", "--json"]
+
+  search:
+    args: ["search", "{registries}", "-q", "{query}", "-l", "25"]
+
+  list_components:
+    args: ["list", "{registries}"]
+
+  component:
+    # Documentation and API reference, with real JSON.
+    args: ["docs", "{name}", "--json"]
+
+  pattern:
+    # The registry item itself: files, dependencies, what it composes.
+    args: ["view", "{name}"]
+
+  extend:
+    # shadcn's extension model is owning the source. A dry run shows exactly what
+    # would land before rung 4 is taken.
+    args: ["add", "{name}", "--dry-run"]
+
+  # guidelines: unmapped. shadcn publishes guidance as prose on its site rather
+  # than through the CLI, so there is nothing honest to map. Point at your own
+  # house guidelines instead, and they become the authority:
+  #
+  #   guidelines:
+  #     source: "design/guidelines.yml"

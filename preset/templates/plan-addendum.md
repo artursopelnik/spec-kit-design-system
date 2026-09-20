@@ -3,9 +3,10 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-Populated by `/speckit.designsys.check`, which runs as a mandatory `before_plan` hook.
-The full walk lives in `design-system.md` in this feature directory; this section is
-the summary the plan is accountable to.
+Populated by `/speckit.design.check`, which runs as a mandatory `before_plan` hook.
+The full walk lives in `design-system.md` in this feature directory, together with the
+validation rounds that check the implementation against it. This section is the summary
+the plan is accountable to.
 
 **Design system**: [NAME] · **Gate**: PASS | FAIL | NOT APPLICABLE
 
@@ -13,6 +14,7 @@ the summary the plan is accountable to.
 |---|---|---|---|
 | [capability phrase] | Reuse / Compose (pattern) / Compose (components) / Extend / Create | [component, pattern or composition] | recalled `dd-001` / newly walked |
 
+**Guidelines source**: cli | adapter | default
 **Design system impact**: none | extension proposal | new component proposal
 **Open gaps**: [gap records filed, with identifiers, or none]
 **Decisions recorded**: [ids added to `.specify/memory/design-decisions.yml`, and any superseded]
