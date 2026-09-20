@@ -1,0 +1,43 @@
+schema_version: "1.0"
+
+preset:
+  id: "designsys"
+  name: "Design System Requirements: templates"
+  version: "0.1.0"
+  description: "Composes design requirements into the spec, plan and constitution templates so design is a first-class concern of the workflow itself"
+  author: "artursopelnik"
+  repository: https://github.com/artursopelnik/spec-kit-design-system
+  license: "MIT"
+
+requires:
+  # `strategy: append` on templates is preset-only; extensions resolve templates
+  # as `replace`, which would fork the core templates and strand the project on
+  # whatever version they were copied from.
+  # Append composition verified against 1.0.9.dev0.
+  speckit_version: ">=1.0.0,<2.0.0"
+
+provides:
+  templates:
+    - type: "template"
+      name: "spec-template"
+      file: "templates/spec-addendum.md"
+      description: "Add a Design System Requirements section to the feature spec"
+      strategy: "append"
+
+    - type: "template"
+      name: "plan-template"
+      file: "templates/plan-addendum.md"
+      description: "Add a Design System Check gate to the implementation plan"
+      strategy: "append"
+
+    - type: "template"
+      name: "constitution-template"
+      file: "templates/constitution-addendum.md"
+      description: "Add the Reuse -> Compose -> Extend -> Create principle to the constitution"
+      strategy: "append"
+
+tags:
+  - "design-system"
+  - "templates"
+  - "governance"
+  - "reuse"

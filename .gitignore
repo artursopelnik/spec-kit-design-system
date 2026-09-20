@@ -1,0 +1,24 @@
+# Local configuration overrides
+designsys-config.local.yml
+*-config.local.yml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+node_modules/

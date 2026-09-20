@@ -1,0 +1,66 @@
+# Adapter: static JSON, for design systems with no CLI at all
+#
+# Point this at a generated inventory file and the gate still works. Many teams
+# can produce such a file from Storybook, a token pipeline, or their component
+# registry with a few lines of build script.
+#
+# Expected shape:
+# {
+#   "components": [
+#     { "name": "Button",
+#       "description": "...",
+#       "props": [...], "variants": [...], "states": [...],
+#       "accessibility": "...", "usage": "...", "avoid": "..." }
+#   ],
+#   "patterns":  [ { "name": "...", "description": "...", "composes": [...] } ],
+#   "tokens":    { "color": {...}, "space": {...}, "type": {...} },
+#   "breakpoints": { "sm": "640px", "md": "768px", "lg": "1024px", "xl": "1280px" },
+#   "guidelines": "Prose: your principles, do/don't guidance, house policy."
+# }
+#
+# Include "breakpoints" even if they live in your tokens too. Responsive
+# requirements are written using these names, and a name the agent cannot look
+# up is a name it will invent.
+
+id: static-json
+name: "Static JSON inventory"
+bin: ""
+
+source: ".design-system/inventory.json"
+
+capabilities:
+  search:
+    # Matched in-process against name, description and usage fields.
+    read_file: "{source}"
+    search_keys: ["components", "patterns"]
+    match_fields: ["name", "description", "usage"]
+
+  list_components:
+    read_file: "{source}"
+    result_path: "components"
+
+  component:
+    read_file: "{source}"
+    result_path: "components"
+    key_field: "name"
+
+  pattern:
+    read_file: "{source}"
+    result_path: "patterns"
+    key_field: "name"
+
+  tokens:
+    read_file: "{source}"
+    result_path: "tokens"
+
+  breakpoints:
+    read_file: "{source}"
+    result_path: "breakpoints"
+
+  guidelines:
+    # Your design system's own principles, if you put them in the inventory.
+    # Prose is fine; this is the system speaking for itself.
+    read_file: "{source}"
+    result_path: "guidelines"
+
+  # extend / report_gap: unmapped, because a static inventory has no write side.

@@ -1,0 +1,86 @@
+{
+  "guidelines": "Acme Design System principles. (1) Destructive or irreversible confirmations use Modal. Drawer is for non-blocking secondary content and must never confirm a destructive action. (2) Every form control pairs with a Label; placeholder text is never a substitute. (3) Filters live in a FilterBar and collapse to a stacked form below md. (4) We commit to WCAG AA contrast in both themes.",
+
+  "breakpoints": { "sm": "640px", "md": "768px", "lg": "1024px", "xl": "1280px" },
+
+  "tokens": {
+    "color": {
+      "surface": { "default": "#ffffff", "raised": "#f7f8fa", "sunken": "#eef0f4" },
+      "text": { "default": "#14181f", "muted": "#5b6474", "inverse": "#ffffff" },
+      "border": { "default": "#d5dae2", "focus": "#2f6fed" },
+      "danger": { "default": "#c0362c", "surface": "#fdeceb" }
+    },
+    "space": { "1": "4px", "2": "8px", "3": "12px", "4": "16px", "6": "24px", "8": "32px" },
+    "radius": { "sm": "4px", "md": "8px", "full": "9999px" },
+    "duration": { "fast": "120ms", "base": "200ms" }
+  },
+
+  "components": [
+    { "name": "Button", "description": "Primary action trigger",
+      "variants": ["primary", "secondary", "ghost", "danger"],
+      "states": ["default", "hover", "focus", "active", "disabled", "loading"],
+      "props": ["variant", "size", "disabled", "loading", "iconStart", "iconEnd"],
+      "accessibility": "Renders a native button. Focus ring uses color.border.focus. Loading sets aria-busy.",
+      "usage": "One primary per view.", "avoid": "Do not use for navigation; use Link." },
+
+    { "name": "Calendar", "description": "Month grid for selecting a single date",
+      "variants": ["month"], "states": ["default", "disabled"],
+      "props": ["value", "onChange", "min", "max", "disabledDates"],
+      "accessibility": "role=grid, arrow-key navigation, aria-selected on the active day.",
+      "usage": "Embed in a Popover for compact contexts.",
+      "avoid": "Single date only. Does not model a range and has no second value." },
+
+    { "name": "DatePicker", "description": "Text input bound to a Calendar in a Popover",
+      "variants": ["default"], "states": ["default", "hover", "focus", "disabled", "error"],
+      "props": ["value", "onChange", "format", "min", "max", "invalid"],
+      "accessibility": "Input with aria-describedby for format hint; Calendar is a labelled dialog.",
+      "usage": "Single dates such as a due date.",
+      "avoid": "Exposes exactly one value. No range semantics, no cross-field validation." },
+
+    { "name": "Popover", "description": "Floating container anchored to a trigger",
+      "variants": ["default"], "states": ["open", "closed"],
+      "props": ["anchor", "placement", "open", "onOpenChange"],
+      "accessibility": "Focus moves in on open and returns to the trigger on close. Escape closes.",
+      "usage": "Compact overlays anchored to a control.", "avoid": "Not for blocking decisions; use Modal." },
+
+    { "name": "Modal", "description": "Blocking dialog for decisions that need an answer",
+      "variants": ["default", "danger"], "states": ["open", "closed"],
+      "props": ["open", "onOpenChange", "title", "description"],
+      "accessibility": "role=dialog aria-modal, focus trapped while open, returns focus on close.",
+      "usage": "Destructive or irreversible confirmations.", "avoid": "Not for non-blocking content; use Drawer." },
+
+    { "name": "Drawer", "description": "Edge-anchored panel for secondary content",
+      "variants": ["left", "right"], "states": ["open", "closed"],
+      "props": ["side", "open", "onOpenChange"],
+      "accessibility": "Focus moves in on open, Escape closes, returns focus to the trigger.",
+      "usage": "Non-blocking detail or filters on small screens.", "avoid": "Never for destructive confirmation." },
+
+    { "name": "Select", "description": "Choose one option from an enumerable list",
+      "variants": ["default"], "states": ["default", "hover", "focus", "disabled", "error"],
+      "props": ["value", "onChange", "options", "invalid"],
+      "accessibility": "Native select semantics; label required.",
+      "usage": "Short enumerable sets.", "avoid": "Not for continuous or open-ended values such as dates." },
+
+    { "name": "Label", "description": "Accessible label bound to a control",
+      "states": ["default", "disabled"], "props": ["htmlFor", "required"],
+      "accessibility": "Associates via htmlFor.", "usage": "Every control pairs with one.", "avoid": "Never rely on placeholder text instead." },
+
+    { "name": "Table", "description": "Tabular data with sortable columns",
+      "states": ["default", "loading", "empty"], "props": ["columns", "rows", "sort", "onSortChange"],
+      "accessibility": "Native table semantics, th scope, sort state announced via aria-sort.",
+      "usage": "Row data with comparable columns.", "avoid": "Not for layout." },
+
+    { "name": "Badge", "description": "Compact status indicator",
+      "variants": ["neutral", "success", "warning", "danger"], "states": ["default"],
+      "props": ["variant"], "accessibility": "Carries text, never color alone.",
+      "usage": "Status on a row or card.", "avoid": "Not interactive; use Button." }
+  ],
+
+  "patterns": [
+    { "name": "FilterBar", "description": "Horizontal row of filter controls that collapses to a stacked form below md",
+      "composes": ["Select", "Button", "Popover"],
+      "usage": "Filtering a Table.", "avoid": "Keep to four controls; beyond that move to a Drawer." },
+    { "name": "ConfirmDialog", "description": "Modal preconfigured for a destructive confirmation",
+      "composes": ["Modal", "Button"], "usage": "Deleting or cancelling.", "avoid": "Do not build from Drawer." }
+  ]
+}

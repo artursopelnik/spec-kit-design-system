@@ -1,0 +1,42 @@
+schema_version: "1.0"
+
+# Acme's house rules. Ships inside the design system package, so every
+# consuming repository reads this same file.
+
+rules:
+  # Tightens the baseline floor. Same id, so it replaces it.
+  - id: BL-A11Y-TARGET-SIZE
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Pointer targets MUST be at least 44x44px including padding, and adjacent
+      targets MUST be separated by at least space.2.
+    verify: "Measure the hit area, not the visible box, at every breakpoint."
+    standard: "WCAG 2.5.8"
+
+  - id: ACME-OVERLAY-CHOICE
+    dimension: interaction
+    applies_to: interactive
+    requirement: >-
+      Destructive or irreversible confirmations MUST use Modal. Drawer MUST NOT
+      be used to confirm a destructive action.
+    verify: "Each overlay's component matches the kind of decision it asks for."
+    standard: null
+
+  - id: ACME-LABEL-REQUIRED
+    dimension: accessibility
+    applies_to: interactive
+    requirement: >-
+      Every form control MUST be paired with a Label. Placeholder text MUST NOT
+      be used as the only label.
+    verify: "Each control has an associated Label element."
+    standard: "WCAG 3.3.2"
+
+  - id: ACME-MOTION-BUDGET
+    dimension: interaction
+    applies_to: motion
+    requirement: >-
+      Transitions MUST reference a duration token and MUST NOT exceed
+      duration.base.
+    verify: "Every transition uses duration.fast or duration.base."
+    standard: null
