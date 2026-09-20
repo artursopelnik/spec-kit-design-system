@@ -137,6 +137,33 @@ jobs:
           print(f"baseline ok: {len(every['rules'])} rules, {len(text['rules'])} apply to text")
           PY
 
+      - name: The example walkthrough still works
+        run: |
+          "$GITHUB_WORKSPACE/extension/examples/setup-demo.sh" "$RUNNER_TEMP/demo"
+          cd "$RUNNER_TEMP/demo"
+          DS=.specify/extensions/designsys/scripts/bash
+          $DS/check-design-gate.sh --json > gate.json
+          $DS/ds-query.sh --json search "confirm destructive action" > search.json
+          $DS/ds-rules.sh --json --applies-to interactive,layout > rules.json
+          python - <<'PY'
+          import json
+          gate = json.load(open("gate.json"))
+          assert gate["REACHABLE"] is True, gate
+          assert gate["HOUSE_RULE_COUNT"] == 4, gate
+          assert gate["RULES_OVERRIDDEN"] == ["BL-A11Y-TARGET-SIZE"], gate
+
+          hits = json.load(open("search.json"))["data"]
+          # Ranking has to be meaningful, not insertion order: the pattern built
+          # for destructive confirmation must outrank a generic Button.
+          assert hits[0]["name"] == "ConfirmDialog", [h["name"] for h in hits]
+          assert len({h["score"] for h in hits}) > 1, hits
+
+          rules = json.load(open("rules.json"))
+          sources = {r["source"] for r in rules["rules"]}
+          assert sources == {"baseline", "house"}, sources
+          print("walkthrough ok")
+          PY
+
       - name: Gate fails closed when the design system is unreachable
         working-directory: proj
         run: |

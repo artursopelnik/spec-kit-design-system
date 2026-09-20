@@ -161,3 +161,33 @@ def test_backend_spec_is_not_ui_bearing(designsys, project, tmp_path):
         encoding="utf-8",
     )
     assert designsys.detect_ui_bearing(spec) is False
+
+
+# --- search ranking, found by walking the example end to end -----------------
+
+
+def test_camelcase_names_are_tokenized(designsys):
+    """Component names are CamelCase. Lowercasing before splitting would make
+    `DateRangePicker` one token that "date range picker" can never match, which
+    breaks both component search and the ledger's alias recall."""
+    assert designsys.normalize("DateRangePicker") == ["date", "range", "picker"]
+    assert designsys.normalize("ConfirmDialog") == ["confirm", "dialog"]
+    assert designsys.normalize("FilterBar") == ["filter", "bar"]
+
+
+def test_search_ranks_name_matches_above_prose(
+    designsys, project, write_config, inventory
+):
+    """A raw overlap count ties every candidate at 1 on short descriptions, so
+    results come back in insertion order and "the strongest hits" means nothing."""
+    write_config({"adapter": "static-json"})
+    hits = run(designsys, "search", query="calendar")["data"]
+
+    assert hits[0]["name"] == "Calendar"
+    assert hits[0]["score"] > (hits[1]["score"] if len(hits) > 1 else 0)
+
+
+def test_search_scores_are_not_all_equal(designsys, project, write_config, inventory):
+    write_config({"adapter": "static-json"})
+    hits = run(designsys, "search", query="floating container anchored")["data"]
+    assert len({hit["score"] for hit in hits}) > 1 or len(hits) == 1

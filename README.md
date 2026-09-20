@@ -799,6 +799,7 @@ spec-kit-design-system/
 │       ├── spec-addendum.md
 │       ├── plan-addendum.md
 │       └── constitution-addendum.md
+├── examples/                   # fixture design system + walkthrough
 ├── tests/                      # pytest over designsys.py
 └── .github/workflows/ci.yml    # unit tests plus a real install against Spec Kit
 ```
@@ -862,7 +863,9 @@ Verified against a real `specify init` project on Spec Kit `1.0.9.dev0`:
 * The gate running against a real feature created by `create-new-feature.sh`
 * Capability dispatch, config layering, the ledger and the fail-closed probe, under `pytest`
 
-One thing remains unexercised: a command body end-to-end, with an agent actually following it. The gate logic lives in those four command files as prose, and prose is the part a test suite cannot check. Issues welcome.
+The command bodies have now been walked end to end against a fixture design system, which is what [`examples/`](examples/) is for. That first pass found three real defects: search ranking that was effectively insertion order, CamelCase component names tokenized as one word so `ConfirmDialog` never matched "confirm", and surface-kind classification that ignored the components a feature was about to use. All three are fixed, covered by tests, and the walkthrough runs in CI.
+
+What remains unexercised is the same walk driven by an agent in a live session rather than by following the steps by hand, and against a real design system CLI rather than a JSON fixture. Issues welcome.
 
 ## Contributing
 

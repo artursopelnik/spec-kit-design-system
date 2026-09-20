@@ -58,6 +58,9 @@ CAPABILITIES = [
     "report_gap",
 ]
 
+# A hit on the name is worth more than a hit buried in prose.
+FIELD_WEIGHTS = {"name": 3.0, "usage": 1.5, "description": 1.0}
+
 STOPWORDS = {
     "a", "an", "the", "of", "for", "to", "and", "or", "with", "in", "on",
     "that", "this", "is", "are", "be", "by", "as", "at", "from", "it",
@@ -364,15 +367,25 @@ def run_capability(
                 for item in data.get(section) or []:
                     if not isinstance(item, dict):
                         continue
-                    haystack = " ".join(
-                        str(item.get(field, "")) for field in spec["match_fields"]
-                    )
-                    overlap = query_tokens & set(normalize(haystack))
-                    if overlap:
+                    # Weighted per field rather than one bag of words. A raw
+                    # overlap count makes every candidate tie at 1 on short
+                    # descriptions, so results come back in insertion order and
+                    # "pull detail on the strongest hits" has nothing to act on.
+                    score = 0.0
+                    for field in spec["match_fields"]:
+                        tokens = set(normalize(str(item.get(field, ""))))
+                        if not tokens:
+                            continue
+                        overlap = query_tokens & tokens
+                        if overlap:
+                            weight = FIELD_WEIGHTS.get(field, 1.0)
+                            score += weight * len(overlap) / len(query_tokens)
+                    if score:
                         hits.append(
-                            {"kind": section, "score": len(overlap), **item}
+                            {"kind": section, "score": round(score, 3), **item}
                         )
-            hits.sort(key=lambda entry: entry["score"], reverse=True)
+            # Ties break on name so ordering is stable rather than positional.
+            hits.sort(key=lambda entry: (-entry["score"], str(entry.get("name", ""))))
             return {
                 "capability": capability,
                 "available": True,
@@ -570,7 +583,15 @@ def load_ledger(root: Path) -> dict:
 
 
 def normalize(text: str) -> list[str]:
-    words = re.findall(r"[a-z0-9]+", (text or "").lower())
+    """Tokenize for matching, splitting CamelCase first.
+
+    Component names are almost always CamelCase, so lowercasing before
+    splitting would turn `DateRangePicker` into one token that the query
+    "date range picker" can never match. Both the component search and the
+    ledger's alias matching depend on this.
+    """
+    split = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text or "")
+    words = re.findall(r"[a-z0-9]+", split.lower())
     return [w for w in words if w not in STOPWORDS]
 
 

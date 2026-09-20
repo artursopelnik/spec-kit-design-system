@@ -110,6 +110,8 @@ First classify what this feature actually involves, from: `interactive`, `layout
 
 Classify honestly. Over-claiming buries the spec in rules that do not apply; under-claiming is how a control ships without a focus state. If the feature has anything the user can operate, it is `interactive`. If anything occupies space and reflows, it is `layout`.
 
+Classify from the **components you are about to use**, not only from the feature description. A booking filter does not sound like it involves motion, but if it opens a Popover or a Modal then it animates, and `motion` applies. Read the `avoid` and `usage` text of each candidate from step 3 before deciding: that is where a component tells you what it drags in.
+
 The response carries each rule's `id`, `requirement`, `verify`, `standard` and `source`. `source` is `baseline` for the shipped floor and `house` for your project's own rules in `rules.yml`. They are already written as testable requirements and do not need re-deriving.
 
 If a house rule and the system's own guidelines from step 5 disagree, the guidelines win and the conflict belongs in the spec as a `[NEEDS CLARIFICATION]`, because it means the project has codified something its design system contradicts.
