@@ -131,7 +131,7 @@ def test_probe_fails_closed_when_the_design_system_is_unreachable(
     """The gate keys on CAPABILITIES. Trusting the adapter file instead of the
     CLI would report a full set for a design system that is not installed, and
     the commands' fail-closed guard could never fire."""
-    write_config({"adapter": "astryx", "bin": "./definitely-not-here"})
+    write_config({"adapter": "example", "bin": "./definitely-not-here"})
     root = Path.cwd()
     config = designsys.load_config(root)
     adapter = designsys.load_adapter(root, config)

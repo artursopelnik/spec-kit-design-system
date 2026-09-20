@@ -1,0 +1,82 @@
+# Template adapter. Copy this file, rename it, and point it at your CLI.
+#
+# Nothing here describes a real product. `your-design-system-cli` is a
+# placeholder and the flags are invented, so this file will not run as-is.
+# That is deliberate: an adapter shipped for a specific design system would be
+# a guess about someone else's command surface, and a stale guess in this
+# directory is worse than no example, because it looks authoritative.
+#
+# If your CLI can describe itself (some emit a JSON manifest of their commands,
+# arguments and response types), ask it first and write the mapping from what it
+# reports rather than from its documentation.
+
+id: example
+name: "Example Design System"
+
+# How the CLI is invoked. Split on whitespace, so wrappers work:
+#   "npx my-ds"  ·  "npm run ds --"  ·  "pnpm --filter @acme/web exec ds"  ·  "./bin/ds"
+bin: "your-design-system-cli"
+
+# Appended to every invocation. Most CLIs need a flag to emit JSON.
+global_args: ["--json"]
+
+# How to read the CLI's response envelope. Omit if it returns bare JSON.
+envelope:
+  type_key: "type"          # key naming the response kind, if any
+  data_key: "data"          # key holding the payload
+  error_code_key: "code"    # key holding a machine-readable error code
+
+capabilities:
+  # --- required ---------------------------------------------------------------
+
+  search:
+    # The single most valuable call for the reuse ladder. If the CLI can rank
+    # across components, patterns and docs in one query, map that here.
+    args: ["search", "{query}"]
+    result_path: "data.results"
+
+  component:
+    args: ["show", "{name}"]
+    result_path: "data"
+    # Error codes meaning "asked successfully, and it does not exist".
+    # Everything else is treated as a failure to ask, never as an empty result,
+    # so an outage cannot read as "the design system has nothing".
+    not_found_codes: ["ERR_NOT_FOUND"]
+
+  # --- optional, each one improves the gate ------------------------------------
+
+  describe:
+    # Self-description, if the CLI offers it. Used to check this file against
+    # the CLI's real surface when a capability starts failing.
+    args: ["manifest"]
+    result_path: "data"
+
+  list_components:
+    args: ["list"]
+    result_path: "data"
+
+  pattern:
+    # Whatever your system calls a composed arrangement: pattern, template,
+    # block, recipe.
+    args: ["pattern", "{name}"]
+    result_path: "data"
+    not_found_codes: ["ERR_NOT_FOUND"]
+
+  tokens:
+    args: ["tokens", "{theme}"]
+    result_path: "data"
+    defaults:
+      theme: "default"
+
+  extend:
+    # The sanctioned way to customize a component, such as a command that copies
+    # its source for local modification. Mapping this makes rung 4 a real check
+    # rather than advice.
+    args: ["eject", "{name}", "--dry-run"]
+    result_path: "data"
+
+  report_gap:
+    # Where a genuine gap is filed. Mapping this means rung 5 routes into the
+    # design system's own intake instead of dead-ending in a document.
+    args: ["request", "--title", "{title}", "--body", "{body}"]
+    result_path: "data"

@@ -5,12 +5,19 @@
 # ask. The CLI stays the single source of truth.
 
 # Which adapter to load from .specify/extensions/designsys/adapters/<id>.yml
-# Ships with: astryx, static-json
-# Set to "custom" to define everything inline under `capabilities:` below.
-adapter: astryx
+#
+#   static-json   no CLI needed; reads a generated inventory file (the default)
+#   example       a template to copy and rename for your own CLI
+#   custom        define everything inline under `capabilities:` below
+#
+# No adapter for any named design system ships here. One would be a guess about
+# someone else's command surface, and a stale guess looks authoritative while
+# being wrong. Write your own from what your CLI actually reports.
+adapter: static-json
 
 # Override the binary the adapter invokes. Leave empty to use the adapter default.
-# Examples: "npx astryx", "npm run astryx --", "./bin/ds"
+# Split on whitespace, so wrappers work:
+#   "npx my-ds"  ·  "npm run ds --"  ·  "pnpm --filter @acme/web exec ds"  ·  "./bin/ds"
 bin: ""
 
 # Working directory for the design system, relative to repo root. Empty = repo

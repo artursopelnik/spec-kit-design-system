@@ -165,8 +165,8 @@ Both ship together on purpose. Extensions can only *replace* templates, which wo
 Point it at your design system in `.specify/extensions/designsys/designsys-config.yml`:
 
 ```yaml
-adapter: astryx
-bin: "npx astryx"
+adapter: example
+bin: "npx my-design-system"
 ```
 
 Verify it can reach the CLI:
@@ -300,7 +300,7 @@ decisions:
     components: [Calendar, Popover]
     rejected:
       - {candidate: DatePicker, reason: "single date only; no range semantics"}
-    design_system: astryx
+    design_system: acme-ds
     design_system_version: "1.4.2"
     decided_in: "003-booking-filters"
     status: active
@@ -348,9 +348,13 @@ Two files, and neither is a vendor binding:
 | File | What it is |
 |---|---|
 | `static-json` | **The universal fallback.** Point it at a generated inventory file and everything works without a CLI at all. Most teams can produce one from Storybook or their token pipeline in a few lines of build script. This is what makes the agnosticism real rather than aspirational. |
-| `astryx` | **A worked example**, modelled on [Meta's Astryx](https://github.com/facebook/astryx). It is the one design system that exercises the entire contract: self-description via `manifest --json`, a sanctioned extension path via `swizzle`, and real gap intake via `gap-report`. Copy it as a starting point for yours. |
+| `example` | **A template to copy.** Every capability, documented, with a placeholder binary and invented flags so it cannot be mistaken for something that runs. Rename it and map it onto your CLI. |
 
-There is deliberately no list of blessed design systems. Maintaining per-vendor adapters would be a treadmill, and it would turn "works with any design system" into "works with the four we got around to". The contract is the product. The adapters are documentation that happens to execute.
+**No adapter for any named design system ships here, and that is not an oversight.** One would be a guess about someone else's command surface, written from their documentation rather than from their binary. A stale guess in `adapters/` looks authoritative while being wrong, and when it breaks it looks like a bug in this extension. Maintaining a set of them would also be a treadmill that turns "works with any design system" into "works with the four we got around to".
+
+The contract is the product. Write your adapter from what your CLI actually reports, not from what its docs say. If it can describe itself, ask it first.
+
+The optional capabilities exist because real design system CLIs already have them. Meta's [Astryx](https://github.com/facebook/astryx), for instance, emits a JSON manifest of its own commands, copies component source for local customization, and routes a gap to its owning package. Those three shapes are why the contract has `describe`, `extend` and `report_gap`. If yours has equivalents, mapping them turns rungs 4 and 5 into real checks rather than advice.
 
 ### Writing your own
 
@@ -387,7 +391,7 @@ Only `search` and `component` are strictly required. `not_found_codes` matters m
 # .specify/extensions/designsys/designsys-config.yml
 
 # Which adapter from adapters/. Use "custom" to define capabilities inline.
-adapter: astryx
+adapter: static-json
 
 # Override the binary the adapter invokes. Empty uses the adapter default.
 bin: ""
@@ -469,11 +473,11 @@ Resolution order is **extension defaults → project config → local override �
 
 ## Examples
 
-### Astryx, minimal
+### A CLI-backed design system
 
 ```yaml
-adapter: astryx
-bin: "npx astryx"
+adapter: acme        # your own adapters/acme.yml
+bin: "npx @acme/ds"
 ```
 
 ### No CLI, static inventory
@@ -504,7 +508,7 @@ with `.design-system/inventory.json`:
 Run the ladder and record its findings, but do not block planning yet:
 
 ```yaml
-adapter: astryx
+adapter: acme
 gate:
   enforce: false
 ```
@@ -514,8 +518,8 @@ Turn `enforce` on once the ledger has a few decisions in it and the team has see
 ### Monorepo with a scoped CLI
 
 ```yaml
-adapter: astryx
-bin: "pnpm --filter @acme/web exec astryx"
+adapter: acme
+bin: "pnpm --filter @acme/web exec ds"
 cwd: "packages/web"
 audit:
   source_globs: ["packages/web/src/**/*.tsx"]
@@ -549,7 +553,7 @@ A design system request travels in both directions, and Spec Kit already has ext
 
 | You run | Route |
 |---|---|
-| A design system CLI with intake, such as Astryx `gap-report` | Filed directly with the owning package, the shortest path |
+| A design system CLI with a gap intake command | Filed directly with the owning package, the shortest path |
 | Core Spec Kit | `/speckit.taskstoissues` to GitHub Issues |
 | `jira`, `jira-mirror`, `linear`, `azure-devops` | Whichever you already sync with |
 | Nothing | The RFC file *is* the artifact. Commit it, paste it, or open it as a PR against the design system repo. |
@@ -608,7 +612,7 @@ The interpreter running the scripts is not the one Spec Kit installed into. Inst
 
 ### `adapter '<id>' not found`
 
-`adapter:` must name a file in `.specify/extensions/designsys/adapters/`. Ships with `astryx` and `static-json`. Use `custom` to define capabilities inline in your config, or drop your own YAML into that directory.
+`adapter:` must name a file in `.specify/extensions/designsys/adapters/`. Ships with `static-json` and `example`. Copy `example.yml`, rename it, and drop it in that directory, or use `custom` to define capabilities inline in your config.
 
 ### A capability comes back `available: false`
 
@@ -638,7 +642,7 @@ spec-kit-design-system/
 ├── extension.yml               # Extension manifest
 ├── config-template.yml         # Config template, materialized on install
 ├── adapters/                   # Capability mappings: examples, not a vendor list
-│   ├── astryx.yml              #   worked example exercising the full contract
+│   ├── example.yml             #   template to copy for your own CLI
 │   └── static-json.yml         #   universal fallback, no CLI required
 ├── commands/
 │   ├── speckit.designsys.sync.md
@@ -706,7 +710,7 @@ Verified against a real `specify init` project on Spec Kit `1.0.9.dev0`:
 * The gate running against a real feature created by `create-new-feature.sh`
 * Capability dispatch, config layering, the ledger and the fail-closed probe, under `pytest`
 
-Two things remain unexercised: a command body end-to-end with an agent actually following it, and the Astryx adapter against a live Astryx install. The adapter is modelled on the published CLI reference, so its flag mapping is unverified against a real binary. Issues and adapter contributions welcome.
+One thing remains unexercised: a command body end-to-end, with an agent actually following it. The gate logic lives in those four command files as prose, and prose is the part a test suite cannot check. Issues welcome.
 
 ## Contributing
 

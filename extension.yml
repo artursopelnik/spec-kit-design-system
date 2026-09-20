@@ -74,7 +74,9 @@ tags:
 config:
   defaults:
     # Which adapter under adapters/ describes the project's design system CLI.
-    adapter: astryx
+    # static-json is the only adapter that can work without a CLI, so it is the
+    # default. Copy adapters/example.yml and point it at your own CLI.
+    adapter: static-json
 
     ledger:
       # Consult prior ladder decisions before querying the design system, and

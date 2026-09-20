@@ -7,7 +7,7 @@ from pathlib import Path
 
 def test_defaults_come_from_the_extension_manifest(designsys, project):
     config = designsys.load_config(Path.cwd())
-    assert config["adapter"] == "astryx"
+    assert config["adapter"] == "static-json"
     assert config["gate"]["enforce"] is True
     assert config["ledger"]["match_threshold"] == 0.34
 

@@ -38,11 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed before first release
 
-- The `shadcn` adapter. It parsed prose output rather than a typed envelope, and
-  more importantly a list of named vendor adapters undercuts the point: the
-  capability contract is the product, and per-vendor adapters would become a
-  maintenance treadmill that turns "works with any design system" into "works
-  with the few we got around to".
+- Every adapter for a named design system, `shadcn` and then `astryx`. Neither
+  was ever run against the real CLI, so both were guesses written from vendor
+  documentation. A stale guess in `adapters/` looks authoritative while being
+  wrong, and when it breaks it looks like a defect in this extension. What ships
+  instead is `static-json`, which needs no CLI and is fully tested, and
+  `example.yml`, a template with a placeholder binary and invented flags so it
+  cannot be mistaken for something that runs. The capability contract is the
+  product; the default adapter is now `static-json`.
 - The `--refresh` flag, which was documented in two commands and implemented in
   none. The `describe` capability it was meant to drive is real and still
   reachable; nothing rewrites an adapter automatically, because silently editing

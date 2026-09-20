@@ -116,7 +116,7 @@ When `ledger.enabled` is true, record each newly-walked surface so the next feat
   "components": ["Calendar", "Popover"],
   "rejected": [{"candidate": "DatePicker", "reason": "single date only; no range semantics"}],
   "constraints": {"tokens": ["space.*", "color.surface.*"], "states": ["default", "focus", "disabled", "error"]},
-  "design_system": "astryx",
+  "design_system": "acme-ds",
   "design_system_version": "1.4.2",
   "decided_in": "003-booking-filters"
 }
