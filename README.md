@@ -27,13 +27,25 @@ Spec Kit Extension
 
 ## Features
 
-- **Design requirements up front**: `DS-` requirements land in the spec at `/speckit.specify`, not in a review comment three days later
-- **A real gate**: `/speckit.plan` is blocked until every UI surface has a documented resolution
-- **Reuse ladder**: Recall → Reuse → Compose → Extend → Create, with rejection reasons required at each rung
-- **Decision memory**: a committed ledger so the second feature to need a date range does not re-run the first one's search
-- **CLI-agnostic**: a capability contract with adapters for Astryx, shadcn/ui and static JSON inventories
-- **Constitutional**: ships the ladder as a `NON-NEGOTIABLE` principle, so `/speckit.analyze` treats violations as CRITICAL
-- **Degrades honestly**: an unreachable CLI fails the gate rather than falling back on a remembered inventory
+- **Works with any design system** — the extension holds no component knowledge of its own. A capability contract maps onto whatever your system already exposes: Astryx, shadcn/ui, or a static JSON inventory if it has no CLI at all. Your design system stays the single source of truth; nothing is mirrored, so nothing can drift.
+- **It remembers** — every ladder walk is recorded in a committed ledger keyed by UI capability. The second feature that needs a date range reads the first one's decision instead of re-running its search. Lookups match on the wordings actually searched, so a differently-phrased need still finds the answer.
+- **Design requirements up front** — `DS-` requirements land in the spec at `/speckit.specify`, covering states, responsive behaviour, accessibility, tokens and interaction. Not in a review comment three days later.
+- **A gate that actually blocks** — `/speckit.plan` does not start until every UI surface has a documented resolution, with the candidates searched and a concrete reason the chosen rung is the lowest that holds.
+- **Constitutional** — ships the ladder as a `NON-NEGOTIABLE` principle, so `/speckit.analyze` classifies violations as CRITICAL with no extra wiring.
+- **Fails closed** — an unreachable CLI stops the gate instead of passing it, and a failed call is never reported as "the design system has nothing". A gate that passes when it cannot check anything is worse than no gate.
+- **Composes, doesn't colonize** — gap reports come out as standalone RFC files that your existing tracker extension can carry to Jira, Linear, Azure DevOps or GitHub Issues. Optional, and none of it is reimplemented here.
+
+### What it actually changes
+
+No benchmark is claimed — this has not been measured against a control, and anyone quoting a percentage at you about this has not measured it either. What it changes is mechanical and checkable:
+
+| Without | With |
+|---|---|
+| The agent searches the design system from scratch each feature, or not at all | Rung 0 reads a prior decision before any search runs |
+| "Use the design system" is a review comment | `DS-001: … MUST …` is a spec requirement with acceptance criteria |
+| A new component appears in a diff and looks reasonable | A new component requires a written record of the alternatives searched |
+| Design compliance is checked after the code exists | Planning does not begin until the surfaces are resolved |
+| Nobody learns that the system lacks a date range picker | An RFC lands with the design system's owners |
 
 ## The ladder
 
@@ -263,8 +275,8 @@ Record a justified gap and route it to the design system's owners.
 
 **Output**
 
-- A `### Gap:` record with the alternatives searched and why each is insufficient
-- The gap filed with the design system's intake, where the adapter maps `report_gap`
+- A standalone `design-system-gap-<slug>.md` RFC in the feature directory, complete enough to hand to another team unchanged
+- The gap filed with the design system's intake, where the adapter maps `report_gap`; otherwise the command that would file it is named, or you are told the file itself is the artifact
 - A recorded interim approach and a constraint on what the local build may become
 
 ## Decision memory
@@ -488,25 +500,40 @@ audit:
   source_globs: ["packages/web/src/**/*.tsx"]
 ```
 
-## Combining with other extensions
+## Where this sits in the Spec Kit ecosystem
 
-This extension deliberately stops at the edge of the design system. It composes well with extensions that own the next step.
+The extension catalog has 170+ community extensions. This one deliberately owns a narrow slice and reuses the rest. **If an installed extension already does something, this one points at it rather than reimplementing it.**
 
-### Issue trackers — [spec-kit-jira](https://github.com/mbachorik/spec-kit-jira) and friends
+### Prior art
 
-The hooks do not collide: the gate runs at `before_plan`, while `spec-kit-jira` creates issues at `after_tasks`. The natural order is
+Nothing in the catalog gates spec-driven development on a design system's own inventory. The closest neighbours solve adjacent problems and compose rather than compete:
 
-```text
-/speckit.specify → designsys.sync → [gate] designsys.check
-                 → /speckit.plan → /speckit.tasks
-                 → jira.specstoissues → /speckit.implement → designsys.audit
-```
+| Extension | What it does | Relationship |
+|---|---|---|
+| `figma` | Grounds spec/plan/tasks in Figma design context via REST or MCP | Complementary: Figma is design intent, this is the shipped component inventory |
+| `figma-starter` | Turns Figma screens into per-screen specs | Upstream: its specs then pass through this gate |
+| `wireframe` | SVG wireframes that become spec constraints honored by plan/tasks/implement | Same pattern, different artifact |
+| `a11y-governance` (preset) | WCAG 2.2 AA governance | Overlaps on the accessibility dimension only; run both |
+| [`adrkit`](https://github.com/mbeacom/adrkit) | Machine-readable ADRs, decision memory keyed by file path | The ledger is keyed by UI capability and holds every walk; rungs 4–5 are what deserve promoting to a real ADR |
 
-Two things are worth wiring up deliberately:
+### Memory: reuse `.specify/memory/`
 
-**Design constraints ride into the ticket.** By the time `specstoissues` runs, `design-system.md` has already resolved each surface and recorded its constraints, and the plan carries them in its `## Design System Check` section. Whoever picks up the ticket reads *"use Calendar + Popover, tokens `space.*`, states default/focus/disabled/error"* instead of re-deciding it in the ticket comments — which is where design drift usually gets reintroduced after the gate has done its job.
+The ledger lives at `.specify/memory/design-decisions.yml` on purpose. That directory is Spec Kit's own memory location, and the `memory-loader` extension loads everything in it before lifecycle commands — so if you run it, the ledger reaches agent context with no integration work from either side. `memory`, `memory-md` and `dubsar` occupy the same space; none of them needed to be reimplemented here.
 
-**Gap reports are the RFC.** A rung-5 gap record is already an argued proposal: the capability needed, the alternatives searched, why each is insufficient, and the scope proposed. That is the substance an RFC or new-component request needs, and it was produced as a by-product of the gate rather than written from scratch. File it as an issue in the **design system's** project rather than the product team's — a local config override for a second project key is usually enough:
+### Issues and RFCs — both directions
+
+A design system request travels in both directions, and Spec Kit already has extensions for each. **This extension builds neither importer nor exporter.**
+
+**Outbound — a gap you found becomes a proposal.** A rung-5 gap record is written as a standalone `design-system-gap-<slug>.md`: an RFC carrying the capability needed, the alternatives searched, why each is insufficient, and the proposed scope. It is a complete, reviewable document produced as a by-product of the gate rather than written from scratch. Where it goes is your choice:
+
+| You run | Route |
+|---|---|
+| A design system CLI with intake (e.g. Astryx `gap-report`) | Filed directly with the owning package — the shortest path |
+| Core Spec Kit | `/speckit.taskstoissues` → GitHub Issues |
+| `jira`, `jira-mirror`, `linear`, `azure-devops` | Whichever you already sync with |
+| Nothing | The RFC file *is* the artifact — commit it, paste it, or open it as a PR against the design system repo |
+
+File it against the **design system's** project, not the product team's. With the `jira` extension a local override is usually enough:
 
 ```yaml
 # .specify/extensions/jira/jira-config.local.yml
@@ -514,11 +541,33 @@ project:
   key: "DESIGNSYS"
 ```
 
-Note this is a **composition pattern, not a built integration**: there is no code here that talks to Jira. The two extensions simply operate on the same artifacts in a sensible order, and a gap record happens to be shaped like a ticket.
+**Inbound — a request arrives from the community.** Someone files "we need a date range picker" as a GitHub issue, a GitLab issue, or a Jira ticket. `github-issues`, `issue` and `gh-triage` already turn those into spec artifacts; `intake` normalizes PRDs and design evidence; the official `assess` extension shapes a raw idea before SDD begins. Install whichever fits your tracker.
 
-### Decision records
+What this extension adds to an inbound request is the triage: **the same ladder that stops a product team from building a duplicate also answers whether an incoming request is actually a gap.** Rung 0 checks whether it was already decided; rungs 1–4 check whether the system already covers it. A large share of incoming component requests turn out to be answered by an existing component under a name the requester did not know.
 
-If you already run ADRs — [adrkit](https://github.com/mbachorik/adrkit) or otherwise — the ledger is not a competitor. It is keyed by UI capability and holds every walk, including the cheap ones. Rungs 4 and 5 are the ones that carry design system impact and are worth promoting into a reviewed decision record.
+One integration note: the gate is hooked to `before_plan`, not to `specify`. So however a spec came into existence — typed by hand, imported from an issue, generated from Figma — **planning is still gated**. If the spec arrived from an importer rather than `/speckit.specify`, the `after_specify` hook will not have fired, so run `/speckit.designsys.sync` once to populate its design requirements.
+
+### Ordering
+
+The hooks do not collide — this gates at `before_plan`, tracker extensions publish at `after_tasks`:
+
+```text
+issue / Figma / raw idea
+        │  github-issues · issue · intake · assess
+        ▼
+/speckit.specify → designsys.sync → [GATE] designsys.check
+        │
+        ▼
+/speckit.plan → /speckit.tasks
+        │  taskstoissues · jira · linear · azure-devops
+        ▼
+   tickets carry the resolved design constraints
+        │
+        ▼
+/speckit.implement → designsys.audit
+```
+
+That middle step is the one worth noticing: by the time tickets are created, each surface is already resolved and its constraints recorded. Whoever picks up the ticket reads *"use Calendar + Popover, tokens `space.*`, states default/focus/disabled/error"* instead of re-deciding it in the ticket comments — which is where design drift gets reintroduced after the gate has done its job.
 
 ## Troubleshooting
 

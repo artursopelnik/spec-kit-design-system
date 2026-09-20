@@ -32,13 +32,25 @@ If this surfaces a viable candidate, **abandon the gap report**, update `DESIGN_
 
 ### 2. Write the record
 
-Append to `DESIGN_DOC` under the surface's section:
+Write it to **its own file**, `design-system-gap-<slug>.md` in the feature directory, and link it from the surface's section in `DESIGN_DOC`.
+
+A standalone file matters: a gap record is the argued case for a new component, and it usually has to travel — to the design system's repo, to an issue tracker, to a review. A section buried inside `design-system.md` cannot be handed to another tool or another team. This file is written so it can be, unchanged.
+
+Use this structure:
 
 ```markdown
-### Gap: <ProposedName>
+# RFC: <ProposedName>
 
+**Status**: proposed
+**Raised by**: <feature id, e.g. 003-booking-filters>
+**Design system**: <name> <version>
 **Surface**: <capability phrase>
-**Existing alternatives searched**:
+
+## Summary
+
+<Two sentences: what capability is missing, and what this proposes.>
+
+## Existing alternatives searched
 | Candidate | Source | Why insufficient |
 |---|---|---|
 | DatePicker | component | Single date only; no range semantics, no cross-field validation |
@@ -46,17 +58,21 @@ Append to `DESIGN_DOC` under the surface's section:
 | Select | component | Wrong interaction model; enumerable options only |
 | Popover | component | Container primitive; solves placement, not the control |
 
-**Composition attempted**: Calendar inside Popover with two DatePickers — rejected because
-range validation and the shared hover preview have to live above both fields, which the
-composition cannot express without reaching into DatePicker internals.
+## Composition attempted
 
-**Extension attempted**: DatePicker exposes no prop for a second bound value; extending it
-would mean forking its state model rather than using a supported escape hatch.
+Calendar inside Popover with two DatePickers — rejected because range validation and the
+shared hover preview have to live above both fields, which the composition cannot express
+without reaching into DatePicker internals.
 
-**Decision**: New component required.
+## Extension attempted
+
+DatePicker exposes no prop for a second bound value; extending it would mean forking its
+state model rather than using a supported escape hatch.
+
+## Proposal
 
 **Scope**: <what it must do — and, importantly, what it must not grow into>
-**Design system impact**: new component proposal | extension proposal to <Component>
+**Impact**: new component | extension to <Component>
 **Proposed owner**: <package or team, from the CLI's routing if available>
 **Interim approach**: <what this feature does while the gap is open>
 ```
@@ -65,15 +81,23 @@ Be specific about why each alternative fails. "Doesn't fit" is not a reason; "no
 
 ### 3. Route it
 
-If the adapter maps `report_gap`, file it with the design system's own intake:
+The RFC file is the deliverable and it is complete on its own. Routing it is a handoff, and how you hand it off depends on what the project already runs — **do not build a path that an installed extension already provides**.
+
+In order of preference:
+
+**The design system's own intake.** If the adapter maps `report_gap`, file it there — this is the most direct route, because it reaches the people who own the component:
 
 ```
 .specify/extensions/designsys/scripts/bash/ds-query.sh --json report_gap "<title>" "<body>"
 ```
 
-Record the returned identifier or URL in `DESIGN_DOC` so the proposal can be tracked.
+Record the returned identifier or URL in the RFC's header so the proposal can be tracked.
 
-If `report_gap` is unmapped, say so explicitly in the completion report and name where the record lives instead. A design system with no intake path is itself worth surfacing to the user — that is the missing link between product teams finding gaps and the system closing them.
+**An issue tracker the project already syncs with.** If `report_gap` is unmapped, check `.specify/extensions.yml` for an installed tracker extension and tell the user which one can carry this — core `/speckit.taskstoissues` targets GitHub Issues, and extensions such as `jira`, `jira-mirror`, `linear` or `azure-devops` retarget it. Name the command; do not invoke it yourself. Which tracker a component request belongs in, and under which project key, is the user's call — a design system request usually belongs in the **design system's** project, not the product team's.
+
+**Nothing installed.** Then the RFC file *is* the artifact. Say so plainly: it is a complete, reviewable proposal that can be committed, pasted into a tracker by hand, or opened as a pull request against the design system repo. Do not treat the absence of a tracker as a failure, and do not invent an intake path.
+
+A design system with no intake route at all is worth surfacing once to the user — it is the missing link between product teams finding gaps and the system closing them — but say it as an observation, not as a blocker.
 
 ### 4. Constrain the local build
 
@@ -81,12 +105,13 @@ A new component built in a feature branch tends to become a permanent private fo
 
 ## Completion Report
 
-State the proposed component, the alternatives ruled out, where the gap was filed (or that no intake exists), and the interim approach.
+State the proposed component, the alternatives ruled out, where the RFC file lives, where it was filed (or which command would file it), and the interim approach.
 
 ## Done When
 
 - [ ] A final differently-worded search was attempted and its result recorded
+- [ ] The RFC exists as its own file and reads as a complete proposal without the rest of the feature directory
 - [ ] Every alternative carries a concrete reason it is insufficient
 - [ ] Composition and extension attempts are documented, not just asserted
-- [ ] The gap is filed with the design system, or the absence of an intake path is reported
+- [ ] The RFC is filed, or the command that would file it is named, or the user is told the file itself is the artifact
 - [ ] The local implementation is constrained to the system's tokens and primitives

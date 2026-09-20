@@ -23,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Reuse → Compose → Extend → Create principle into `constitution-template`.
 - Config layering: extension defaults → project config → local override →
   `SPECKIT_DESIGNSYS_*` environment variables.
+- Rung-5 gaps are written as standalone `design-system-gap-<slug>.md` RFC files
+  so they can travel to another team or tracker unchanged, rather than living
+  as a section inside the feature's design doc.
+
+### Deliberately not built
+
+Issue import and export. The catalog already covers both directions —
+`github-issues`, `issue` and `gh-triage` inbound; core `speckit.taskstoissues`
+plus `jira`, `linear` and `azure-devops` outbound — so the gap RFC is shaped to
+be carried by whichever of those a project already runs. The ledger sits in
+`.specify/memory/` for the same reason: `memory-loader` already loads that
+directory into agent context.
 
 ### Behaviour worth knowing
 
