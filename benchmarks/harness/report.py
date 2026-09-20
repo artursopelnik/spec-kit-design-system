@@ -33,6 +33,27 @@ METRIC_LABEL = {
 }
 ARM_ORDER = ["unaided", "speckit", "extension"]
 
+# Read from score.json rather than restated here, so a check renamed in the
+# scorer does not quietly vanish from the report.
+CHECK_ORDER = [
+    "used_the_system",
+    "avoided_the_shortcuts",
+    "invented_nothing",
+    "no_literal_values",
+    "every_guideline_carried",
+    "every_criterion_traced",
+    "clean_sweep",
+]
+CHECK_LABEL = {
+    "used_the_system": "Used what the system already has",
+    "avoided_the_shortcuts": "Avoided the shortcuts",
+    "invented_nothing": "Invented nothing",
+    "no_literal_values": "No literal colours or lengths",
+    "every_guideline_carried": "Carried every guideline",
+    "every_criterion_traced": "Traced every criterion",
+    "clean_sweep": "All of the above, in one run",
+}
+
 # Below this many runs per arm, a difference is an anecdote.
 CONFIDENT_N = 5
 
@@ -81,6 +102,32 @@ def summarize(runs: list[dict]) -> dict:
     durations = [d for d in durations if isinstance(d, (int, float))]
     if durations:
         summary["observations"]["duration_s"] = round(statistics.median(durations), 1)
+
+    summary["checks"] = {}
+    for check in CHECK_ORDER:
+        answered = [
+            run.get("checks", {}).get(check)
+            for run in runs
+            if run.get("checks", {}).get(check) is not None
+        ]
+        summary["checks"][check] = {
+            "passed": sum(1 for value in answered if value),
+            "answered": len(answered),
+        }
+
+    summary["usage"] = {}
+    for field in ("total_tokens", "input_tokens", "output_tokens", "cost_usd", "turns"):
+        values = [
+            run.get("run", {}).get("usage", {}).get(field)
+            for run in runs
+            if isinstance(run.get("run", {}).get("usage"), dict)
+        ]
+        values = [value for value in values if isinstance(value, (int, float))]
+        if values:
+            summary["usage"][field] = {
+                "median": round(statistics.median(values), 4),
+                "n": len(values),
+            }
     return summary
 
 
@@ -147,6 +194,70 @@ def markdown(grouped: dict, runs: list[dict]) -> str:
             + " | ".join(cell(rollup[arm]["metrics"][m]) for m in METRIC_ORDER)
             + " |"
         )
+
+    if rollup:
+        lines += [
+            "",
+            "## Headline",
+            "",
+            "The same evidence as above, read as pass or fail. `k/n` counts the runs where "
+            "the check could be answered at all.",
+            "",
+            "| Check | " + " | ".join(arms) + " |",
+            "|" + "---|" * (1 + len(arms)),
+        ]
+        for check in CHECK_ORDER:
+            cells = []
+            for arm in arms:
+                tally = rollup.get(arm, {}).get("checks", {}).get(check)
+                if not tally or not tally["answered"]:
+                    cells.append("—")
+                    continue
+                share = tally["passed"] / tally["answered"]
+                cells.append(f"{tally['passed']}/{tally['answered']} ({share:.0%})")
+            lines.append(f"| {CHECK_LABEL[check]} | " + " | ".join(cells) + " |")
+
+    if any(rollup.get(arm, {}).get("usage") for arm in arms):
+        lines += [
+            "",
+            "## What it cost",
+            "",
+            "Medians, from the agent's own accounting. Tokens include cache reads, and "
+            "the per-run breakdown is in each `benchmark.json`.",
+            "",
+            "| Arm | Runs | Tokens | Output tokens | Cost (USD) | Turns | Wall clock (s) |",
+            "|" + "---|" * 7,
+        ]
+        for arm in arms:
+            usage = rollup.get(arm, {}).get("usage") or {}
+            if not usage:
+                continue
+            observed = rollup[arm]["observations"]
+
+            def show(field: str, fmt: str = ",.0f") -> str:
+                entry = usage.get(field)
+                return format(entry["median"], fmt) if entry else "—"
+
+            lines.append(
+                f"| {arm} | {rollup[arm]['n']} | {show('total_tokens')} | "
+                f"{show('output_tokens')} | {show('cost_usd', '.2f')} | {show('turns')} | "
+                f"{observed.get('duration_s', '—')} |"
+            )
+        reference = next(
+            (arm for arm in ("speckit", "unaided") if (rollup.get(arm, {}).get("usage") or {})),
+            None,
+        )
+        extension_usage = (rollup.get("extension") or {}).get("usage") or {}
+        if reference and extension_usage.get("total_tokens"):
+            base = rollup[reference]["usage"]["total_tokens"]["median"]
+            mine = extension_usage["total_tokens"]["median"]
+            if base:
+                lines += [
+                    "",
+                    f"The extension arm spent **{mine / base:.2f}×** the tokens of the "
+                    f"{reference} arm. Whether that is worth it is what the tables above are "
+                    "for; it is not a detail to leave out.",
+                ]
 
     if "extension" in rollup and len(rollup) > 1:
         lines += ["", "## Difference", ""]

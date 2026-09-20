@@ -287,11 +287,28 @@ def test_report_reports_the_median_and_the_spread(report_module, tmp_path):
                     "case": "date-range-filter",
                     "arm": arm,
                     "score": score,
+                    "checks": {
+                        "used_the_system": arm == "extension",
+                        "avoided_the_shortcuts": True,
+                        "invented_nothing": True,
+                        "no_literal_values": True,
+                        "every_guideline_carried": True,
+                        "every_criterion_traced": True,
+                        "clean_sweep": arm == "extension",
+                    },
                     "metrics": [
                         {"id": "ladder_outcome", "score": score, "applicable": True, "weight": 1.0}
                     ],
                     "observations": {"files_written": 3, "gap_records": []},
-                    "run": {"duration_s": 60},
+                    "run": {
+                        "duration_s": 60,
+                        "usage": {
+                            "total_tokens": 100_000 if arm == "speckit" else 250_000,
+                            "output_tokens": 9_000,
+                            "cost_usd": 0.5 if arm == "speckit" else 1.25,
+                            "turns": 8,
+                        },
+                    },
                 }
             ),
             encoding="utf-8",
@@ -312,6 +329,12 @@ def test_report_reports_the_median_and_the_spread(report_module, tmp_path):
     assert "extension − speckit: **+0.35**" in markdown
     # Three runs per arm is not a measurement, and the report has to say so.
     assert "not as measurements" in markdown
+
+    # The quotable form: a rate, with the denominator next to it.
+    assert "| Used what the system already has | 0/3 (0%) | 3/3 (100%) |" in markdown
+    # And the price of it, which is the half a benchmark is tempted to omit.
+    assert "| extension | 3 | 250,000 |" in markdown
+    assert "**2.50×** the tokens of the speckit arm" in markdown
 
 
 # --- the fixtures are real adapter input --------------------------------------
@@ -434,3 +457,215 @@ def test_guidelines_resolve_from_where_the_cases_assume(
 
     assert resolved["source"] == expected_source, resolved["source"]
     assert {rule["id"] for rule in resolved["rules"]} == rules_in_force(harness, system_id)
+
+
+# --- headline checks ----------------------------------------------------------
+
+
+def test_checks_are_the_metrics_read_as_pass_or_fail(harness):
+    strong = score_sample(harness, "date-range-filter/strong")
+    weak = score_sample(harness, "date-range-filter/weak")
+    assert all(strong["checks"].values()), strong["checks"]
+    assert not any(weak["checks"].values()), weak["checks"]
+    assert set(strong["checks"]) == set(harness.CHECK_LABELS)
+
+
+def test_a_check_with_nothing_to_look_at_is_unanswered(harness, tmp_path):
+    """A run that produced nothing must not count as a failing run: k/n would
+    then quietly include runs that never happened."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    case = harness.load_case("date-range-filter", BENCHMARKS / "cases")
+    system = harness.load_system("shadcn", BENCHMARKS / "systems")
+    result = harness.score_run(workspace, case, system)
+    assert set(result["checks"].values()) == {None}
+
+
+def test_clean_sweep_needs_every_check_answered(harness):
+    metrics = [
+        {"id": "ladder_outcome", "applicable": True,
+         "detail": {"surfaces": [{"satisfied_by": ["Calendar"], "breaches": []}]}, "score": 1.0},
+        {"id": "inventory_fidelity", "applicable": True,
+         "detail": {"unknown_count": 0, "invalid_variants": []}, "score": 1.0},
+        {"id": "token_discipline", "applicable": True, "detail": {"literal_values": 0}, "score": 1.0},
+        {"id": "guideline_coverage", "applicable": True, "detail": {}, "score": 1.0},
+        {"id": "criteria_traceability", "applicable": False, "detail": {}, "score": 0.0},
+    ]
+    checks = harness.headline_checks(metrics)
+    assert checks["every_criterion_traced"] is None
+    assert checks["clean_sweep"] is None
+
+
+# --- what a run cost ----------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def runner_module():
+    spec = importlib.util.spec_from_file_location(
+        "bench_runner", BENCHMARKS / "harness" / "runner.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["bench_runner"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+CLAUDE_RESULT = json.dumps(
+    {
+        "type": "result",
+        "total_cost_usd": 0.42,
+        "duration_ms": 91000,
+        "num_turns": 17,
+        "usage": {
+            "input_tokens": 1200,
+            "output_tokens": 8400,
+            "cache_read_input_tokens": 310000,
+            "cache_creation_input_tokens": 22000,
+        },
+    }
+)
+
+
+def test_usage_is_read_from_the_agents_own_accounting(runner_module, tmp_path):
+    usage = runner_module.extract_usage(CLAUDE_RESULT, tmp_path)
+    assert usage["total_tokens"] == 1200 + 8400 + 310000 + 22000
+    assert usage["cost_usd"] == 0.42
+    assert usage["turns"] == 17
+    assert usage["agent_duration_s"] == 91.0
+
+
+def test_usage_survives_a_streaming_agent_and_chatter(runner_module, tmp_path):
+    stdout = "starting\n" + json.dumps({"type": "assistant"}) + "\n" + CLAUDE_RESULT + "\n"
+    usage = runner_module.extract_usage(stdout, tmp_path)
+    assert usage["source"] == "agent-stream-json"
+    assert usage["output_tokens"] == 8400
+
+
+def test_any_agent_can_be_counted_through_a_usage_file(runner_module, tmp_path):
+    (tmp_path / "usage.json").write_text(
+        json.dumps({"input_tokens": 10, "output_tokens": 20, "cost_usd": 0.01, "turns": 3}),
+        encoding="utf-8",
+    )
+    usage = runner_module.extract_usage("not json", tmp_path)
+    assert usage == {
+        "source": "usage.json",
+        "input_tokens": 10,
+        "output_tokens": 20,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "total_tokens": 30,
+        "cost_usd": 0.01,
+        "turns": 3,
+    }
+
+
+def test_no_accounting_is_reported_as_none_rather_than_zero(runner_module, tmp_path):
+    assert runner_module.extract_usage("", tmp_path) is None
+
+
+# --- blind pairwise judging ---------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def judge_module():
+    spec = importlib.util.spec_from_file_location("bench_judge", BENCHMARKS / "harness" / "judge.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["bench_judge"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture
+def staged_pair(judge_module, tmp_path):
+    """The two committed samples, relabelled as two arms of the same case."""
+    import shutil
+
+    runs = {}
+    for arm, sample in (("speckit", "weak"), ("extension", "strong")):
+        target = tmp_path / arm
+        shutil.copytree(BENCHMARKS / "samples" / "date-range-filter" / sample, target)
+        manifest = json.loads((target / "benchmark.json").read_text(encoding="utf-8"))
+        manifest["arm"] = arm
+        (target / "benchmark.json").write_text(json.dumps(manifest), encoding="utf-8")
+        runs[arm] = judge_module.load_run(target)
+    return runs
+
+
+def test_the_bundle_never_names_the_process(judge_module, harness, staged_pair):
+    """Blinding is the whole experiment. One `.specify` path in the bundle and
+    the judge is no longer judging the code."""
+    case = harness.load_case("date-range-filter", BENCHMARKS / "cases")
+    system = harness.load_system("shadcn", BENCHMARKS / "systems")
+    built = judge_module.build_pair(
+        staged_pair["speckit"], staged_pair["extension"], case, system, seed="fixed"
+    )
+    bundle = built["bundle"].lower()
+    for giveaway in ("spec-kit", "speckit", ".specify", "design-system.md", "gap record", "ds-00"):
+        assert giveaway not in bundle, giveaway
+    # Specifications and design documents are not shown at all.
+    assert "spec.md" not in bundle
+    assert "## validation round" not in bundle
+    assert "Submission A" in built["bundle"] and "Submission B" in built["bundle"]
+
+
+def test_both_orders_shows_the_same_pair_from_both_sides(judge_module, harness, staged_pair):
+    case = harness.load_case("date-range-filter", BENCHMARKS / "cases")
+    system = harness.load_system("shadcn", BENCHMARKS / "systems")
+    first = judge_module.build_pair(
+        staged_pair["speckit"], staged_pair["extension"], case, system, seed="fixed"
+    )
+    swapped = judge_module.build_pair(
+        staged_pair["speckit"], staged_pair["extension"], case, system, seed="fixed", swap=True
+    )
+    assert first["key"]["A"] == swapped["key"]["B"]
+    assert first["key"]["B"] == swapped["key"]["A"]
+    # Same seed, same draw: the order is reproducible rather than re-rolled.
+    again = judge_module.build_pair(
+        staged_pair["speckit"], staged_pair["extension"], case, system, seed="fixed"
+    )
+    assert again["key"] == first["key"]
+
+
+def test_tooling_mentioned_in_code_is_redacted(judge_module):
+    text, count = judge_module.redact("// see .specify/extensions and DS-001 in the gap record\n")
+    assert count >= 3
+    assert ".specify" not in text and "DS-001" not in text
+
+
+def test_a_verdict_is_read_from_the_last_json_object(judge_module):
+    reply = (
+        "Thinking about it: {\"overall\": \"A\"} was my first instinct.\n"
+        '```json\n{"design_system_fit":"B","accessibility":"tie",'
+        '"requirement_coverage":"B","maintainability":"b","overall":"B","why":"because"}\n```\n'
+    )
+    verdict = judge_module.parse_verdict(reply)
+    assert verdict["overall"] == "B"
+    assert verdict["maintainability"] == "B"  # case is normalised
+    assert verdict["accessibility"] == "tie"
+    assert judge_module.parse_verdict("no json here") is None
+
+
+def test_the_tally_unblinds_by_the_key_and_keeps_empty_arms(judge_module, tmp_path):
+    (tmp_path / "keys").mkdir()
+    (tmp_path / "pairs").mkdir()
+
+    def pair(name: str, key: dict, verdict: dict | None) -> None:
+        (tmp_path / "keys" / f"{name}.json").write_text(
+            json.dumps({"pair": name, "case": "date-range-filter", "key": key}), encoding="utf-8"
+        )
+        directory = tmp_path / "pairs" / name
+        directory.mkdir()
+        if verdict:
+            (directory / "verdict.json").write_text(json.dumps(verdict), encoding="utf-8")
+
+    won_by_a = {c: "A" for c in judge_module.CRITERIA} | {"judge": "some-model"}
+    won_by_b = {c: "B" for c in judge_module.CRITERIA} | {"judge": "some-model"}
+    pair("one", {"A": "extension", "B": "speckit"}, won_by_a)
+    pair("two", {"A": "speckit", "B": "extension"}, won_by_b)  # same winner, sides swapped
+    pair("three", {"A": "extension", "B": "speckit"}, None)
+
+    result = judge_module.tally(tmp_path)
+    assert result["pairs"] == 2 and result["unjudged"] == 1
+    assert result["criteria"]["overall"] == {"extension": 2}
+    # The losing arm keeps its column, because "won nothing" is the finding.
+    assert result["arms"] == ["extension", "speckit"]

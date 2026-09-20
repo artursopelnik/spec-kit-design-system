@@ -549,6 +549,66 @@ def _ledger_entries(workspace: Path) -> int:
 # --- scoring ------------------------------------------------------------------
 
 
+# --- headline checks ----------------------------------------------------------
+#
+# The metrics are continuous, which is right for scoring and useless for saying
+# anything out loud. These are the same evidence read as pass or fail, because
+# "used what the system already had in 9 of 10 runs" is a claim someone can
+# check, and "0.82 on the ladder metric" is not.
+#
+# A check is None when the evidence for it is not there at all, so a run that
+# produced nothing never counts as a pass or as a failure.
+
+CHECK_LABELS = {
+    "used_the_system": "Every surface resolved to something the system already offers",
+    "avoided_the_shortcuts": "No shortcut the case names as wrong",
+    "invented_nothing": "No component or variant the system does not have",
+    "no_literal_values": "No literal colour or length outside the theme",
+    "every_guideline_carried": "Every guideline in force shows up in the work",
+    "every_criterion_traced": "Every acceptance criterion survived into the work",
+    "clean_sweep": "All of the above, in one run",
+}
+
+
+def headline_checks(metrics: list[dict]) -> dict:
+    by_id = {metric["id"]: metric for metric in metrics}
+
+    def applicable(metric_id: str) -> dict | None:
+        metric = by_id.get(metric_id)
+        return metric if metric and metric["applicable"] else None
+
+    checks: dict[str, bool | None] = {}
+
+    ladder = applicable("ladder_outcome")
+    surfaces = ladder["detail"]["surfaces"] if ladder else []
+    checks["used_the_system"] = (
+        all(surface["satisfied_by"] for surface in surfaces) if ladder else None
+    )
+    checks["avoided_the_shortcuts"] = (
+        not any(surface["breaches"] for surface in surfaces) if ladder else None
+    )
+
+    fidelity = applicable("inventory_fidelity")
+    checks["invented_nothing"] = (
+        fidelity["detail"]["unknown_count"] == 0 and not fidelity["detail"]["invalid_variants"]
+        if fidelity
+        else None
+    )
+
+    tokens = applicable("token_discipline")
+    checks["no_literal_values"] = tokens["detail"]["literal_values"] == 0 if tokens else None
+
+    guidelines = applicable("guideline_coverage")
+    checks["every_guideline_carried"] = guidelines["score"] == 1.0 if guidelines else None
+
+    criteria = applicable("criteria_traceability")
+    checks["every_criterion_traced"] = criteria["score"] == 1.0 if criteria else None
+
+    answered = [value for value in checks.values() if value is not None]
+    checks["clean_sweep"] = all(answered) if len(answered) == len(checks) else None
+    return checks
+
+
 def score_run(
     workspace: Path,
     case: dict,
@@ -580,6 +640,7 @@ def score_run(
         "workspace": str(workspace),
         "score": total,
         "metrics_applicable": len(scored),
+        "checks": headline_checks(metrics),
         "metrics": metrics,
         "observations": observations(workspace, files),
         "run": meta or {},

@@ -4,7 +4,10 @@ Does the extension actually produce better work, or does it just produce more
 process? This directory is the apparatus for answering that with numbers instead
 of conviction.
 
-It ships the harness, the cases and the scorer. **It ships no results.** The
+It ships the harness, the cases, the scorer and a blind pairwise judge, so a
+claim can be a rate (*9 of 10 runs*), a price (*2.4× the tokens*) or a
+preference (*preferred in 71% of blind pairs*), rather than an adjective.
+**It ships no results.** The
 tables further down have no numbers in them yet, on purpose: publishing a
 comparison means running an agent many times, and a number nobody can reproduce
 is worse than no number. Running it is one command per arm.
@@ -53,6 +56,81 @@ bad. `metrics_applicable` distinguishes them.
 
 Scoring is deterministic: the agent run is the only stochastic part, and
 everything after it is a pure function of the files on disk.
+
+### The same evidence as pass or fail
+
+A median of 0.82 is the right thing to optimise and the wrong thing to say out
+loud. So every run also answers seven yes/no checks, derived from the same
+evidence:
+
+| Check | True when |
+|---|---|
+| Used what the system already has | Every surface resolved to something the system offers |
+| Avoided the shortcuts | No pattern the case names as the wrong answer |
+| Invented nothing | No component or variant the system does not have |
+| No literal colours or lengths | Nothing outside the theme file |
+| Carried every guideline | Every rule in force shows up in the work |
+| Traced every criterion | Every acceptance criterion survived |
+| All of the above, in one run | The four-out-of-five problem, made visible |
+
+The report prints these as `k/n` per arm, which is the form a sentence can be
+built on: *"in 9 of 10 runs on shadcn/ui the extension arm used the component
+the system already had; without it, 4 of 10 did"*. A check is unanswered, not
+failed, when the run produced nothing to look at, so `n` never quietly includes
+runs that never happened.
+
+### What it cost
+
+The other half of any claim. When the agent reports its own accounting, the
+runner records it: Claude Code's `--output-format json` (or the final result
+line of `stream-json`) is read directly, and any other agent can drop a
+`usage.json` in the workspace and be counted the same way.
+
+```bash
+--agent 'claude --permission-mode acceptEdits --output-format json -p "$(cat {prompt_file})"'
+```
+
+The report then prints tokens, output tokens, cost, turns and wall clock per
+arm, and states the ratio outright. Expect the extension arm to cost more: it
+runs more phases and asks the design system real questions. An honest result
+says so in the same breath as the win — *"2.4× the tokens, and here is what that
+bought"* — because a reader who finds that out later stops believing the rest.
+
+### Which one is better, asked properly
+
+Counting cannot answer "looks better" or "code I would rather own". That gets
+asked, under conditions that make the answer worth quoting:
+
+```bash
+python benchmarks/harness/judge.py pair \
+  --a benchmarks/results/date-range-filter/speckit/<run> \
+  --b benchmarks/results/date-range-filter/extension/<run> \
+  --judge 'claude -p "$(cat {prompt_file})"' --judge-name claude-opus-5 --both-orders
+
+python benchmarks/harness/judge.py tally benchmarks/results/judgements
+```
+
+What makes it blind, rather than a vote for the thing we hoped would win:
+
+- **Only implementation files are shown.** Specs, plans and design documents are
+  left out — they would identify the arm in the first paragraph, and the claim
+  under test is about the result, not the paperwork.
+- **Mentions of the tooling are redacted** from the code before it is shown, and
+  a test fails if a giveaway survives into a bundle.
+- **Which submission is A is drawn from a seed**, and `--both-orders` judges the
+  same pair twice with the sides swapped, so a judge that favours whatever it
+  reads first cancels itself out.
+- **The key lives outside the directory the judge runs in**, and the verdict is
+  recorded blinded. Nothing is unblinded until `tally`.
+
+The judge picks a winner per criterion — design system fit, accessibility,
+requirement coverage, maintainability, overall — so "better" is five separate
+answerable questions rather than one vibe.
+
+Two things it still cannot fix, and which belong next to any number it produces:
+a judge from the same model family as the agent that wrote a submission will
+flatter it, so use a different one where you can and name it either way; and a
+preference is a preference, not evidence that the thing works.
 
 ### What none of this sees
 
@@ -149,8 +227,29 @@ If you run this and want the numbers quoted anywhere, publish with them:
 - the agent and model, exactly (`claude-opus-5`, not "Claude")
 - the extension commit and the Spec Kit version
 - the number of runs per arm, and the report's spread
+- what it cost, in the same place as what it won
+- for a judged claim: the judge model, how many pairs, and whether both orders
+  were shown
 - the full `benchmarks/results/` tree minus the workspaces, so the scores can
   be recomputed
+
+Three sentences that would be fair to write, given the runs behind them:
+
+> On four cases across shadcn/ui, Radix UI and MUI, 10 runs per arm with
+> `claude-opus-5`: the extension arm used the component the system already had
+> in 38 of 40 runs, against 21 of 40 without it.
+
+> It spent 2.4× the tokens doing so.
+
+> A blind pairwise review by `<some other model>`, 40 pairs shown in both
+> orders, preferred the extension arm's result in 71% of pairs on design system
+> fit and 58% overall.
+
+And one that would not, however tempting: *"100% of results look better"*. It
+would need every pair to be judged, blind, by a judge with no stake, with the
+ties counted — and a run of ties or a single loss makes it false. The apparatus
+is here to find out what is actually true, which is a different and more
+durable kind of useful.
 
 `benchmarks/results/` is git-ignored except for the scores and manifests, so a
 result can be committed without committing four spec-kit projects with it.
@@ -201,8 +300,9 @@ cases/<id>/seed/         the code the RFC talks about
 systems/<id>/            inventory, guidelines, and how to score against them
 harness/runner.py        builds an arm's workspace, runs an agent in it
 harness/score.py         the five metrics; deterministic, arm-neutral
-harness/report.py        medians, spread, and the difference between arms
-harness/prompts/         one prompt per arm, and the shared AGENTS.md brief
+harness/report.py        medians, spread, pass rates, cost, and the difference
+harness/judge.py         blinded pairwise judging, and the tally that unblinds it
+harness/prompts/         one prompt per arm, the shared AGENTS.md brief, the judge's rubric
 samples/                 hand-written workspaces that pin the scorer in tests
 results/                 where runs land (git-ignored except the scores)
 ```

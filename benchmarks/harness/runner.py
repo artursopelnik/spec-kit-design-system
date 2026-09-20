@@ -61,6 +61,92 @@ def run(command: list[str] | str, cwd: Path, shell: bool = False) -> subprocess.
     )
 
 
+# --- what the run cost --------------------------------------------------------
+#
+# The scored metrics say what came out. This says what it took to get there,
+# which is the other half of the question: an arm that scores higher and costs
+# four times as much is a trade, not a win, and hiding the price is how a
+# benchmark becomes an advertisement.
+#
+# Nothing here is scored. It is recorded, and the report prints it beside the
+# scores.
+
+
+def _sum_usage(usage: dict) -> dict:
+    fields = (
+        "input_tokens",
+        "output_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
+    )
+    counted = {field: int(usage.get(field) or 0) for field in fields}
+    # Every token the model read or wrote, cache included. The breakdown stays
+    # so anyone who bills cache reads differently can recompute.
+    counted["total_tokens"] = sum(counted.values())
+    return counted
+
+
+def extract_usage(stdout: str, workspace: Path) -> dict | None:
+    """Read the agent's own accounting, whatever shape it came in.
+
+    Claude Code's `--output-format json` (and the last result line of
+    `stream-json`) is understood directly. Any other agent can write a
+    `usage.json` into the workspace and be counted the same way.
+    """
+    candidates: list[tuple[str, dict]] = []
+
+    stripped = (stdout or "").strip()
+    if stripped:
+        try:
+            payload = json.loads(stripped)
+            if isinstance(payload, dict):
+                candidates.append(("agent-json", payload))
+        except json.JSONDecodeError:
+            for line in reversed(stripped.splitlines()):
+                line = line.strip()
+                if not line.startswith("{"):
+                    continue
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(payload, dict) and (
+                    payload.get("type") == "result" or "usage" in payload
+                ):
+                    candidates.append(("agent-stream-json", payload))
+                    break
+
+    usage_file = workspace / "usage.json"
+    if usage_file.exists():
+        try:
+            payload = json.loads(usage_file.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                candidates.append(("usage.json", payload))
+        except json.JSONDecodeError:
+            pass
+
+    for source, payload in candidates:
+        usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else payload
+        counted = _sum_usage(usage)
+        if not counted["total_tokens"]:
+            continue
+        record = {"source": source, **counted}
+        for key, field in (
+            ("cost_usd", "total_cost_usd"),
+            ("cost_usd", "cost_usd"),
+            ("turns", "num_turns"),
+            ("turns", "turns"),
+        ):
+            value = payload.get(field)
+            if value is not None and key not in record:
+                record[key] = value
+        duration_ms = payload.get("duration_ms")
+        if duration_ms is not None:
+            record["agent_duration_s"] = round(float(duration_ms) / 1000, 1)
+        return record
+    return None
+
+
 def specify_available(binary: str) -> bool:
     return shutil.which(binary) is not None
 
@@ -164,7 +250,9 @@ def main() -> None:
     parser.add_argument(
         "--agent",
         help="command to run in the workspace; {prompt_file} and {workspace} are substituted. "
-             "Omit it (or pass --no-agent) to set the workspace up and stop.",
+             "Omit it (or pass --no-agent) to set the workspace up and stop. Token and cost "
+             "accounting is picked up from the agent's own JSON output, or from a usage.json "
+             "it leaves in the workspace.",
     )
     parser.add_argument("--no-agent", action="store_true")
     parser.add_argument("--repeat", type=int, default=1, help="runs of the same arm")
@@ -236,6 +324,14 @@ def main() -> None:
                 record["exit_code"] = None
                 record["timed_out"] = True
             record["duration_s"] = round(time.monotonic() - started, 1)
+            usage = extract_usage(
+                (run_dir / "agent.stdout.txt").read_text(encoding="utf-8")
+                if (run_dir / "agent.stdout.txt").exists()
+                else "",
+                workspace,
+            )
+            if usage:
+                record["usage"] = usage
         else:
             record["agent_skipped"] = True
 

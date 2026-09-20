@@ -31,6 +31,8 @@ The preset exists because extensions can only *replace* templates while presets 
 - **Every arm gets the design system**, in the same path, described by the same `AGENTS.md`. Changing one arm's setup without the others voids the run.
 - **Every metric is arm-neutral**: none may look for an artifact only the extension produces, or it measures which arm ran. Extension-only observations (design doc, gap records, ledger, validation rounds) are reported unscored.
 
+Three output forms, so a claim can be stated: continuous metrics (scoring), pass/fail `checks` per run (`k/n` rates in the report), and `benchmarks/harness/judge.py` for blind pairwise preference. Judging is only worth anything blinded — implementation files only, tooling redacted, sides swapped, key outside the judge's directory — and a test fails on any giveaway in a bundle. Token and cost accounting is recorded per run and printed next to the scores; never report a win without it.
+
 Cases (`benchmarks/cases/<id>/case.yml`) say what a good answer looks like per surface; `satisfied_by` names must exist in the system's inventory and cited guideline ids must exist in whatever source is in force for that system (house file, or the default set for Radix). Never publish numbers this repo has not produced: no results are committed yet, and the READMEs say so.
 
 ## Invariants to preserve
