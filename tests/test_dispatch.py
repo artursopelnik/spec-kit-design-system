@@ -8,6 +8,7 @@ prevent.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -199,8 +200,8 @@ ADAPTER_KEYS = {
     "id", "name", "bin", "global_args", "envelope", "source", "registries", "capabilities",
 }
 CAPABILITY_KEYS = {
-    "args", "read_file", "result_path", "key_field", "search_keys", "match_fields",
-    "defaults", "not_found_codes",
+    "args", "read_file", "result_path", "result_paths", "pick", "key_field", "search_keys",
+    "match_fields", "defaults", "not_found_codes",
 }
 
 
@@ -315,3 +316,113 @@ def test_search_without_a_query_does_not_dump_the_inventory(
     write_config({"adapter": "static-json"})
     result = run(design, "search")
     assert result["available"] is False and "query" in result["reason"]
+
+
+# --- one command, two questions ----------------------------------------------
+#
+# Most design systems have no breakpoint command: breakpoints come back inside
+# the token payload. Mapping `breakpoints` onto the token command then makes the
+# two capabilities identical, and the larger of the two answers is the one
+# every phase pays for. The adapter is where that is carved apart, because the
+# adapter is the only layer that knows the shape of this system's response.
+
+
+def test_a_capability_can_carve_its_answer_out_of_a_shared_command(
+    design, project, write_config, fake_cli
+):
+    write_config({"adapter": "fake"})
+    tokens = run(design, "tokens")
+    breakpoints = run(design, "breakpoints")
+
+    assert breakpoints["found"] is True
+    assert breakpoints["data"] == {"sm": "640px", "md": "768px", "lg": "1024px"}
+    # Same call, a focused answer: the whole point of the mapping.
+    assert breakpoints["command"] == tokens["command"]
+    assert breakpoints["bytes"] < tokens["bytes"]
+
+
+def test_result_paths_try_each_candidate_in_order(design, project, write_config, fake_cli):
+    """`data.screens` first, `data.breakpoints` second. Systems disagree on the
+    name and adapters should not have to guess right on the first try."""
+    write_config({"adapter": "fake"})
+    result = run(design, "breakpoints")
+    assert result["result_path_missed"] is False
+    assert "sm" in result["data"]
+
+
+def test_pick_narrows_to_named_keys(design, project, write_config, fake_cli):
+    write_config(
+        {
+            "adapter": "fake",
+            "capabilities": {"tokens": {"args": ["tokens"], "result_path": "data",
+                                        "pick": ["color", "space"]}},
+        }
+    )
+    result = run(design, "tokens")
+    assert set(result["data"]) == {"color", "space"}
+
+
+def test_a_slice_that_resolves_to_nothing_is_a_miss_not_an_answer(
+    design, project, write_config, fake_cli
+):
+    """The failure this makes visible: a mapping that matches nothing quietly
+    hands back the entire payload, which reads as a working capability and
+    costs context on every run."""
+    write_config(
+        {
+            "adapter": "fake",
+            "capabilities": {"breakpoints": {"args": ["tokens"],
+                                             "result_paths": ["data.nope", "data.also_nope"]}},
+        }
+    )
+    result = run(design, "breakpoints")
+    assert result["result_path_missed"] is True
+    # Handed back whole rather than as a null that would read as "no breakpoints".
+    assert "color" in result["data"]["data"]
+
+
+def test_every_answer_reports_what_it_costs(design, project, write_config, inventory):
+    """Focused context is a claim about size. Sizes are reported so the claim
+    can be checked against a real design system rather than assumed."""
+    write_config({"adapter": "static-json"})
+    result = run(design, "tokens")
+    assert result["bytes"] == len(json.dumps(result["data"], separators=(",", ":")).encode())
+
+
+# --- the caller's own trim ----------------------------------------------------
+
+
+def test_fields_trim_a_listing_without_hiding_it(design, project, write_config, inventory):
+    """`list_components` is the right answer to "what is there" and the most
+    expensive thing the system will say. Surveying it should not cost the whole
+    inventory, and the full answer stays one call away."""
+    full = design.project_fields(
+        [{"name": "Calendar", "description": "Month grid", "states": ["default"]}], []
+    )
+    trimmed = design.project_fields(
+        [{"name": "Calendar", "description": "Month grid", "states": ["default"]}],
+        ["name", "description"],
+    )
+    assert full[0]["states"] == ["default"]
+    assert trimmed == [{"name": "Calendar", "description": "Month grid"}]
+
+
+def test_fields_on_a_mapping_keep_named_keys(design):
+    assert design.project_fields({"a": 1, "b": 2}, ["b"]) == {"b": 2}
+
+
+# --- what the ladder can actually ask ----------------------------------------
+
+
+def test_the_gate_reports_which_ladder_rungs_are_automated(design):
+    """Rungs 4 and 5 are the ones most often unmapped, because most CLIs have no
+    extend or intake command. That is a supported degradation, not a fault - but
+    an adapter author should be able to see it at gate time."""
+    support = design.ladder_support(["search", "component", "pattern"])
+    assert support["reuse"]["automated"] is True
+    assert support["compose"]["automated"] is True
+    assert support["extend"]["automated"] is False
+    assert support["create"]["automated"] is False
+
+    full = design.ladder_support(["search", "component", "pattern", "extend", "report_gap"])
+    assert all(rung["automated"] for rung in full.values())

@@ -84,6 +84,16 @@ This step exists because "use our colors" and "use our breakpoints" are unenforc
 
 If `breakpoints` is unmapped, check whether the token response already contains them. If neither has them, say so in the spec rather than inventing a set, and mark it `[NEEDS CLARIFICATION]`. A guessed breakpoint set is worse than an admitted gap, because it will look authoritative in every downstream artifact.
 
+If `breakpoints` answers with the *same* payload as `tokens` — most systems have no breakpoint command, so the adapter maps both onto the token call — the names are still in there and the spec can be written. Say so in the completion report: the adapter can carve the breakpoint slice out of that response (`result_path`, `result_paths`, `pick`), and until it does, every phase that asks for breakpoints pays for the whole token set a second time. Look for a `notes` entry from `ds.sh context`, which says it outright when the mapping resolved to nothing.
+
+Where a listing is large and you only need the shape of it, `--fields` trims what comes back without changing what is available:
+
+```
+.specify/extensions/design/scripts/bash/ds.sh query list_components --fields name,description --json
+```
+
+That is a cheap survey, not a smaller design system. Pull the full record for anything you are going to build against.
+
 ### 5. Collect the guidelines in force
 
 First classify what this feature actually involves, from: `interactive`, `layout`, `text`, `media`, `motion`. Then:

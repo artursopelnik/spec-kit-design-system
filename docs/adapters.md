@@ -51,6 +51,8 @@ The extension is written against these names only. Only `search` and `component`
 
 An unmapped capability is reported `available: false` and the commands degrade. Nothing is faked.
 
+`ds.sh gate --json` reports `LADDER_SUPPORT`: per rung of the reuse ladder, what backs it and whether the design system can actually be asked. `extend` and `report_gap` are the two most CLIs do not have, so rungs 4 and 5 commonly come back `automated: false`. That is a supported degradation — rung 4 is walked against the component's documented extension points, and the rung 5 gap record is written and gated either way — but it is worth seeing at gate time rather than inferring from a thin ladder walk. Map them to whatever accepts the job: an eject or swizzle command for `extend`, an issue CLI or a webhook script for `report_gap`.
+
 ## Two kinds of mapping
 
 **A command**, for a CLI:
@@ -75,6 +77,47 @@ component:
 ```
 
 JSON or YAML, resolved against `cwd` if you set one. This is how the `static-json` adapter works, and it is often the fastest way in: most teams can generate an inventory from Storybook, a token pipeline or their component registry in a few lines of build script.
+
+## One command, two questions
+
+Most design systems have no breakpoint command; the breakpoints sit inside the token payload. Mapping both capabilities onto the same call is right. Leaving both mapped to the same _slice_ of it is not — `breakpoints` then answers with the whole token set, and every phase that asks for breakpoints pays for the tokens again:
+
+```yaml
+tokens:
+  args: ["tokens"]
+  result_path: "data"
+
+breakpoints:
+  args: ["tokens"] # same call
+  result_paths: ["data.breakpoints", "data.screens", "data.theme.screens"]
+```
+
+| Key            | What it does                                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------- |
+| `result_path`  | One dotted path. The common case.                                                                             |
+| `result_paths` | Candidates in order, first hit wins. For names that differ between systems or versions.                       |
+| `pick`         | Keep only these keys of the resolved mapping, for an answer that is several siblings rather than one subtree. |
+
+`ds.sh context plan --json` names this when it happens: a `breakpoints` answer identical to the `tokens` answer is reported in `notes`, with its size, because nothing else about the run looks wrong — the breakpoint names really are in the payload, they just arrive twice.
+
+When none of them resolve, the response comes back whole with `result_path_missed: true` rather than as a null — a payload is more use than a fabricated "nothing" — and `ds.sh context` puts it in `notes`. If a capability that should answer narrowly keeps returning the full payload, that flag is where to look.
+
+## What an answer costs
+
+Every capability result carries `bytes`, and `ds.sh context <phase>` carries a `sizes` block per section plus a total. Focused context is a claim about size, and an unmeasured claim drifts: a capability quietly answering with 50 KB looks exactly like one answering with 50 until something counts.
+
+Large answers are reported, never trimmed behind your back. A context that dropped half a token set would make the agent confidently wrong, which is worse than an expensive run. Two levers, in this order:
+
+1. **Narrow the mapping.** `result_path`, `result_paths`, `pick` — paid once in the adapter, saved on every run.
+2. **Narrow the call.** `--fields` trims what one query returns:
+
+   ```bash
+   ds.sh query list_components --fields name,description --json
+   ```
+
+   A full inventory is the most expensive thing most systems will say, and surveying one rarely needs the props. The full record stays one call away; `bytes_unprojected` reports what the untrimmed answer would have cost.
+
+If a capability is still expensive after both, it is a request to make of the design system itself: a narrower endpoint there is the largest single lever on context cost, because it removes the payload instead of moving it.
 
 ## Error semantics, which matter more than they look
 

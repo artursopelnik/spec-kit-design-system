@@ -268,6 +268,8 @@ Or wire it to one of the real systems the benchmarks use, with the RFC and the c
 | "design system could not be reached" | The gate probes for real: CLI missing, wrong binary, or inventory not where `source` says. Check with `ds.sh query describe --json`. |
 | Guidelines say `source: default` | Your system supplied none. Map the `guidelines` capability in your adapter or set `guidelines.source`. |
 | A capability returns `available: false` | Unmapped in the adapter, or the call failed. The `reason` says which. The run degrades, it does not fail. |
+| `breakpoints` returns the whole token set | Most systems have no breakpoint command, so the adapter maps both onto the token call. Carve out the slice with `result_paths` or `pick` ([adapters](docs/adapters.md#one-command-two-questions)); until then every phase that asks pays for the tokens twice, which `ds.sh context <phase>` reports in `notes`. |
+| A phase's context is expensive | Every answer reports `bytes` and every context a `sizes` block, so start by looking. Narrow the mapping first, then the call: `ds.sh query list_components --fields name,description`. |
 | "PyYAML is required" | `pip install pyyaml` into the interpreter running the scripts. |
 | The gate keeps failing | Read what it names: a surface with no resolution, a Create with no gap record, or a rung rejected on too few candidates. `gate.enforce: false` downgrades it to a warning. |
 

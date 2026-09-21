@@ -149,3 +149,87 @@ def test_an_unknown_phase_is_an_error(design, project, write_config, inventory):
         assert exit_.code == 1
     else:
         raise AssertionError("an unknown phase must not silently produce empty context")
+
+
+# --- what the context costs ---------------------------------------------------
+#
+# "Focused" is a claim about size, and an unmeasured claim drifts. A capability
+# that quietly answers with 50 KB looks exactly like one that answers with 50
+# until somebody counts, so the context counts.
+
+
+def test_the_context_says_what_each_section_costs(
+    design, project, write_config, inventory, defaults_installed
+):
+    write_config({"adapter": "static-json"})
+    payload = context(design, "plan", components=["Calendar"])
+
+    sizes = payload["sizes"]
+    assert sizes["tokens"] == len(json.dumps(payload["tokens"], separators=(",", ":")).encode())
+    assert sizes["components"] > 0
+    assert sizes["total"] >= sum(
+        sizes[name] for name in ("guidelines", "components", "tokens", "breakpoints")
+    )
+
+
+def test_an_unnarrowed_shared_payload_is_called_out(
+    design, project, write_config, fake_cli, defaults_installed
+):
+    """The adapter-quality failure this is aimed at: `breakpoints` mapped onto
+    the token command with a slice that matches nothing. The capability answers,
+    so nothing looks broken - the whole token payload just arrives twice, every
+    plan, forever. Say so where the person tuning the adapter will read it."""
+    write_config(
+        {
+            "adapter": "fake",
+            "capabilities": {"breakpoints": {"args": ["tokens"], "result_paths": ["data.nope"]}},
+        }
+    )
+    payload = context(design, "plan")
+
+    assert any(
+        note.startswith("breakpoints:") and "result_path" in note for note in payload["notes"]
+    )
+
+
+def test_a_narrowed_capability_draws_no_complaint(
+    design, project, write_config, fake_cli, defaults_installed
+):
+    """The fixture adapter maps breakpoints onto the token command correctly, so
+    the note must not fire on a mapping that is doing its job."""
+    write_config({"adapter": "fake"})
+    payload = context(design, "plan")
+
+    assert payload["breakpoints"] == {"sm": "640px", "md": "768px", "lg": "1024px"}
+    assert not any(note.startswith("breakpoints:") for note in payload["notes"])
+
+
+def test_a_large_answer_is_reported_but_never_trimmed(design):
+    """Reported, not filtered: the cost is stated and the payload arrives whole.
+    A context that silently dropped half a token set would make the agent
+    confidently wrong, which is the one outcome worse than an expensive run."""
+    big = {"tokens": {str(n): "x" * 64 for n in range(400)}}
+    note = design.cost_note("tokens", {"bytes": design.payload_bytes(big), "data": big})
+
+    assert note and "bytes" in note
+    assert design.cost_note("breakpoints", {"bytes": 120}) is None
+
+
+def test_breakpoints_answering_with_the_token_set_is_named_as_such(
+    design, project, write_config, fake_cli, defaults_installed
+):
+    """Mapped onto the token command and never narrowed, `breakpoints` answers
+    with everything `tokens` just answered with. Nothing fails - the breakpoint
+    names really are in there - so the only way this surfaces is if the context
+    says it."""
+    write_config(
+        {
+            "adapter": "fake",
+            "capabilities": {"breakpoints": {"args": ["tokens"], "result_path": "data",
+                                             "result_paths": []}},
+        }
+    )
+    payload = context(design, "plan")
+
+    assert payload["breakpoints"] == payload["tokens"]
+    assert any("same payload as tokens" in note for note in payload["notes"])

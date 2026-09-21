@@ -78,6 +78,8 @@ Exactly one source is used. `normalize_guidelines` accepts prose, a rule list, o
 | implement | plan, named components, tokens                          |
 | validate  | spec, guidelines, named components                      |
 
+Each response carries `bytes`, and the context carries a `sizes` block per section plus a total, so "focused" is a measured claim rather than an assumed one. Sizes are reported, never enforced: nothing is dropped from a payload on the way through. Where an answer is bulkier than it needs to be — `breakpoints` mapped onto the token command without a slice is the usual case — the context says so in `notes` and the fix belongs in the adapter, which is the only layer that knows the shape of that system's response.
+
 The property to preserve when changing this: **focused, never restricted**. Two tests hold the line — one asserts an unasked-for component does not arrive, the other asserts the same component is retrievable a call later. A change that makes the first pass by making the second fail has broken the feature, not improved it.
 
 ## Workflow position without a state file
