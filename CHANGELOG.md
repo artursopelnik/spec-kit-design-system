@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for surveying a large answer such as a full inventory, with
   `bytes_unprojected` reporting what the untrimmed answer would have cost. The
   full record stays one call away.
+- A capability can name its own `bin`. `extend` and `report_gap` are the two
+  most design system CLIs do not have, because they are usually another tool's
+  job — a gap is filed in an issue tracker, a component is ejected by a codegen
+  tool — and mapping them previously meant writing a wrapper script, which is
+  how rungs 4 and 5 stay unmapped on systems that could support them. A
+  file-backed adapter can map them too, giving a static inventory a write side.
+  Such a capability is invoked on its own terms: the adapter's `global_args` and
+  `envelope` belong to the design system's CLI and are not applied to it.
 - `ds.sh gate --json` reports `LADDER_SUPPORT`: per rung of the reuse ladder,
   what backs it and whether the design system can be asked. `extend` and
   `report_gap` are the mappings most CLIs cannot provide, and a rung walked on
@@ -53,6 +61,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `.gitattributes` pins every tracked file to LF. Git for Windows converts on
+  checkout by default, and a converted `ds.sh` is not executable on Linux at
+  all: the shebang resolves to `bash\r`, so the loader reports a missing
+  interpreter rather than a converted file. The extension installs by copying
+  this repository into a project, so the conversion travelled with it. A test
+  now fails on CRLF in the index; an existing checkout is refreshed with
+  `git rm --cached -r . && git reset --hard`.
 - Prose or empty output from a CLI adapter written for JSON is now
   `available: false` / `found: false` instead of `found: true` with garbage, so
   a changed flag no longer passes the gate.

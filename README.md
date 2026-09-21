@@ -271,6 +271,7 @@ Or wire it to one of the real systems the benchmarks use, with the RFC and the c
 | `breakpoints` returns the whole token set | Most systems have no breakpoint command, so the adapter maps both onto the token call. Carve out the slice with `result_paths` or `pick` ([adapters](docs/adapters.md#one-command-two-questions)); until then every phase that asks pays for the tokens twice, which `ds.sh context <phase>` reports in `notes`. |
 | A phase's context is expensive | Every answer reports `bytes` and every context a `sizes` block, so start by looking. Narrow the mapping first, then the call: `ds.sh query list_components --fields name,description`. |
 | "PyYAML is required" | `pip install pyyaml` into the interpreter running the scripts. |
+| `/usr/bin/env: 'bash\r': No such file or directory` | The checkout converted LF to CRLF — Git for Windows does this by default (`core.autocrlf=true`), and a script that went through it is not executable on Linux, WSL or in a container sharing that checkout. `.gitattributes` pins LF for new checkouts; an existing one is refreshed with `git rm --cached -r . && git reset --hard`. Meanwhile the shim is optional: `python3 .specify/extensions/design/scripts/python/design.py gate --json` does the same thing. |
 | The gate keeps failing | Read what it names: a surface with no resolution, a Create with no gap record, or a rung rejected on too few candidates. `gate.enforce: false` downgrades it to a warning. |
 
 ## Architecture

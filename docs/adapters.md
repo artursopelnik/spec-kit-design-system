@@ -119,6 +119,34 @@ Large answers are reported, never trimmed behind your back. A context that dropp
 
 If a capability is still expensive after both, it is a request to make of the design system itself: a narrower endpoint there is the largest single lever on context cost, because it removes the payload instead of moving it.
 
+## When the capability belongs to another tool
+
+`extend` and `report_gap` are the two most design system CLIs do not have, and the reason is usually that they are somebody else's job: a gap is filed in an issue tracker, a component is ejected by a codegen tool. A capability can name its own binary, so those mappings do not need a wrapper script:
+
+```yaml
+report_gap:
+  bin: "gh"
+  args:
+    [
+      "issue",
+      "create",
+      "--repo",
+      "acme/design-system",
+      "--title",
+      "{title}",
+      "--body",
+      "{body}",
+    ]
+
+extend:
+  bin: "./scripts/swizzle.sh"
+  args: ["{name}", "--dry-run"]
+```
+
+This works on a file-backed adapter too, which is how a static inventory — no CLI anywhere — still gets a write side for rung 5.
+
+A capability that names its own binary is invoked on its own terms: the adapter's `global_args` and `envelope` are the design system CLI's, and are not applied to it. Its exit code decides whether the call succeeded, so `not_found_codes` has no effect there either.
+
 ## Error semantics, which matter more than they look
 
 ```yaml

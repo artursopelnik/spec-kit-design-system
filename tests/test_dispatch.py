@@ -200,8 +200,8 @@ ADAPTER_KEYS = {
     "id", "name", "bin", "global_args", "envelope", "source", "registries", "capabilities",
 }
 CAPABILITY_KEYS = {
-    "args", "read_file", "result_path", "result_paths", "pick", "key_field", "search_keys",
-    "match_fields", "defaults", "not_found_codes",
+    "args", "bin", "read_file", "result_path", "result_paths", "pick", "key_field",
+    "search_keys", "match_fields", "defaults", "not_found_codes",
 }
 
 
@@ -426,3 +426,110 @@ def test_the_gate_reports_which_ladder_rungs_are_automated(design):
 
     full = design.ladder_support(["search", "component", "pattern", "extend", "report_gap"])
     assert all(rung["automated"] for rung in full.values())
+
+
+# --- the top of the ladder usually belongs to another tool --------------------
+#
+# `extend` and `report_gap` are the two capabilities most design system CLIs do
+# not have, which leaves rungs 4 and 5 unautomated on systems that could support
+# them perfectly well: the gap goes to an issue tracker and the eject is a
+# codegen tool. Neither is the design system's binary, and requiring a wrapper
+# script to bridge that is the reason those mappings do not get written.
+
+
+def test_a_capability_can_name_its_own_binary(design, project, write_config, fake_cli):
+    intake = project / "intake.sh"
+    intake.write_text(
+        '#!/bin/sh\nprintf \'{"filed":"%s"}\\n\' "$2"\n', encoding="utf-8"
+    )
+    intake.chmod(0o755)
+
+    write_config(
+        {
+            "adapter": "fake",
+            "capabilities": {
+                "report_gap": {
+                    "bin": "./intake.sh",
+                    "args": ["issue", "{title}", "--body", "{body}"],
+                    "result_path": "",
+                }
+            },
+        }
+    )
+    result = run(design, "report_gap", title="Date range", body="No range semantics")
+
+    assert result["available"] is True
+    assert result["data"] == {"filed": "Date range"}
+    assert result["command"].startswith("./intake.sh")
+
+
+def test_another_tools_invocation_does_not_inherit_the_cli_global_args(
+    design, project, write_config, fake_cli
+):
+    """`global_args` is the design system CLI's flag for emitting JSON. Passing
+    it to an issue tracker's CLI is a mapping error the adapter author did not
+    write, and would look like the tracker rejecting the call."""
+    echo = project / "argv.sh"
+    echo.write_text(
+        '#!/usr/bin/env python3\nimport json,sys\nprint(json.dumps(sys.argv[1:]))\n',
+        encoding="utf-8",
+    )
+    echo.chmod(0o755)
+
+    write_config(
+        {
+            "adapter": "fake",
+            "capabilities": {"report_gap": {"bin": "./argv.sh", "args": ["file", "{title}"],
+                                            "result_path": ""}},
+        }
+    )
+    result = run(design, "report_gap", title="Date range", body="ignored")
+    assert result["data"] == ["file", "Date range"]
+
+    # The design system's own capabilities still get them.
+    assert "--json" in run(design, "search", query="btn")["command"]
+
+
+def test_a_file_backed_adapter_can_still_have_a_write_side(
+    design, project, write_config, inventory
+):
+    """A static inventory has nothing to file a gap with, which is why the
+    shipped adapters leave `report_gap` unmapped. The project can still map it,
+    without the adapter gaining a binary it has no other use for."""
+    intake = project / "intake.sh"
+    intake.write_text('#!/bin/sh\necho \'{"ok":true}\'\n', encoding="utf-8")
+    intake.chmod(0o755)
+
+    write_config(
+        {
+            "adapter": "static-json",
+            "capabilities": {
+                "report_gap": {"bin": "./intake.sh", "args": ["{title}"], "result_path": ""}
+            },
+        }
+    )
+    result = run(design, "report_gap", title="Date range", body="...")
+    assert result["data"] == {"ok": True}
+    assert design.ladder_support(["search", "component", "report_gap"])["create"]["automated"]
+
+
+def test_another_tools_response_is_not_read_through_this_cli_envelope(
+    design, project, write_config, fake_cli
+):
+    """The fake adapter declares `code` as its error key. An issue tracker that
+    happens to return a `code` field has not failed, and reporting it as an
+    outage would lose a gap record that was actually filed."""
+    intake = project / "intake.sh"
+    intake.write_text('#!/bin/sh\necho \'{"code":"CREATED","url":"http://x/1"}\'\n', encoding="utf-8")
+    intake.chmod(0o755)
+
+    write_config(
+        {
+            "adapter": "fake",
+            "capabilities": {"report_gap": {"bin": "./intake.sh", "args": ["{title}"],
+                                            "result_path": ""}},
+        }
+    )
+    result = run(design, "report_gap", title="Date range", body="...")
+    assert result["available"] is True
+    assert result["data"]["url"] == "http://x/1"
