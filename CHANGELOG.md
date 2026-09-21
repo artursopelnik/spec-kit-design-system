@@ -25,13 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | source `adapter` / `none`               | `docs` / `unavailable`                      |
   | default ids `GL-*`                      | `PRIN-*`                                    |
 
-  A config that still says `guidelines:` is carried over to `principles:` and
-  the mapping is reported under `_migrated`, ids included: a principle somebody
-  switched off by its old id stays off, because silently switching it back on
-  would undo a decision that was made deliberately. Reading a design system's
-  own file is unchanged — `principles`, `rules`, `guidelines` and `items` are
-  all still accepted as its key, since renaming our vocabulary does not rename
-  anyone else's.
+  No alias, no carry-forward: a config that still says `guidelines:` is simply
+  not read. Nothing has been released against the old vocabulary, so keeping it
+  alive would cost more than it could ever save.
 
 ### Added
 

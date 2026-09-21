@@ -203,34 +203,15 @@ def set_path(target: dict, dotted: str, value: Any) -> None:
     target[parts[-1]] = value
 
 
-# Default principle ids before the rename. A project that switched one off
-# named it by its old id, and silently switching it back on would undo a
-# decision somebody made deliberately.
-RENAMED_PRINCIPLE_IDS = {f"GL-{rest}": f"PRIN-{rest}" for rest in (
-    "SEMANTIC-HTML", "KEYBOARD", "FOCUS-VISIBLE", "ACCESSIBLE-NAME", "NOT-COLOR-ALONE",
-    "CONTRAST", "TARGET-SIZE", "RESPONSIVE", "INPUT-MODALITIES", "REDUCED-MOTION",
-    "STATE-COVERAGE", "STATE-FEEDBACK", "TOKENS", "NO-BESPOKE-PRIMITIVES",
-)}
-
-
 def migrate_config(config: dict) -> dict:
-    """Carry older configuration forward.
+    """Carry pre-0.2 configuration forward.
 
-    Two renames so far. `baseline` is gone as a public concept: what it named is
-    now the *default* principles, used only when the design system supplies
-    none. And `guidelines` is now `principles` throughout, because a design
-    system states principles and the word it is held to should be its own.
-
-    Old keys are mapped rather than ignored, so an existing project keeps
-    working, and every mapping is reported so it can be cleaned up. Reporting is
-    the point: a config silently reinterpreted is worse than one that fails.
+    `baseline` is gone as a public concept: what it named is now the *default*
+    principles, used only when the design system supplies none. Old keys are
+    mapped rather than ignored, so an existing project keeps working, and the
+    mapping is reported so it can be cleaned up.
     """
     notes: list[str] = []
-
-    retired = config.pop("guidelines", None)
-    if isinstance(retired, dict):
-        config["principles"] = deep_merge(retired, config.get("principles") or {})
-        notes.append("guidelines.* -> principles.*")
 
     rules = config.pop("rules", None)
     if isinstance(rules, dict):
@@ -245,16 +226,6 @@ def migrate_config(config: dict) -> dict:
             principles["disabled"] = rules["disabled"]
             notes.append("rules.disabled -> principles.disabled")
         config["principles"] = principles
-
-    principles = config.get("principles")
-    if isinstance(principles, dict) and principles.get("disabled"):
-        renamed = [
-            RENAMED_PRINCIPLE_IDS.get(str(entry), str(entry))
-            for entry in principles["disabled"]
-        ]
-        if renamed != [str(entry) for entry in principles["disabled"]]:
-            notes.append("principles.disabled: GL-* ids renamed to PRIN-*")
-        principles["disabled"] = renamed
 
     audit = config.pop("audit", None)
     if isinstance(audit, dict):
@@ -805,10 +776,8 @@ def normalize_principles(payload: Any) -> dict:
                 prose = f"{prose}\n{item}".strip()
         return {"prose": prose, "rules": rules, "version": None, "extra": {}}
     if isinstance(payload, dict):
-        # Whatever key the design system publishes under. `guidelines` is
-        # here because this reads other people's files, and renaming our own
-        # vocabulary does not rename theirs.
-        for key in ("principles", "rules", "guidelines", "items"):
+        # Whatever key the design system publishes its list under.
+        for key in ("principles", "rules", "items"):
             value = payload.get(key)
             if isinstance(value, list):
                 rules.extend(entry for entry in value if isinstance(entry, dict))
@@ -826,7 +795,7 @@ def normalize_principles(payload: Any) -> dict:
             for key, value in payload.items()
             if key
             not in {
-                "principles", "rules", "guidelines", "items",
+                "principles", "rules", "items",
                 "prose", "text", "content", "docs", "description", "body",
             }
         }

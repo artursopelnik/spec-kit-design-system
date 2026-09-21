@@ -64,7 +64,7 @@ adapter maps `principles` as a file?     ──yes──▶ read it ──▶ so
                                          principles/default.yml ──▶ source: default
 ```
 
-Exactly one source is used, and `principles_source` names which: `cli`, `docs`, `default`, or `unavailable` when nothing answered and the fallback is switched off — the case a gate has to fail closed on rather than pass on an empty set. `normalize_principles` accepts prose, a list, or a document with both, under whatever key the system publishes (`principles`, `rules`, `guidelines`, `items`), because there is no standard for stating a design rule in a checkable form and requiring one would mean asking teams to restate what their design system already says.
+Exactly one source is used, and `principles_source` names which: `cli`, `docs`, `default`, or `unavailable` when nothing answered and the fallback is switched off — the case a gate has to fail closed on rather than pass on an empty set. `normalize_principles` accepts prose, a list, or a document with both, under whatever key the system publishes its list (`principles`, `rules`, `items`), because there is no standard for stating a design rule in a checkable form and requiring one would mean asking teams to restate what their design system already says.
 
 Each principle comes back with `enforceable`: it states a MUST or SHOULD **and** carries a `verify` step. Anything else is returned, listed under `unenforceable`, and never dropped — a principle nobody can check is not one to hide, it is one to write a `verify` for, and only what a reader can see gets fixed.
 
