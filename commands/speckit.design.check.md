@@ -121,15 +121,25 @@ Write `DESIGN_DOC` (`design-system.md` in the feature directory) with one sectio
 
 **Searched**:
 | Candidate | Source | Verdict |
-|---|---|---|
+| --- | --- | --- |
 | DatePicker | component | Single date only; no range semantics |
 | Calendar | component | Display-only, no input affordance |
 | Select | component | Wrong interaction model for dates |
 | Popover | component | Container only; solves placement, not the control |
 
+**Principles that apply**: ACME-TARGET-SIZE, ACME-OVERLAY-CHOICE, PRIN-FOCUS-VISIBLE
+
 **Why the chosen rung**: <one or two sentences>
 **Design system impact**: none | extension proposal | new component proposal
 ```
+
+**Principles that apply** is the line validation reads back. Take the ids from
+`ds.sh principles --applies-to <kinds> --json`, listing the ones that bear on
+**this** surface rather than the whole set — a surface that lists everything has
+classified nothing. Cite only `enforceable` ids: an id with no `verify` step
+gives validation nothing to check, and listing it here would look like coverage.
+A surface with no applicable principle says `none` and why, which is a claim
+somebody can disagree with; a blank line is not.
 
 Honour `gate.min_candidates_considered` from `CONFIG`: a rung may not be rejected on fewer candidates than that. If the design system genuinely offers fewer, say so explicitly rather than padding the table.
 

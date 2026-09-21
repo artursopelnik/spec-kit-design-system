@@ -1,16 +1,16 @@
 schema_version: "1.0"
 
-# House guidelines for the benchmark's MUI workspace. MUI documents its rules in
+# House principles for the benchmark's MUI workspace. MUI documents its rules in
 # prose on mui.com; these are the machine-readable subset a team would keep in
 # their own repo. Both arms see the file; only the extension arm resolves it
-# through the guidelines capability.
+# through the principles capability.
 
 prose: |
   The theme is the single source of visual truth. Responsive behaviour is
   written with breakpoint names. Nothing that is available to the keyboard may
   be invisible to the eye.
 
-rules:
+principles:
   - id: MUI-THEME-TOKENS
     dimension: tokens
     applies_to: any

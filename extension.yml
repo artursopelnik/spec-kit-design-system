@@ -32,7 +32,7 @@ provides:
 
     - name: speckit.design.context
       file: commands/speckit.design.context.md
-      description: "Resolve guidelines and design system context into the specification"
+      description: "Resolve principles and design system context into the specification"
 
     - name: speckit.design.check
       file: commands/speckit.design.check.md
@@ -55,7 +55,7 @@ hooks:
   after_specify:
     command: speckit.design.context
     optional: false
-    description: "Resolve guidelines and design system context for the new specification"
+    description: "Resolve principles and design system context for the new specification"
 
   # The gate. Planning must not begin until the reuse ladder has been walked.
   before_plan:
@@ -68,7 +68,7 @@ hooks:
   after_implement:
     command: speckit.design.validate
     optional: false
-    description: "Validate the implementation against the spec, the guidelines and the design system"
+    description: "Validate the implementation against the spec, the principles and the design system"
 
 tags:
   - "design-system"
@@ -85,11 +85,11 @@ config:
     # Name one to pin it.
     adapter: auto
 
-    guidelines:
+    principles:
       # Fall back to the small default set when the design system supplies no
-      # guidelines of its own. Set false to run with none rather than ours.
+      # principles of its own. Set false to run with none rather than ours.
       default: true
-      # Guideline ids to switch off. Reported, never hidden.
+      # Principle ids to switch off. Reported, never hidden.
       disabled: []
 
     workflow:

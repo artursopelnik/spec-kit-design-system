@@ -17,8 +17,8 @@ CI (`.github/workflows/ci.yml`) also has an `integration` job that installs `spe
 Three layers (details in `docs/architecture.md`):
 
 - `commands/*.md`: agent-facing prose (judgement: when a ladder rung may be rejected, what counts as a finding). Edits here need no code.
-- `scripts/python/design.py` (single ~1400-line file; `scripts/bash/ds.sh` is a shim that finds an interpreter and forwards): all mechanism. Subcommands: `gate`, `query`, `guidelines`, `context`, `workflow`, `rfc`, `ledger`. Each emits exactly **one compact JSON object on stdout**; failures are JSON describing why, not non-zero exits, so command bodies can degrade instead of crash.
-- `adapters/*.yml`: declarative maps from capability names (`search`, `component`, `tokens`, `guidelines`, ...) to a subprocess invocation or file read. Adapters may only map, never hold rules or component knowledge (enforced by `test_adapters_only_map_and_never_model`).
+- `scripts/python/design.py` (single ~1400-line file; `scripts/bash/ds.sh` is a shim that finds an interpreter and forwards): all mechanism. Subcommands: `gate`, `query`, `principles`, `context`, `workflow`, `rfc`, `ledger`. Each emits exactly **one compact JSON object on stdout**; failures are JSON describing why, not non-zero exits, so command bodies can degrade instead of crash.
+- `adapters/*.yml`: declarative maps from capability names (`search`, `component`, `tokens`, `principles`, ...) to a subprocess invocation or file read. Adapters may only map, never hold rules or component knowledge (enforced by `test_adapters_only_map_and_never_model`).
 
 Hooks wired in `extension.yml`, not in the run command: `after_specify` → `design.context`, `before_plan` → `design.check` (blocking, `optional: false`), `after_implement` → `design.validate`. `design.run` drives Spec Kit's own commands and lets the hooks fire; do not reimplement phases inside it.
 
@@ -33,18 +33,20 @@ The preset exists because extensions can only *replace* templates while presets 
 
 Three output forms, so a claim can be stated: continuous metrics (scoring), pass/fail `checks` per run (`k/n` rates in the report), and `benchmarks/harness/judge.py` for blind pairwise preference. Judging is only worth anything blinded — implementation files only, tooling redacted, sides swapped, key outside the judge's directory — and a test fails on any giveaway in a bundle. Token and cost accounting is recorded per run and printed next to the scores; never report a win without it.
 
-Cases (`benchmarks/cases/<id>/case.yml`) say what a good answer looks like per surface; `satisfied_by` names must exist in the system's inventory and cited guideline ids must exist in whatever source is in force for that system (house file, or the default set for Radix). Never publish numbers this repo has not produced: no results are committed yet, and the READMEs say so.
+Cases (`benchmarks/cases/<id>/case.yml`) say what a good answer looks like per surface; `satisfied_by` names must exist in the system's inventory and cited principle ids must exist in whatever source is in force for that system (house file, or the default set for Radix). Never publish numbers this repo has not produced: no results are committed yet, and the READMEs say so.
 
 ## Invariants to preserve
 
 - **A failure to ask is never "the design system has nothing."** Missing binary, outage, changed flag → `available: false`. Only an error code the adapter explicitly declares as not-found becomes `found: false`. `probe_adapter` spends a real call at gate time; the gate fails closed when unreachable.
-- **Guidelines resolve from exactly one source, never merged:** adapter CLI → shipped data file (`guidelines.source` or adapter file mapping) → `guidelines/default.yml`. Default set carries no colors/breakpoints/sizes.
+- **Principles resolve from exactly one source, never merged:** adapter CLI → shipped data file (`principles.source` or adapter file mapping) → `principles/default.yml`. `principles_source` names which (`cli` | `docs` | `default` | `unavailable`); `unavailable` means nothing answered and the fallback is off, which gating must fail closed on. Default set carries no colors/breakpoints/sizes.
+- **A principle is enforceable only if it is normative and checkable** (MUST/SHOULD plus a `verify` step). Unenforceable ones are reported under `unenforceable`, never filtered out: the fix is a `verify` step at the source, not a quiet deletion.
+- The vocabulary is Principles throughout. `guidelines` survives in exactly two places, both deliberate: `migrate_config` carries an old config block (and `GL-*` ids) forward with a `_migrated` note, and `normalize_principles` still reads it as a key in a design system's own file, which is not ours to rename.
 - **Context is focused, never restricted.** `build_context(phase)` must not push unasked components, but they must stay retrievable via `available_on_demand`/`retrieval`. Two tests hold this line; don't pass one by breaking the other.
 - **Workflow position is derived from artifacts, no state file** (`workflow_status`): `[NEEDS CLARIFICATION]` in spec.md, `tasks.md` unticked boxes, `## Validation round N` headings and `- [ ] DS-F-nnn` finding checkboxes in `design-system.md`. Those formats are a load-bearing contract with `commands/speckit.design.validate.md`. A round with ticked-off findings is not "clean". Rounds bounded by `max_validation_rounds` (3).
 - Ledger (committed, keyed by UI capability) records ladder decisions: Reuse → Compose → Extend → Create.
 
 ## Testing notes
 
-`tests/conftest.py` loads `design.py` via `importlib` as the `design` fixture and builds a minimal on-disk Spec Kit layout (`.specify/extensions/design/`, `.specify/feature.json`, `specs/<feature>/`). Tests are per-concern (`test_config`, `test_context`, `test_dispatch`, `test_guidelines`, `test_ledger`, `test_rfc`, `test_workflow`).
+`tests/conftest.py` loads `design.py` via `importlib` as the `design` fixture and builds a minimal on-disk Spec Kit layout (`.specify/extensions/design/`, `.specify/feature.json`, `specs/<feature>/`). Tests are per-concern (`test_config`, `test_context`, `test_dispatch`, `test_principles`, `test_ledger`, `test_rfc`, `test_workflow`).
 
 Project config lives at `.specify/extensions/design/design-config.yml` in the consuming project (template: `config-template.yml`); `adapter: auto` detects one.

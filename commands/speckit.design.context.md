@@ -1,5 +1,5 @@
 ---
-description: "Resolve the guidelines in force and the design system context for the current specification, and write them into the spec as explicit requirements"
+description: "Resolve the principles in force and the design system context for the current specification, and write them into the spec as explicit requirements"
 ---
 
 # Design System Context
@@ -25,7 +25,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 Without bash, call the module directly; it behaves identically:
 `python3 .specify/extensions/design/scripts/python/design.py gate --json`
 
-Parse for `FEATURE_SPEC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON`, `UI_BEARING`, `GUIDELINES_SOURCE`.
+Parse for `FEATURE_SPEC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON`, `UI_BEARING`, `PRINCIPLES_SOURCE`.
 
 **If `UI_BEARING` is `false`**: report that no user-facing surface was found and stop without editing the spec.
 
@@ -94,31 +94,38 @@ Where a listing is large and you only need the shape of it, `--fields` trims wha
 
 That is a cheap survey, not a smaller design system. Pull the full record for anything you are going to build against.
 
-### 5. Collect the guidelines in force
+### 5. Collect the principles in force
 
 First classify what this feature actually involves, from: `interactive`, `layout`, `text`, `media`, `motion`. Then:
 
 ```
-.specify/extensions/design/scripts/bash/ds.sh guidelines --applies-to interactive,layout --json
+.specify/extensions/design/scripts/bash/ds.sh principles --applies-to interactive,layout --json
 ```
 
-Classify honestly. Over-claiming buries the spec in guidelines that do not apply; under-claiming is how a control ships without a focus state. If the feature has anything the user can operate, it is `interactive`. If anything occupies space and reflows, it is `layout`.
+Classify honestly. Over-claiming buries the spec in principles that do not apply; under-claiming is how a control ships without a focus state. If the feature has anything the user can operate, it is `interactive`. If anything occupies space and reflows, it is `layout`.
 
 Classify from the **components you are about to use**, not only from the feature description. A booking filter does not sound like it involves motion, but if it opens a Popover or a Modal then it animates, and `motion` applies. Read the `avoid` and `usage` text of each candidate from step 3 before deciding: that is where a component tells you what it drags in.
 
-The response carries a `source`, and that is the part to read first:
+You are working against **this project's design system principles**, which are the source of truth here. Generic UI advice — however sound — is not a principle in force and does not belong in the spec.
 
-| `source` | What it means |
-|---|---|
+The response carries `principles_source`, and that is the part to read first:
+
+| `principles_source` | What it means |
+| --- | --- |
 | `cli` | Your design system stated these itself. They are the authority; nothing else was consulted. |
-| `adapter` | Static guidelines your design system ships. Same authority, different transport. |
+| `docs` | Static principles your design system publishes — an inventory key or a file it ships. Same authority, different transport. |
 | `default` | Your design system supplied none, so the small default set applies. Say so in the spec. |
+| `unavailable` | Nothing answered and the fallback is switched off. There are no principles in force: stop and report it rather than writing a spec section against principles you assumed. |
 
-The three are never merged. A design system that states its own guidelines is not also held to ours.
+The sources are never merged, and the first that answers wins outright. A design system that states its own principles is not also held to ours.
+
+`principles_version` is the revision the source names, or `null` where it names none. Record it in the spec when it is there: a citation made against last quarter's principles is worth spotting, and nothing else in the artifact would show it.
 
 `prose` carries whatever the system says in its own words: principles, do/don't guidance, a rule about which overlay is correct for a destructive action. It is not machine-checkable, and it still outranks anything assumed on the system's behalf. Read it for what binds this feature and turn those into `DS-` requirements, because they are this system's law and nothing else will carry them.
 
-`rules` carries the checkable ones, each with `id`, `requirement`, `verify` and where applicable `standard`. They are already written as testable requirements and do not need re-deriving.
+`principles` carries the ones that can be cited one at a time, each with `id`, `title`, `requirement`, `verify` and where applicable `standard`. They are already written as testable requirements and do not need re-deriving.
+
+**What makes a principle citable.** Each carries `enforceable`: true when it states a MUST or SHOULD **and** carries a `verify` step — specific, testable, mapped to a verification. Cite those as requirements. The ids in `unenforceable` are returned for a reason and are worth reading, but a spec cannot hold anything to them and validation cannot check them: treat them as intent, cite them as context at most, and say in the completion report which ones lack a `verify` step. That is a gap in the design system's own principles, and naming it is how it gets fixed.
 
 ### 6. Write the spec section
 
@@ -141,28 +148,29 @@ Use `DS-` prefixed, testable requirement IDs in the same MUST/SHOULD style as th
   name; focus order follows visual order.
 ```
 
-Then record the applicable guidelines. Do **not** restate each one in full; cite them by id in a table, since the text lives at its source and duplicating it into every spec creates two sources of truth that will drift:
+Then record the applicable principles. Do **not** restate each one in full; cite them by id in a table, since the text lives at its source and duplicating it into every spec creates two sources of truth that will drift. Only `enforceable` principles belong in this table — a row nothing can check reads as a requirement and is not one:
 
 ```markdown
-### Guidelines in force
+### Principles in force
 
-Source: `adapter` (node_modules/@acme/design-system/guidelines.yml).
+Source: `docs` (node_modules/@acme/design-system/principles.yml), version 2025.4.
 Cited by id, not restated. Surface kinds: interactive, layout.
 
-| Guideline | Dimension | Requirement |
-|---|---|---|
+| Principle | Dimension | Requirement |
+| --- | --- | --- |
 | ACME-TARGET-SIZE | accessibility | Targets at least 48x48px, one spacing step apart |
 | ACME-OVERLAY-CHOICE | interaction | Destructive confirmation uses Modal, not Drawer |
-| GL-FOCUS-VISIBLE | accessibility | Focus indicator visible at every stop (WCAG 2.4.7) |
+| PRIN-FOCUS-VISIBLE | accessibility | Focus indicator visible at every stop (WCAG 2.4.7) |
 
 Disabled for this project: none.
+Stated but not enforceable (no verify step): ACME-DENSITY.
 ```
 
 Fill the breakpoint names and token families from step 4, not from memory. A row that says "use the right breakpoints" without naming them has not actually constrained anything.
 
-Then cover each dimension in `REQUIRED_DIMENSIONS` from the gate (states, responsive, accessibility, tokens, interaction). A dimension is covered when a guideline or a `DS-` requirement speaks to it. Only write a feature-specific `DS-` requirement where this feature needs something **beyond** the guidelines; repeating a guideline as a `DS-` entry is noise.
+Then cover each dimension in `REQUIRED_DIMENSIONS` from the gate (states, responsive, accessibility, tokens, interaction). A dimension is covered when a principle or a `DS-` requirement speaks to it. Only write a feature-specific `DS-` requirement where this feature needs something **beyond** the principles; repeating a principle as a `DS-` entry is noise.
 
-If `GUIDELINES_DISABLED` from the gate is non-empty, list the disabled ids and why. A guideline switched off silently is worse than one never written.
+If `PRINCIPLES_DISABLED` from the gate is non-empty, list the disabled ids and why. A principle switched off silently is worse than one never written.
 
 Where the design system's answer is genuinely unclear, use the spec's own idiom rather than guessing:
 
@@ -176,16 +184,17 @@ Add technology-agnostic entries under `## Success Criteria` for what design comp
 
 ## Completion Report
 
-Report which surfaces were identified, which components and patterns the system surfaced for each, where the guidelines came from, the `DS-` requirements written, and any `[NEEDS CLARIFICATION]` markers left for the user.
+Report which surfaces were identified, which components and patterns the system surfaced for each, where the principles came from, the `DS-` requirements written, and any `[NEEDS CLARIFICATION]` markers left for the user.
 
 ## Done When
 
 - [ ] Every user-facing surface was looked up in the decision ledger
 - [ ] Every user-facing surface in the spec has been searched against the design system
-- [ ] The guidelines in force were resolved and their `source` is stated in the spec
-- [ ] The feature's surface kinds were classified and the matching guidelines cited by id
+- [ ] The principles in force were resolved and their `principles_source` (and version, where stated) is in the spec
+- [ ] Only enforceable principles are cited as requirements; any without a `verify` step are named as such
+- [ ] The feature's surface kinds were classified and the matching principles cited by id
 - [ ] Breakpoints and token families are named from what the design system returned, never from memory
-- [ ] `## Design System Requirements` is populated with testable `DS-` IDs for what this feature needs *beyond* the guidelines
-- [ ] Every required dimension is covered by a guideline or a `DS-` requirement
-- [ ] Any disabled guidelines are listed with a reason
+- [ ] `## Design System Requirements` is populated with testable `DS-` IDs for what this feature needs *beyond* the principles
+- [ ] Every required dimension is covered by a principle or a `DS-` requirement
+- [ ] Any disabled principles are listed with a reason
 - [ ] Genuine ambiguities are marked `[NEEDS CLARIFICATION: ...]` rather than guessed

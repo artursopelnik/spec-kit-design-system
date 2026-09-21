@@ -36,24 +36,24 @@ cwd: ""
 
 # --- everything below is optional --------------------------------------------
 
-# Guidelines are resolved in one order, and the first source that answers wins
+# Principles are resolved in one order, and the first source that answers wins
 # outright:
 #
-#   1. your design system's CLI       (`guidelines` capability)
+#   1. your design system's CLI       (`principles` capability)
 #   2. static data it ships           (inventory key, or the file named here)
-#   3. the small default set in guidelines/default.yml
+#   3. the small default set in principles/default.yml
 #
-# They are never merged. A design system that states its own guidelines should
+# They are never merged. A design system that states its own principles should
 # not also inherit ours. You normally configure nothing here.
 #
-# guidelines:
-#   # A guidelines file your design system publishes. Resolved next to this
+# principles:
+#   # A principles file your design system publishes. Resolved next to this
 #   # config, or from the repo root, so it can live inside the package itself.
-#   source: "node_modules/@acme/design-system/guidelines.yml"
-#   # false runs with no guidelines at all, rather than with the default set.
+#   source: "node_modules/@acme/design-system/principles.yml"
+#   # false runs with no principles at all, rather than with the default set.
 #   default: true
 #   # Ids to switch off. Reported in the spec with a reason, never dropped
-#   # silently. Run `ds.sh guidelines` to see the ids currently in force.
+#   # silently. Run `ds.sh principles` to see the ids currently in force.
 #   disabled: []
 
 # The design system version in use. Prior decisions taken against a different

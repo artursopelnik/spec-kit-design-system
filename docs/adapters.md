@@ -42,7 +42,7 @@ The extension is written against these names only. Only `search` and `component`
 | `pattern`         | A composed arrangement: pattern, template, block, recipe       | Rung 2 is skipped                       |
 | `tokens`          | Design tokens                                                  | "Use our tokens" is unenforceable       |
 | `breakpoints`     | Breakpoint names and widths                                    | The agent invents breakpoint names      |
-| `guidelines`      | The system's own principles and guidance                       | The default fallback set applies        |
+| `principles`      | The system's own principles and guidance                       | The default fallback set applies        |
 | `list_components` | Full inventory                                                 | Search carries the load alone           |
 | `describe`        | The CLI's own manifest                                         | Mapping drift is harder to diagnose     |
 | `extend`          | The sanctioned way to customize a component                    | Rung 4 is advice rather than a check    |

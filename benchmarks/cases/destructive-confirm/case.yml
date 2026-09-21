@@ -1,7 +1,7 @@
 # The system has the component. The whole question is whether the run finds it.
 #
-# Radix ships no machine-readable guidelines, so this case is also the one that
-# exercises the extension's default guideline set (GL-*) rather than a file the
+# Radix ships no machine-readable principles, so this case is also the one that
+# exercises the extension's default principle set (PRIN-*) rather than a file the
 # design system publishes.
 
 id: destructive-confirm
@@ -39,28 +39,28 @@ surfaces:
     forbidden: []
 
 # Radix publishes no rules, so these are the extension's defaults.
-guidelines:
-  - id: GL-ACCESSIBLE-NAME
+principles:
+  - id: PRIN-ACCESSIBLE-NAME
     evidence:
       - 'AlertDialog\.Title'
       - 'aria-label(?:led)?(?:by)?'
       - 'VisuallyHidden'
-  - id: GL-KEYBOARD
+  - id: PRIN-KEYBOARD
     evidence:
       - '(?i)keyboard'
       - '(?i)\bEscape\b'
       - '(?i)tab order'
-  - id: GL-FOCUS-VISIBLE
+  - id: PRIN-FOCUS-VISIBLE
     evidence:
       - '(?i)focus[- ](?:visible|ring|return)'
       - 'border-focus'
       - ':focus'
-  - id: GL-STATE-FEEDBACK
+  - id: PRIN-STATE-FEEDBACK
     evidence:
       - '(?i)\bpending\b'
       - '(?i)in flight'
       - 'disabled'
-  - id: GL-TOKENS
+  - id: PRIN-TOKENS
     evidence:
       - 'var\(--(?:color|space|radius|size)-'
       - 'styles\.'

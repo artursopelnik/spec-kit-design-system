@@ -510,5 +510,5 @@
       "avoid": "Do not pair a bare input with your own message element."
     }
   ],
-  "guidelines": "Everything visual comes from the theme: palette, spacing, typography and shape. Responsive behaviour is written with the breakpoint names, through sx objects or useMediaQuery(theme.breakpoints.down('md')), never with literal media queries."
+  "principles": "Everything visual comes from the theme: palette, spacing, typography and shape. Responsive behaviour is written with the breakpoint names, through sx objects or useMediaQuery(theme.breakpoints.down('md')), never with literal media queries."
 }

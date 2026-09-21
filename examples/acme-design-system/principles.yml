@@ -1,9 +1,9 @@
 schema_version: "1.0"
 
-# Acme's own guidelines. They ship inside the design system package, so every
+# Acme's own principles. They ship inside the design system package, so every
 # consuming repository reads this same file, and the design system owns them.
 #
-# When these resolve, they ARE the guidelines for the run: the default set that
+# When these resolve, they ARE the principles for the run: the default set that
 # ships with the extension is not merged in and not consulted.
 
 prose: |
@@ -11,7 +11,7 @@ prose: |
   carries the meaning. Filters belong in a FilterBar; overlays are chosen by the
   kind of decision they ask for, not by how much room the content needs.
 
-rules:
+principles:
   - id: ACME-TARGET-SIZE
     dimension: accessibility
     applies_to: interactive

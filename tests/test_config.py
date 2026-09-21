@@ -1,7 +1,7 @@
 """Config resolution: extension defaults -> project -> local -> environment.
 
 Plus the migration of pre-0.2 keys, which matters because the alternative is an
-existing project silently losing its guidelines when it upgrades.
+existing project silently losing its principles when it upgrades.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ def test_defaults_come_from_the_extension_manifest(design, project):
     assert config["gate"]["enforce"] is True
     assert config["ledger"]["match_threshold"] == 0.34
     assert config["workflow"]["max_validation_rounds"] == 3
-    assert config["guidelines"]["default"] is True
+    assert config["principles"]["default"] is True
 
 
 def test_a_working_config_is_one_line(design, project, write_config):
@@ -58,9 +58,9 @@ def test_pre_02_rule_keys_still_work(design, project, write_config):
     config = design.load_config(Path.cwd())
 
     assert "rules" not in config
-    assert config["guidelines"]["default"] is False
-    assert config["guidelines"]["source"].endswith("rules.yml")
-    assert config["guidelines"]["disabled"] == ["BL-MOTION-REDUCED"]
+    assert config["principles"]["default"] is False
+    assert config["principles"]["source"].endswith("rules.yml")
+    assert config["principles"]["disabled"] == ["BL-MOTION-REDUCED"]
     assert any("rules.baseline" in note for note in config["_migrated"])
 
 
@@ -141,3 +141,42 @@ def test_auto_adapter_detects_component_libraries(design, project):
             '{"dependencies": {"%s": "1.0.0"}}' % dependency, encoding="utf-8"
         )
         assert design.load_adapter(root, config)["id"] == expected, dependency
+
+
+def test_the_guidelines_block_is_carried_to_principles(design, project, write_config):
+    """The rename is breaking on purpose, but a config someone already wrote is
+    not where that break should land. Mapped, and reported so it gets cleaned
+    up — a config silently reinterpreted is worse than one that fails."""
+    write_config(
+        {
+            "guidelines": {
+                "source": "node_modules/@acme/design-system/guidelines.yml",
+                "default": False,
+            }
+        }
+    )
+    config = design.load_config(Path.cwd())
+
+    assert "guidelines" not in config
+    assert config["principles"]["default"] is False
+    assert config["principles"]["source"].endswith("guidelines.yml")
+    assert any("guidelines.* -> principles.*" in note for note in config["_migrated"])
+
+
+def test_a_principle_switched_off_by_its_old_id_stays_off(design, project, write_config):
+    """Somebody decided to disable that principle. Renaming the ids underneath
+    them would turn it back on silently, which is the one outcome a rename must
+    not produce."""
+    write_config({"guidelines": {"disabled": ["GL-REDUCED-MOTION", "ACME-OWN-ID"]}})
+    config = design.load_config(Path.cwd())
+
+    assert config["principles"]["disabled"] == ["PRIN-REDUCED-MOTION", "ACME-OWN-ID"]
+    assert any("GL-* ids renamed" in note for note in config["_migrated"])
+
+
+def test_a_project_that_already_uses_principles_is_left_alone(design, project, write_config):
+    write_config({"principles": {"disabled": ["PRIN-CONTRAST"]}})
+    config = design.load_config(Path.cwd())
+
+    assert config["principles"]["disabled"] == ["PRIN-CONTRAST"]
+    assert "_migrated" not in config

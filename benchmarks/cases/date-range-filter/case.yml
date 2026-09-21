@@ -54,9 +54,9 @@ surfaces:
       - pattern: '<table[^>]*>\s*<t(?:head|body|r)'
         because: "raw table markup next to the system's own Table primitives"
 
-# A guideline counts as carried when any one of its evidence patterns appears in
+# A principle counts as carried when any one of its evidence patterns appears in
 # the produced work.
-guidelines:
+principles:
   - id: SHADCN-THEME-TOKENS
     evidence:
       - 'var\(--'

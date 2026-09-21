@@ -54,9 +54,9 @@ capabilities:
     # would land before rung 4 is taken.
     args: ["add", "{name}", "--dry-run"]
 
-  # guidelines: unmapped. shadcn publishes guidance as prose on its site rather
+  # principles: unmapped. shadcn publishes guidance as prose on its site rather
   # than through the CLI, so there is nothing honest to map. Point at your own
-  # house guidelines instead, and they become the authority:
+  # house principles instead, and they become the authority:
   #
-  #   guidelines:
-  #     source: "design/guidelines.yml"
+  #   principles:
+  #     source: "design/principles.yml"

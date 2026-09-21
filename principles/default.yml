@@ -1,9 +1,9 @@
 schema_version: "1.0"
 
-# Default guidelines: the fallback, used only when your design system has none.
+# Default principles: the fallback, used only when your design system has none.
 #
-# These are NOT merged with your design system's guidelines. If the adapter can
-# answer `guidelines` — from the CLI or from static data the system ships — that
+# These are NOT merged with your design system's principles. If the adapter can
+# answer `principles` — from the CLI or from static data the system ships — that
 # answer is the authority for the run and this file is not read at all. Merging
 # would hold your design system to rules it never wrote.
 #
@@ -15,9 +15,9 @@ schema_version: "1.0"
 # Nothing here is an aesthetic opinion, and nothing here carries a concrete
 # value. There are no colors, no breakpoint widths, no spacing scale: those come
 # from YOUR design system through the `tokens` and `breakpoints` capabilities. A
-# guideline that hardcoded one would invent the thing it exists to prevent.
+# principle that hardcoded one would invent the thing it exists to prevent.
 #
-# `applies_to` decides which guidelines reach a given feature:
+# `applies_to` decides which principles reach a given feature:
 #   interactive  anything the user can operate
 #   layout       anything that occupies space and reflows
 #   text         anything that renders copy
@@ -25,15 +25,16 @@ schema_version: "1.0"
 #   motion       transitions, animation, autoplay
 #   any          unconditional
 #
-# Switch individual ids off in design-config.yml under `guidelines.disabled`.
-# A disabled guideline is reported, never hidden.
+# Switch individual ids off in design-config.yml under `principles.disabled`.
+# A disabled principle is reported, never hidden.
 
-rules:
+principles:
   # --- Accessibility ----------------------------------------------------------
   # WCAG is cited, never restated. The standard is the source of truth for what
   # the rule means; this file only records that it applies here.
 
-  - id: GL-SEMANTIC-HTML
+  - id: PRIN-SEMANTIC-HTML
+    title: "Semantic elements and roles"
     dimension: accessibility
     applies_to: any
     requirement: >-
@@ -42,7 +43,8 @@ rules:
     verify: "Inspect the rendered markup: roles match behaviour."
     standard: "WCAG 4.1.2"
 
-  - id: GL-KEYBOARD
+  - id: PRIN-KEYBOARD
+    title: "Keyboard operable"
     dimension: accessibility
     applies_to: interactive
     requirement: >-
@@ -51,7 +53,8 @@ rules:
     verify: "Tab to each control and operate it without a mouse."
     standard: "WCAG 2.1.1"
 
-  - id: GL-FOCUS-VISIBLE
+  - id: PRIN-FOCUS-VISIBLE
+    title: "Focus stays visible"
     dimension: accessibility
     applies_to: interactive
     requirement: >-
@@ -61,7 +64,8 @@ rules:
     verify: "Tab through the feature; a focus indicator is visible at every stop. Open and dismiss each overlay."
     standard: "WCAG 2.4.7"
 
-  - id: GL-ACCESSIBLE-NAME
+  - id: PRIN-ACCESSIBLE-NAME
+    title: "Accessible name"
     dimension: accessibility
     applies_to: interactive
     requirement: >-
@@ -70,7 +74,8 @@ rules:
     verify: "Read the accessibility tree; every control has a meaningful name."
     standard: "WCAG 4.1.2"
 
-  - id: GL-NOT-COLOR-ALONE
+  - id: PRIN-NOT-COLOR-ALONE
+    title: "Never colour alone"
     dimension: accessibility
     applies_to: any
     requirement: >-
@@ -79,7 +84,8 @@ rules:
     verify: "View in greyscale; every state is still distinguishable."
     standard: "WCAG 1.4.1"
 
-  - id: GL-CONTRAST
+  - id: PRIN-CONTRAST
+    title: "Contrast in every theme"
     dimension: accessibility
     applies_to: text
     requirement: >-
@@ -88,7 +94,8 @@ rules:
     verify: "Measure contrast for each text and icon style, in each theme."
     standard: "WCAG 1.4.3"
 
-  - id: GL-TARGET-SIZE
+  - id: PRIN-TARGET-SIZE
+    title: "Target size and spacing"
     dimension: accessibility
     applies_to: interactive
     requirement: >-
@@ -99,7 +106,8 @@ rules:
 
   # --- Responsive and input ----------------------------------------------------
 
-  - id: GL-RESPONSIVE
+  - id: PRIN-RESPONSIVE
+    title: "Reflow across breakpoints"
     dimension: responsive
     applies_to: layout
     requirement: >-
@@ -109,7 +117,8 @@ rules:
     verify: "Resize to each named breakpoint and to 320px wide; nothing is lost."
     standard: "WCAG 1.4.10"
 
-  - id: GL-INPUT-MODALITIES
+  - id: PRIN-INPUT-MODALITIES
+    title: "Every input modality"
     dimension: interaction
     applies_to: interactive
     requirement: >-
@@ -119,7 +128,8 @@ rules:
     verify: "Operate the feature by touch and by keyboard with no pointer."
     standard: "WCAG 1.4.13"
 
-  - id: GL-REDUCED-MOTION
+  - id: PRIN-REDUCED-MOTION
+    title: "Reduced motion honoured"
     dimension: interaction
     applies_to: motion
     requirement: >-
@@ -130,7 +140,8 @@ rules:
 
   # --- States ------------------------------------------------------------------
 
-  - id: GL-STATE-COVERAGE
+  - id: PRIN-STATE-COVERAGE
+    title: "Every state accounted for"
     dimension: states
     applies_to: any
     requirement: >-
@@ -138,7 +149,8 @@ rules:
       active, disabled, loading, error and empty, wherever each is possible.
     verify: "Walk each state; none falls back to an undesigned default."
 
-  - id: GL-STATE-FEEDBACK
+  - id: PRIN-STATE-FEEDBACK
+    title: "State changes are announced"
     dimension: states
     applies_to: interactive
     requirement: >-
@@ -148,7 +160,8 @@ rules:
 
   # --- Design system fidelity ---------------------------------------------------
 
-  - id: GL-TOKENS
+  - id: PRIN-TOKENS
+    title: "Tokens, not literals"
     dimension: tokens
     applies_to: any
     requirement: >-
@@ -157,7 +170,8 @@ rules:
       exists. A system with no token layer is not held to this.
     verify: "Grep the diff for literal colors, lengths and font stacks."
 
-  - id: GL-NO-BESPOKE-PRIMITIVES
+  - id: PRIN-NO-BESPOKE-PRIMITIVES
+    title: "No bespoke primitives"
     dimension: tokens
     applies_to: any
     requirement: >-

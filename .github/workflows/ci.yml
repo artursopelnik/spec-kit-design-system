@@ -31,7 +31,7 @@ jobs:
 
       - name: Check YAML parses
         run: |
-          for f in extension.yml config-template.yml adapters/*.yml guidelines/*.yml \
+          for f in extension.yml config-template.yml adapters/*.yml principles/*.yml \
                    preset/preset.yml benchmarks/systems/*/*.yml benchmarks/cases/*/case.yml; do
             python -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" "$f"
           done
@@ -145,22 +145,23 @@ jobs:
           .specify/extensions/design/scripts/bash/ds.sh gate --json \
             | python -c "import json,sys; d=json.load(sys.stdin); print('gate ok, adapter', d['ADAPTER'])"
 
-      - name: Default guidelines load and filter when the system supplies none
+      - name: Default principles load and filter when the system supplies none
         working-directory: proj
         run: |
           DS=.specify/extensions/design/scripts/bash/ds.sh
-          $DS guidelines --json > all.json
-          $DS guidelines --json --applies-to text > text.json
+          $DS principles --json > all.json
+          $DS principles --json --applies-to text > text.json
           python - <<'PY'
           import json
           every = json.load(open("all.json"))
           text = json.load(open("text.json"))
-          assert every["source"] == "default", every["source"]
-          assert every["rules"], every
-          assert len(text["rules"]) < len(every["rules"]), "filtering did nothing"
-          unconditional = {r["id"] for r in every["rules"] if r["applies_to"] == "any"}
-          assert unconditional <= {r["id"] for r in text["rules"]}, "an unconditional rule was filtered away"
-          print(f"defaults ok: {len(every['rules'])} guidelines, {len(text['rules'])} apply to text")
+          assert every["principles_source"] == "default", every["principles_source"]
+          assert every["principles"], every
+          assert every["unenforceable"] == [], "a default principle cannot be checked"
+          assert len(text["principles"]) < len(every["principles"]), "filtering did nothing"
+          unconditional = {p["id"] for p in every["principles"] if p["applies_to"] == "any"}
+          assert unconditional <= {p["id"] for p in text["principles"]}, "an unconditional principle was filtered away"
+          print(f"defaults ok: {len(every['principles'])} principles, {len(text['principles'])} apply to text")
           PY
 
       - name: The example walkthrough still works
@@ -170,14 +171,14 @@ jobs:
           DS=.specify/extensions/design/scripts/bash/ds.sh
           $DS gate --json > gate.json
           $DS query search "confirm destructive action" --json > search.json
-          $DS guidelines --applies-to interactive,layout --json > guidelines.json
+          $DS principles --applies-to interactive,layout --json > principles.json
           $DS context implement --json > context.json
           python - <<'PY'
           import json
           gate = json.load(open("gate.json"))
           assert gate["REACHABLE"] is True, gate
-          # Acme publishes its own guidelines, so ours are never consulted.
-          assert gate["GUIDELINES_SOURCE"] == "adapter", gate
+          # Acme publishes its own principles, so ours are never consulted.
+          assert gate["PRINCIPLES_SOURCE"] == "docs", gate
 
           hits = json.load(open("search.json"))["data"]
           # Ranking has to be meaningful, not insertion order: the pattern built
@@ -185,10 +186,10 @@ jobs:
           assert hits[0]["name"] == "ConfirmDialog", [h["name"] for h in hits]
           assert len({h["score"] for h in hits}) > 1, hits
 
-          guidelines = json.load(open("guidelines.json"))
-          ids = {r["id"] for r in guidelines["rules"]}
+          principles = json.load(open("principles.json"))
+          ids = {p["id"] for p in principles["principles"]}
           assert ids and all(i.startswith("ACME-") for i in ids), ids
-          assert "keyboard-first" in guidelines["prose"], guidelines["prose"]
+          assert "keyboard-first" in principles["prose"], principles["prose"]
 
           context = json.load(open("context.json"))
           # Focused: no component arrives unasked for. Not restricted: every
@@ -211,9 +212,9 @@ jobs:
           import json
           gate = json.load(open("gate.json"))
           assert gate["REACHABLE"] is True, gate
-          # shadcn publishes no rules of its own, so the house file has to be
+          # shadcn publishes no principles of its own, so the house file has to be
           # what answers, not the extension's defaults.
-          assert gate["GUIDELINES_SOURCE"] == "adapter", gate
+          assert gate["PRINCIPLES_SOURCE"] == "docs", gate
 
           calendar = json.load(open("calendar.json"))
           assert calendar["found"] is True, calendar

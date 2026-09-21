@@ -85,7 +85,7 @@ DEFAULT_WEIGHTS = {
     "inventory_fidelity": 1.0,
     "ladder_outcome": 1.0,
     "token_discipline": 1.0,
-    "guideline_coverage": 1.0,
+    "principle_coverage": 1.0,
     "criteria_traceability": 1.0,
 }
 
@@ -454,16 +454,16 @@ def metric_token_discipline(files, case, system) -> dict:
     }
 
 
-def metric_guideline_coverage(files, case, system) -> dict:
+def metric_principle_coverage(files, case, system) -> dict:
     everything = joined(files)
     results = []
-    for rule in case.get("guidelines") or []:
+    for rule in case.get("principles") or []:
         hit = next((p for p in rule["evidence"] if re.search(p, everything)), None)
         results.append({"id": rule["id"], "covered": hit is not None, "matched": hit})
     applicable = bool(results) and bool(everything.strip())
     covered = sum(1 for r in results if r["covered"])
     return {
-        "id": "guideline_coverage",
+        "id": "principle_coverage",
         "question": "Do the rules in force show up in the work?",
         "applicable": applicable,
         "score": round(covered / len(results), 4) if results and applicable else 0.0,
@@ -555,7 +555,7 @@ METRICS = (
     metric_inventory_fidelity,
     metric_ladder_outcome,
     metric_token_discipline,
-    metric_guideline_coverage,
+    metric_principle_coverage,
     metric_criteria_traceability,
     metric_recall,
 )
@@ -620,7 +620,7 @@ CHECK_LABELS = {
     "avoided_the_shortcuts": "No shortcut the case names as wrong",
     "invented_nothing": "No component or variant the system does not have",
     "no_literal_values": "No literal colour or length outside the theme",
-    "every_guideline_carried": "Every guideline in force shows up in the work",
+    "every_principle_carried": "Every principle in force shows up in the work",
     "every_criterion_traced": "Every acceptance criterion survived into the work",
     "clean_sweep": "All of the above, in one run",
 }
@@ -654,8 +654,8 @@ def headline_checks(metrics: list[dict]) -> dict:
     tokens = applicable("token_discipline")
     checks["no_literal_values"] = tokens["detail"]["literal_values"] == 0 if tokens else None
 
-    guidelines = applicable("guideline_coverage")
-    checks["every_guideline_carried"] = guidelines["score"] == 1.0 if guidelines else None
+    principles = applicable("principle_coverage")
+    checks["every_principle_carried"] = principles["score"] == 1.0 if principles else None
 
     criteria = applicable("criteria_traceability")
     checks["every_criterion_traced"] = criteria["score"] == 1.0 if criteria else None

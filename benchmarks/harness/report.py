@@ -21,14 +21,14 @@ METRIC_ORDER = [
     "inventory_fidelity",
     "ladder_outcome",
     "token_discipline",
-    "guideline_coverage",
+    "principle_coverage",
     "criteria_traceability",
 ]
 METRIC_LABEL = {
     "inventory_fidelity": "Fidelity",
     "ladder_outcome": "Ladder",
     "token_discipline": "Tokens",
-    "guideline_coverage": "Guidelines",
+    "principle_coverage": "Principles",
     "criteria_traceability": "Criteria",
 }
 ARM_ORDER = ["unaided", "speckit", "extension"]
@@ -40,7 +40,7 @@ CHECK_ORDER = [
     "avoided_the_shortcuts",
     "invented_nothing",
     "no_literal_values",
-    "every_guideline_carried",
+    "every_principle_carried",
     "every_criterion_traced",
     "clean_sweep",
 ]
@@ -49,7 +49,7 @@ CHECK_LABEL = {
     "avoided_the_shortcuts": "Avoided the shortcuts",
     "invented_nothing": "Invented nothing",
     "no_literal_values": "No literal colours or lengths",
-    "every_guideline_carried": "Carried every guideline",
+    "every_principle_carried": "Carried every principle",
     "every_criterion_traced": "Traced every criterion",
     "clean_sweep": "All of the above, in one run",
 }

@@ -52,11 +52,11 @@ Each phase starts with what it needs:
 ds.sh context implement --component DatePicker --component Popover --json
 ```
 
-- **clarify** — RFC, guidelines
-- **specify** — RFC, guidelines, candidates for the surfaces searched
-- **plan** — spec, guidelines, named components, tokens, breakpoints
+- **clarify** — RFC, principles
+- **specify** — RFC, principles, candidates for the surfaces searched
+- **plan** — spec, principles, named components, tokens, breakpoints
 - **implement** — plan, named components, tokens
-- **validate** — spec, guidelines, named components
+- **validate** — spec, principles, named components
 
 The whole inventory is never inlined. But every response carries `available_on_demand` and `retrieval`, listing each capability the design system can still answer and the exact call that gets it, and the commands tell the agent to use them.
 

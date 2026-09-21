@@ -6,7 +6,7 @@
 #   ds.sh rfc <path|->                           normalize an RFC
 #   ds.sh context <phase> [--applies-to k,k]     focused context for one phase
 #                 [--component Name] [--query q]
-#   ds.sh guidelines [--applies-to k,k]          the guidelines in force
+#   ds.sh principles [--applies-to k,k]          the principles in force
 #   ds.sh query <capability> [args...]           ask the design system anything
 #   ds.sh ledger lookup|record|list [value]      prior design decisions
 #

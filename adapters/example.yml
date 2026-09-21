@@ -93,10 +93,10 @@ capabilities:
     # `result_path_missed: true` rather than as a null, and `ds.sh context`
     # says so in `notes`. That is the signal to fix the path here.
 
-  guidelines:
+  principles:
     # Your design system's own principles and guidance, in whatever form it
     # publishes them. Prose, a rule list, or both. When this answers, it IS the
-    # guidelines for the run: the default set shipped with this extension is not
+    # principles for the run: the default set shipped with this extension is not
     # merged in and not consulted. Map it if there is anything to map.
     args: ["docs", "principles"]
     result_path: "data"

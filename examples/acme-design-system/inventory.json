@@ -1,5 +1,5 @@
 {
-  "guidelines": "Acme Design System principles. (1) Destructive or irreversible confirmations use Modal. Drawer is for non-blocking secondary content and must never confirm a destructive action. (2) Every form control pairs with a Label; placeholder text is never a substitute. (3) Filters live in a FilterBar and collapse to a stacked form below md. (4) We commit to WCAG AA contrast in both themes.",
+  "principles": "Acme Design System principles. (1) Destructive or irreversible confirmations use Modal. Drawer is for non-blocking secondary content and must never confirm a destructive action. (2) Every form control pairs with a Label; placeholder text is never a substitute. (3) Filters live in a FilterBar and collapse to a stacked form below md. (4) We commit to WCAG AA contrast in both themes.",
 
   "breakpoints": { "sm": "640px", "md": "768px", "lg": "1024px", "xl": "1280px" },
 
