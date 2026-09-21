@@ -7,7 +7,7 @@ can invoke this module directly and get identical behaviour.
 Subcommands:
     gate                     prerequisites + resolved config as one JSON object
     query <capability> ...   ask the design system through the adapter
-    guidelines               the guidelines in force (CLI -> adapter -> default)
+    principles               the principles in force (CLI -> adapter -> default)
     context <phase>          the focused context for one workflow phase
     workflow status          where the autonomous run has got to, and what is next
     rfc <path|->             normalize an RFC into structured JSON
@@ -36,10 +36,10 @@ CONFIG_NAME = "design-config.yml"
 LOCAL_CONFIG_NAME = "design-config.local.yml"
 LEDGER_NAME = "design-decisions.yml"
 DESIGN_DOC_NAME = "design-system.md"
-DEFAULT_GUIDELINES = "guidelines/default.yml"
+DEFAULT_PRINCIPLES = "principles/default.yml"
 
-# What a guideline can apply to. A feature declares which of these it involves,
-# and only the matching guidelines reach its context.
+# What a principle can apply to. A feature declares which of these it involves,
+# and only the matching principles reach its context.
 SURFACE_KINDS = ["interactive", "layout", "text", "media", "motion", "any"]
 
 # Capabilities the commands are written against. An adapter maps these to real
@@ -54,9 +54,9 @@ CAPABILITIES = [
     # Breakpoints are their own query because "use our breakpoints" is
     # unenforceable unless the agent can find out what they actually are.
     "breakpoints",
-    # The design system's own guidelines. When this answers, it IS the
-    # guidelines for the run; nothing shipped here is merged into it.
-    "guidelines",
+    # The design system's own principles. When this answers, it IS the
+    # principles for the run; nothing shipped here is merged into it.
+    "principles",
     "extend",
     "validate",
     "report_gap",
@@ -207,7 +207,7 @@ def migrate_config(config: dict) -> dict:
     """Carry pre-0.2 configuration forward.
 
     `baseline` is gone as a public concept: what it named is now the *default*
-    guidelines, used only when the design system supplies none. Old keys are
+    principles, used only when the design system supplies none. Old keys are
     mapped rather than ignored, so an existing project keeps working, and the
     mapping is reported so it can be cleaned up.
     """
@@ -215,17 +215,17 @@ def migrate_config(config: dict) -> dict:
 
     rules = config.pop("rules", None)
     if isinstance(rules, dict):
-        guidelines = dict(config.get("guidelines") or {})
-        if "baseline" in rules and "default" not in guidelines:
-            guidelines["default"] = bool(rules["baseline"])
-            notes.append("rules.baseline -> guidelines.default")
-        if rules.get("house_rules") and not guidelines.get("source"):
-            guidelines["source"] = rules["house_rules"]
-            notes.append("rules.house_rules -> guidelines.source")
-        if rules.get("disabled") and not guidelines.get("disabled"):
-            guidelines["disabled"] = rules["disabled"]
-            notes.append("rules.disabled -> guidelines.disabled")
-        config["guidelines"] = guidelines
+        principles = dict(config.get("principles") or {})
+        if "baseline" in rules and "default" not in principles:
+            principles["default"] = bool(rules["baseline"])
+            notes.append("rules.baseline -> principles.default")
+        if rules.get("house_rules") and not principles.get("source"):
+            principles["source"] = rules["house_rules"]
+            notes.append("rules.house_rules -> principles.source")
+        if rules.get("disabled") and not principles.get("disabled"):
+            principles["disabled"] = rules["disabled"]
+            notes.append("rules.disabled -> principles.disabled")
+        config["principles"] = principles
 
     audit = config.pop("audit", None)
     if isinstance(audit, dict):
@@ -726,7 +726,7 @@ def read_structured(path: Path) -> Any:
         raise ValueError(f"{path} is not valid JSON: {exc}") from exc
 
 
-# --- guidelines ---------------------------------------------------------------
+# --- principles ---------------------------------------------------------------
 
 
 def resolve_path(root: Path, name: str) -> Path | None:
@@ -734,11 +734,11 @@ def resolve_path(root: Path, name: str) -> Path | None:
     config, relative to the repository root, and as an absolute path.
 
     The second is what makes a multi-repo setup work, because it lets the
-    guidelines live inside the design system package itself. Every repo that
+    principles live inside the design system package itself. Every repo that
     installs the package then reads the same file:
 
-        guidelines:
-          source: "node_modules/@acme/design-system/guidelines.yml"
+        principles:
+          source: "node_modules/@acme/design-system/principles.yml"
     """
     if not name:
         return None
@@ -752,7 +752,7 @@ def resolve_path(root: Path, name: str) -> Path | None:
     return None
 
 
-def normalize_guidelines(payload: Any) -> dict:
+def normalize_principles(payload: Any) -> dict:
     """Accept whatever shape a design system publishes.
 
     There is deliberately no schema to conform to. A system may return prose, a
@@ -765,18 +765,19 @@ def normalize_guidelines(payload: Any) -> dict:
     extra: dict = {}
 
     if payload is None:
-        return {"prose": "", "rules": [], "extra": {}}
+        return {"prose": "", "rules": [], "version": None, "extra": {}}
     if isinstance(payload, str):
-        return {"prose": payload.strip(), "rules": [], "extra": {}}
+        return {"prose": payload.strip(), "rules": [], "version": None, "extra": {}}
     if isinstance(payload, list):
         for item in payload:
             if isinstance(item, dict):
                 rules.append(item)
             elif isinstance(item, str):
                 prose = f"{prose}\n{item}".strip()
-        return {"prose": prose, "rules": rules, "extra": {}}
+        return {"prose": prose, "rules": rules, "version": None, "extra": {}}
     if isinstance(payload, dict):
-        for key in ("rules", "guidelines", "principles", "items"):
+        # Whatever key the design system publishes its list under.
+        for key in ("principles", "rules", "items"):
             value = payload.get(key)
             if isinstance(value, list):
                 rules.extend(entry for entry in value if isinstance(entry, dict))
@@ -794,7 +795,7 @@ def normalize_guidelines(payload: Any) -> dict:
             for key, value in payload.items()
             if key
             not in {
-                "rules", "guidelines", "principles", "items",
+                "principles", "rules", "items",
                 "prose", "text", "content", "docs", "description", "body",
             }
         }
@@ -802,14 +803,20 @@ def normalize_guidelines(payload: Any) -> dict:
             # Nothing recognizable; hand the document back rather than dropping
             # it. An unfamiliar shape is still the system speaking for itself.
             prose = json.dumps(extra, indent=2, default=str)
-        return {"prose": prose, "rules": rules, "extra": extra}
-    return {"prose": str(payload), "rules": [], "extra": {}}
+        version = extra.get("version")
+        return {
+            "prose": prose,
+            "rules": rules,
+            "version": str(version) if version not in (None, "") else None,
+            "extra": extra,
+        }
+    return {"prose": str(payload), "rules": [], "version": None, "extra": {}}
 
 
-def select_guidelines(rules: list[dict], kinds: list[str] | None, disabled: set[str]) -> tuple:
+def select_principles(rules: list[dict], kinds: list[str] | None, disabled: set[str]) -> tuple:
     """Filter to what this feature actually involves. Anything without an
     `applies_to` is unconditional, because a design system writing free-form
-    guidelines cannot be expected to classify them."""
+    principles cannot be expected to classify them."""
     wanted = {kind.strip() for kind in (kinds or []) if kind.strip()}
     selected, skipped = [], 0
     for rule in rules:
@@ -823,35 +830,35 @@ def select_guidelines(rules: list[dict], kinds: list[str] | None, disabled: set[
     return selected, skipped
 
 
-def resolve_guidelines(
+def resolve_principles(
     root: Path, config: dict, adapter: dict, kinds: list[str] | None = None
 ) -> dict:
-    """The guidelines in force, resolved from exactly one source.
+    """The principles in force, resolved from exactly one source.
 
-        1. the design system's CLI        (`guidelines` capability, invoked)
+        1. the design system's CLI        (`principles` capability, invoked)
         2. adapter-provided static data   (inventory key, or a file it ships)
         3. the small default set shipped here
 
     The first one that answers wins **outright**. The default set is a fallback,
-    not a floor: merging it into a real design system's guidelines would mean
+    not a floor: merging it into a real design system's principles would mean
     holding that system to rules it never wrote.
     """
-    settings = config.get("guidelines") or {}
+    settings = config.get("principles") or {}
     disabled = {str(entry) for entry in (settings.get("disabled") or [])}
     attempts: list[dict] = []
 
-    spec = (adapter.get("capabilities") or {}).get("guidelines") or {}
+    spec = (adapter.get("capabilities") or {}).get("principles") or {}
     is_file_backed = bool(spec.get("read_file"))
 
     # 1. The CLI.
     if spec and not is_file_backed:
-        result = run_capability(root, config, adapter, "guidelines", {})
+        result = run_capability(root, config, adapter, "principles", {})
         if result.get("available") and result.get("data") not in (None, "", [], {}):
-            return _guidelines_payload(
+            return _principles_payload(
                 "cli", result.get("command", adapter.get("bin", "")),
                 result["data"], kinds, disabled, attempts,
             )
-        attempts.append({"source": "cli", "reason": result.get("reason", "no guidelines returned")})
+        attempts.append({"source": "cli", "reason": result.get("reason", "no principles returned")})
 
     # 2. Adapter-provided static data: a file the design system ships, either
     #    named in config or mapped by the adapter as a file-backed capability.
@@ -860,47 +867,63 @@ def resolve_guidelines(
         try:
             payload = read_structured(configured)
         except ValueError as exc:
-            attempts.append({"source": "adapter", "reason": str(exc)})
+            attempts.append({"source": "docs", "reason": str(exc)})
         else:
-            return _guidelines_payload(
-                "adapter", str(configured), payload, kinds, disabled, attempts
+            return _principles_payload(
+                "docs", str(configured), payload, kinds, disabled, attempts
             )
     elif settings.get("source"):
-        attempts.append(
-            {"source": "adapter", "reason": f"{settings['source']} not found"}
-        )
+        attempts.append({"source": "docs", "reason": f"{settings['source']} not found"})
 
     if is_file_backed:
-        result = run_capability(root, config, adapter, "guidelines", {})
+        result = run_capability(root, config, adapter, "principles", {})
         if result.get("available") and result.get("data") not in (None, "", [], {}):
-            return _guidelines_payload(
-                "adapter", result.get("source", ""), result["data"], kinds, disabled, attempts
+            return _principles_payload(
+                "docs", result.get("source", ""), result["data"], kinds, disabled, attempts
             )
         attempts.append(
-            {"source": "adapter", "reason": result.get("reason", "no guidelines in inventory")}
+            {"source": "docs", "reason": result.get("reason", "no principles in inventory")}
         )
 
     # 3. The default set.
     if settings.get("default", True) is False:
+        # Nothing answered and the fallback is switched off, so there are no
+        # principles in force. Said outright, because a gate that requires them
+        # must fail closed here rather than pass on an empty set.
         return {
-            "source": "none",
+            "principles_source": "unavailable",
+            "principles_version": None,
             "origin": "",
             "authoritative": False,
             "prose": "",
-            "rules": [],
-            "rule_count": 0,
+            "principles": [],
+            "principle_count": 0,
+            "unenforceable": [],
             "filtered_by": sorted({k for k in (kinds or []) if k}) or None,
             "skipped_as_not_applicable": 0,
             "disabled": sorted(disabled),
             "attempted": attempts,
         }
 
-    path = ext_dir(root) / DEFAULT_GUIDELINES
+    path = ext_dir(root) / DEFAULT_PRINCIPLES
     payload = load_yaml(path)
-    return _guidelines_payload("default", str(path), payload, kinds, disabled, attempts)
+    return _principles_payload("default", str(path), payload, kinds, disabled, attempts)
 
 
-def _guidelines_payload(
+# A principle binds only if something can be checked against it. MUST/SHOULD
+# says it is normative; `verify` says how anyone would know. Missing either, it
+# is a statement of intent - worth reading, not worth citing as a requirement.
+NORMATIVE = re.compile(r"\b(MUST|SHOULD|MUST NOT|SHOULD NOT)\b")
+
+
+def is_enforceable(principle: dict) -> bool:
+    return bool(
+        str(principle.get("verify", "")).strip()
+        and NORMATIVE.search(str(principle.get("requirement", "")))
+    )
+
+
+def _principles_payload(
     source: str,
     origin: str,
     payload: Any,
@@ -908,20 +931,35 @@ def _guidelines_payload(
     disabled: set[str],
     attempts: list[dict],
 ) -> dict:
-    normalized = normalize_guidelines(payload)
-    selected, skipped = select_guidelines(normalized["rules"], kinds, disabled)
+    normalized = normalize_principles(payload)
+    selected, skipped = select_principles(normalized["rules"], kinds, disabled)
+    # Derived, never substituted: the design system's own fields are passed
+    # through as they were written.
+    marked = [{**principle, "enforceable": is_enforceable(principle)} for principle in selected]
     return {
-        # Where these guidelines came from. `default` means the design system
-        # supplied none, which is worth saying out loud in the spec.
-        "source": source,
+        # Where these principles came from, and what that means:
+        #   cli          the design system answered for itself
+        #   docs         static principles it publishes (inventory key or file)
+        #   default      it supplied none, so the fallback set applies
+        #   unavailable  it supplied none and the fallback is switched off
+        "principles_source": source,
+        # What the source calls this revision of its principles, when it says.
+        # Null is honest: most systems do not version them, and inventing one
+        # would make a stale citation look checked.
+        "principles_version": normalized["version"],
         "origin": origin,
-        "authoritative": source in {"cli", "adapter"},
+        "authoritative": source in {"cli", "docs"},
         "prose": normalized["prose"],
-        "rules": selected,
-        "rule_count": len(selected),
+        "principles": marked,
+        "principle_count": len(marked),
+        # Stated rather than filtered out. A principle nobody can check is not a
+        # principle to drop quietly; it is one to write a `verify` step for.
+        "unenforceable": [
+            str(principle.get("id", "")) for principle in marked if not principle["enforceable"]
+        ],
         "filtered_by": sorted({k for k in (kinds or []) if k}) or None,
         "skipped_as_not_applicable": skipped,
-        # Reported rather than silently dropped: a switched-off guideline is a
+        # Reported rather than silently dropped: a switched-off principle is a
         # decision someone should be able to see and question.
         "disabled": sorted(disabled),
         "attempted": attempts,
@@ -933,12 +971,12 @@ def _guidelines_payload(
 # What each phase is given up front. Everything else stays one query away;
 # nothing here is a ceiling on what the agent may ask for.
 PHASE_CONTEXT = {
-    "clarify": ["rfc", "guidelines"],
-    "specify": ["rfc", "guidelines", "candidates"],
-    "plan": ["spec", "guidelines", "named_components", "tokens", "breakpoints"],
+    "clarify": ["rfc", "principles"],
+    "specify": ["rfc", "principles", "candidates"],
+    "plan": ["spec", "principles", "named_components", "tokens", "breakpoints"],
     "implement": ["plan", "named_components", "tokens"],
-    "validate": ["spec", "guidelines", "named_components"],
-    "verify": ["spec", "guidelines"],
+    "validate": ["spec", "principles", "named_components"],
+    "verify": ["spec", "principles"],
 }
 
 RETRIEVAL_HINT = "ds.sh query {capability} [args]"
@@ -980,7 +1018,7 @@ def context_sizes(payload: dict) -> dict:
     this, a capability quietly answering with 50 KB looks exactly like one
     answering with 50.
     """
-    sections = ["guidelines", "components", "tokens", "breakpoints", "candidates"]
+    sections = ["principles", "components", "tokens", "breakpoints", "candidates"]
     sizes = {name: payload_bytes(payload.get(name)) for name in sections}
     sizes["total"] = payload_bytes(payload)
     return sizes
@@ -999,7 +1037,7 @@ def build_context(
 
     Two properties matter and are both deliberate:
 
-    * The whole design system is never inlined. A phase gets the guidelines that
+    * The whole design system is never inlined. A phase gets the principles that
       apply and the components it actually named.
     * Nothing is withheld. Every capability the design system can answer is
       listed under `available_on_demand`, with the exact call to make. Focused
@@ -1010,14 +1048,14 @@ def build_context(
 
     wants = PHASE_CONTEXT[phase]
     probe = probe_adapter(root, config, adapter)
-    guidelines = resolve_guidelines(root, config, adapter, kinds)
+    principles = resolve_principles(root, config, adapter, kinds)
 
     payload: dict[str, Any] = {
         "phase": phase,
         "includes": wants,
         "adapter": adapter.get("id", ""),
         "reachable": probe["reachable"],
-        "guidelines": guidelines,
+        "principles": principles,
         "components": {},
         "tokens": None,
         "breakpoints": None,
@@ -1481,7 +1519,7 @@ def cmd_gate(args: argparse.Namespace) -> None:
     feature = feature_dir(root)
     spec = feature / "spec.md" if feature else None
     probe = probe_adapter(root, config, adapter)
-    guidelines = resolve_guidelines(root, config, adapter)
+    principles = resolve_principles(root, config, adapter)
 
     emit(
         {
@@ -1493,13 +1531,16 @@ def cmd_gate(args: argparse.Namespace) -> None:
             "DESIGN_DOC": str(feature / DESIGN_DOC_NAME) if feature else "",
             "LEDGER": str(ledger_path(root)),
             "LEDGER_COUNT": len(load_ledger(root)["decisions"]),
-            # Where the guidelines came from: cli, adapter or default. `default`
+            # Where the principles came from: cli, adapter or default. `default`
             # means the design system supplied none.
-            "GUIDELINES_SOURCE": guidelines["source"],
-            "GUIDELINES_ORIGIN": guidelines["origin"],
-            "GUIDELINES_COUNT": guidelines["rule_count"],
-            "GUIDELINES_HAS_PROSE": bool(guidelines["prose"]),
-            "GUIDELINES_DISABLED": guidelines["disabled"],
+            "PRINCIPLES_SOURCE": principles["principles_source"],
+            "PRINCIPLES_VERSION": principles["principles_version"],
+            "PRINCIPLES_ORIGIN": principles["origin"],
+            "PRINCIPLES_COUNT": principles["principle_count"],
+            "PRINCIPLES_HAS_PROSE": bool(principles["prose"]),
+            "PRINCIPLES_DISABLED": principles["disabled"],
+            # Cited as requirements only where something can check them.
+            "PRINCIPLES_UNENFORCEABLE": principles["unenforceable"],
             "ADAPTER": adapter.get("id", ""),
             "ADAPTER_NAME": adapter.get("name", ""),
             # Empty when the design system could not actually be reached. The
@@ -1521,15 +1562,21 @@ def cmd_gate(args: argparse.Namespace) -> None:
     )
 
 
-def cmd_guidelines(args: argparse.Namespace) -> None:
+def cmd_principles(args: argparse.Namespace) -> None:
     root = repo_root()
     config = load_config(root)
     adapter = load_adapter(root, config)
     kinds = (args.applies_to or "").split(",") if args.applies_to else None
-    result = resolve_guidelines(root, config, adapter, kinds)
+    result = resolve_principles(root, config, adapter, kinds)
     if args.dimension:
-        result["rules"] = [r for r in result["rules"] if r.get("dimension") == args.dimension]
-        result["rule_count"] = len(result["rules"])
+        result["principles"] = [
+            entry for entry in result["principles"] if entry.get("dimension") == args.dimension
+        ]
+        result["principle_count"] = len(result["principles"])
+        result["unenforceable"] = [
+            str(entry.get("id", "")) for entry in result["principles"]
+            if not entry.get("enforceable")
+        ]
     emit(result)
 
 
@@ -1660,13 +1707,13 @@ def main() -> None:
     )
     query.set_defaults(func=cmd_query)
 
-    guidelines = sub.add_parser("guidelines", parents=[common])
-    guidelines.add_argument(
+    principles = sub.add_parser("principles", parents=[common])
+    principles.add_argument(
         "--applies-to",
         help=f"comma-separated surface kinds this feature involves ({', '.join(SURFACE_KINDS)})",
     )
-    guidelines.add_argument("--dimension", help="return only guidelines for one dimension")
-    guidelines.set_defaults(func=cmd_guidelines)
+    principles.add_argument("--dimension", help="return only principles for one dimension")
+    principles.set_defaults(func=cmd_principles)
 
     context = sub.add_parser("context", parents=[common])
     context.add_argument("phase", choices=list(PHASE_CONTEXT))

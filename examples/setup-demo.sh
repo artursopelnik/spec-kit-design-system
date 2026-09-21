@@ -51,15 +51,15 @@ if [ "$SYSTEM" = "acme" ]; then
   # The fixture stands in for a design system package installed from npm.
   mkdir -p node_modules/@acme/design-system
   cp "$HERE/acme-design-system/inventory.json" node_modules/@acme/design-system/
-  cp "$HERE/acme-design-system/guidelines.yml" node_modules/@acme/design-system/guidelines.yml
+  cp "$HERE/acme-design-system/principles.yml" node_modules/@acme/design-system/principles.yml
 
   cat > .specify/extensions/design/design-config.yml <<'YAML'
 adapter: static-json
 source: "node_modules/@acme/design-system/inventory.json"
 design_system_version: "2.1.0"
-guidelines:
+principles:
   # Acme publishes its own, so the extension's default set is never read.
-  source: "node_modules/@acme/design-system/guidelines.yml"
+  source: "node_modules/@acme/design-system/principles.yml"
 YAML
 else
   SRC="$EXT/benchmarks/systems/$SYSTEM"
@@ -68,9 +68,9 @@ else
   cp "$SRC/inventory.json" .design-system/inventory.json
   printf 'adapter: %s\nsource: ".design-system/inventory.json"\n' "$ADAPTER" \
     > .specify/extensions/design/design-config.yml
-  if [ -f "$SRC/guidelines.yml" ]; then
-    cp "$SRC/guidelines.yml" .design-system/guidelines.yml
-    printf 'guidelines:\n  source: ".design-system/guidelines.yml"\n' \
+  if [ -f "$SRC/principles.yml" ]; then
+    cp "$SRC/principles.yml" .design-system/principles.yml
+    printf 'principles:\n  source: ".design-system/principles.yml"\n' \
       >> .specify/extensions/design/design-config.yml
   fi
 fi

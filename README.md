@@ -153,7 +153,7 @@ Validate     an independent pass, not the implementer signing off its own work
  ↓
 Fix          findings feed back in, then validate again
  ↓
-Verify       RFC criteria, spec requirements and guidelines checked over the whole change
+Verify       RFC criteria, spec requirements and principles checked over the whole change
  ↓
 Done
 ```
@@ -192,17 +192,17 @@ You need the first one. The rest are what it drives, and they also fire as Spec 
 | Command | Hook | Purpose |
 |---|---|---|
 | `/speckit.design.run <rfc>` | | The whole workflow. The one to remember. |
-| `/speckit.design.context` | `after_specify` | Resolves guidelines and design system context into the spec |
+| `/speckit.design.context` | `after_specify` | Resolves principles and design system context into the spec |
 | `/speckit.design.check` | `before_plan` | Walks the reuse ladder and gates planning on it (blocking) |
 | `/speckit.design.validate` | `after_implement` | The independent checker |
 
 ## Your design system
 
-The extension asks yours through a thin adapter that maps capabilities (`search`, `component`, `tokens`, `guidelines`, ...) onto a CLI call or a file read.
+The extension asks yours through a thin adapter that maps capabilities (`search`, `component`, `tokens`, `principles`, ...) onto a CLI call or a file read.
 
 | Adapter | For |
 |---|---|
-| `shadcn` | [shadcn/ui](https://ui.shadcn.com), via its CLI and registries. It publishes no machine-readable guidelines, so the default set applies unless you set `guidelines.source` |
+| `shadcn` | [shadcn/ui](https://ui.shadcn.com), via its CLI and registries. It publishes no machine-readable principles, so the default set applies unless you set `principles.source` |
 | `mui` | [MUI](https://mui.com) (Material UI), via an inventory file |
 | `antd` | [Ant Design](https://ant.design), via an inventory file |
 | `chakra` | [Chakra UI](https://chakra-ui.com), via an inventory file |
@@ -215,9 +215,9 @@ The library adapters read an inventory file your project generates (default `.de
 
 Adapters only map. They never hold rules or component knowledge, otherwise your design system would stop being the source of truth. Writing one: [docs/adapters.md](docs/adapters.md).
 
-### Guidelines
+### Principles
 
-Guidelines are the rules the work is held to. They resolve from exactly one source, never merged:
+Principles are the rules the work is held to. They resolve from exactly one source, never merged:
 
 ```text
 1. your design system's CLI      ──┐
@@ -225,14 +225,14 @@ Guidelines are the rules the work is held to. They resolve from exactly one sour
 3. a small default set           ──┘
 ```
 
-The default set is a fallback of fourteen broadly applicable rules (semantic markup, keyboard operation, focus, touch targets, reflow, reduced motion, state coverage, token use). It carries no colors, breakpoints or sizes, because those belong to your system. If your system publishes guidelines without a CLI, name the file:
+The default set is a fallback of fourteen broadly applicable principles (semantic markup, keyboard operation, focus, touch targets, reflow, reduced motion, state coverage, token use). It carries no colors, breakpoints or sizes, because those belong to your system. If your system publishes principles without a CLI, name the file:
 
 ```yaml
-guidelines:
-  source: "node_modules/@acme/design-system/guidelines.yml"
+principles:
+  source: "node_modules/@acme/design-system/principles.yml"
 ```
 
-See [guidelines/example.yml](guidelines/example.yml) for the shape.
+See [principles/example.yml](principles/example.yml) for the shape.
 
 ## Configuration
 
@@ -242,7 +242,7 @@ For most projects the whole file (`.specify/extensions/design/design-config.yml`
 adapter: shadcn   # or auto (default), mui, antd, chakra, radix, ark-ui, static-json, your own
 ```
 
-Everything else is optional and documented in [config-template.yml](config-template.yml): a `bin` override, a `cwd` for monorepos, a guidelines `source`, per-capability overrides, `workflow.max_validation_rounds`, and `gate.enforce: false` while adopting. `SPECKIT_DESIGN_*` environment variables and a gitignored `design-config.local.yml` override the committed config.
+Everything else is optional and documented in [config-template.yml](config-template.yml): a `bin` override, a `cwd` for monorepos, a principles `source`, per-capability overrides, `workflow.max_validation_rounds`, and `gate.enforce: false` while adopting. `SPECKIT_DESIGN_*` environment variables and a gitignored `design-config.local.yml` override the committed config.
 
 ## Try it without a design system
 
@@ -251,7 +251,7 @@ Everything else is optional and documented in [config-template.yml](config-templ
 cd /tmp/design-demo
 ```
 
-Builds a throwaway project wired to a fixture design system (ten components, two patterns, tokens, breakpoints, guidelines). Walk it with [examples/README.md](examples/README.md).
+Builds a throwaway project wired to a fixture design system (ten components, two patterns, tokens, breakpoints, principles). Walk it with [examples/README.md](examples/README.md).
 
 Or wire it to one of the real systems the benchmarks use, with the RFC and the code a benchmark case is about, and run the workflow on it:
 
@@ -266,7 +266,9 @@ Or wire it to one of the real systems the benchmarks use, with the RFC and the c
 | Symptom | Cause and fix |
 |---|---|
 | "design system could not be reached" | The gate probes for real: CLI missing, wrong binary, or inventory not where `source` says. Check with `ds.sh query describe --json`. |
-| Guidelines say `source: default` | Your system supplied none. Map the `guidelines` capability in your adapter or set `guidelines.source`. |
+| Principles say `principles_source: default` | Your system supplied none. Map the `principles` capability in your adapter or set `principles.source`. |
+| Principles say `principles_source: unavailable` | Nothing answered and `principles.default` is `false`, so nothing is in force. Intended while adopting; a gate that requires principles fails closed here rather than passing on an empty set. |
+| A principle is listed under `unenforceable` | It states no MUST/SHOULD, or carries no `verify` step, so nothing can be checked against it. It is still returned and still worth reading — add a `verify` step at the source to make it citable. |
 | A capability returns `available: false` | Unmapped in the adapter, or the call failed. The `reason` says which. The run degrades, it does not fail. |
 | `breakpoints` returns the whole token set | Most systems have no breakpoint command, so the adapter maps both onto the token call. Carve out the slice with `result_paths` or `pick` ([adapters](docs/adapters.md#one-command-two-questions)); until then every phase that asks pays for the tokens twice, which `ds.sh context <phase>` reports in `notes`. |
 | A phase's context is expensive | Every answer reports `bytes` and every context a `sizes` block, so start by looking. Narrow the mapping first, then the call: `ds.sh query list_components --fields name,description`. |
@@ -279,7 +281,7 @@ Or wire it to one of the real systems the benchmarks use, with the RFC and the c
 Three layers, only the first is public:
 
 - **Commands** (`commands/`): agent-facing prose describing what to do, in what order, and what not to accept.
-- **One script** (`scripts/python/design.py`, with a bash shim): prerequisites, capability dispatch, guidelines, focused context, workflow position, RFC parsing, the ledger. Always emits JSON.
+- **One script** (`scripts/python/design.py`, with a bash shim): prerequisites, capability dispatch, principles, focused context, workflow position, RFC parsing, the ledger. Always emits JSON.
 - **Adapters** (`adapters/`): declarative YAML, no code.
 
 There is no run-state file. Workflow position is read from artifacts the work already produces (spec, plan, tasks, design document), so an interrupted run resumes by reading.
@@ -299,7 +301,7 @@ CI also installs the extension into a real Spec Kit project, validates the manif
 commands/      agent-facing command bodies
 scripts/       ds.sh shim + design.py
 adapters/      capability mappings
-guidelines/    default fallback set and an example
+principles/    default fallback set and an example
 preset/        spec, plan and constitution addenda
 templates/     RFC template
 examples/      fixture design system and demo project

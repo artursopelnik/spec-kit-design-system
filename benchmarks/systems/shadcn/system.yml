@@ -6,13 +6,13 @@ id: shadcn
 name: "shadcn/ui"
 adapter: static-json
 inventory: inventory.json
-guidelines: guidelines.yml
+principles: principles.yml
 
 # Written into the workspace so both arms see the same design system in the
 # same place.
 install:
   inventory_path: ".design-system/inventory.json"
-  guidelines_path: ".design-system/guidelines.yml"
+  principles_path: ".design-system/principles.yml"
 
 stack: "React + TypeScript + Tailwind, components copied under src/components/ui"
 

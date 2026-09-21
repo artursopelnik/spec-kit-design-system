@@ -4,11 +4,11 @@ id: mui
 name: "MUI (Material UI)"
 adapter: mui
 inventory: inventory.json
-guidelines: guidelines.yml
+principles: principles.yml
 
 install:
   inventory_path: ".design-system/inventory.json"
-  guidelines_path: ".design-system/guidelines.yml"
+  principles_path: ".design-system/principles.yml"
 
 stack: "React + TypeScript with @mui/material and a custom theme"
 

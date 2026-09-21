@@ -37,7 +37,7 @@ surfaces:
       - pattern: '<IconButton[^>]*size="small"'
         because: "a 34px target as the primary control on touch"
 
-guidelines:
+principles:
   - id: MUI-BREAKPOINT-NAMES
     evidence:
       - 'theme\.breakpoints\.'

@@ -180,9 +180,9 @@ def build_workspace(workspace: Path, case: dict, system: dict, arm: str, specify
             f"adapter: {system.get('adapter', 'static-json')}",
             f"source: \"{install.get('inventory_path', '.design-system/inventory.json')}\"",
         ]
-        if system.get("guidelines"):
-            lines.append("guidelines:")
-            lines.append(f"  source: \"{install['guidelines_path']}\"")
+        if system.get("principles"):
+            lines.append("principles:")
+            lines.append(f"  source: \"{install['principles_path']}\"")
         config.write_text("\n".join(lines) + "\n", encoding="utf-8")
         notes.append("extension and preset installed")
 
@@ -191,11 +191,11 @@ def build_workspace(workspace: Path, case: dict, system: dict, arm: str, specify
     inventory_target = workspace / install.get("inventory_path", ".design-system/inventory.json")
     inventory_target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(Path(system["_dir"]) / system["inventory"], inventory_target)
-    guidelines_target = None
-    if system.get("guidelines"):
-        guidelines_target = workspace / install["guidelines_path"]
-        guidelines_target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(Path(system["_dir"]) / system["guidelines"], guidelines_target)
+    principles_target = None
+    if system.get("principles"):
+        principles_target = workspace / install["principles_path"]
+        principles_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(Path(system["_dir"]) / system["principles"], principles_target)
 
     # The starting point the RFC talks about.
     if "features" in case:
@@ -208,10 +208,10 @@ def build_workspace(workspace: Path, case: dict, system: dict, arm: str, specify
         copy_tree(Path(case["_dir"]) / "seed", workspace)
         shutil.copy(Path(case["_dir"]) / case.get("rfc", "rfc.md"), workspace / "rfc.md")
 
-    guidelines_line = (
-        f"- `{install['guidelines_path']}` — the rules the work is held to."
-        if guidelines_target
-        else "- The system publishes no rule file; its principles are the `guidelines`\n"
+    principles_line = (
+        f"- `{install['principles_path']}` — the rules the work is held to."
+        if principles_target
+        else "- The system publishes no rule file; its principles are the `principles`\n"
         "  field of the inventory and the `usage` and `avoid` notes on each entry."
     )
     brief = (HARNESS / "prompts" / "agents-brief.md").read_text(encoding="utf-8")
@@ -220,7 +220,7 @@ def build_workspace(workspace: Path, case: dict, system: dict, arm: str, specify
             system_name=system["name"],
             stack=system.get("stack", ""),
             inventory_path=install.get("inventory_path", ".design-system/inventory.json"),
-            guidelines_line=guidelines_line,
+            principles_line=principles_line,
         ),
         encoding="utf-8",
     )

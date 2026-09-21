@@ -1,19 +1,19 @@
 schema_version: "1.0"
 
-# Example: guidelines published BY a design system.
+# Example: principles published BY a design system.
 #
 # This file shows the shape the adapter reads when your design system has no CLI
 # but does have something to say. Ship it inside the design system package and
 # point at it once:
 #
 #   # design-config.yml
-#   guidelines:
-#     source: "node_modules/@acme/design-system/guidelines.yml"
+#   principles:
+#     source: "node_modules/@acme/design-system/principles.yml"
 #
-# Every consuming repo then reads the same guidelines, and the design system
+# Every consuming repo then reads the same principles, and the design system
 # owns them, rather than each project restating what the system already knows.
 #
-# When this resolves, it IS the guidelines for the run. The default set shipped
+# When this resolves, it IS the principles for the run. The default set shipped
 # with the extension is not merged in, not consulted, and not used as a floor.
 # A design system that has stated its own rules should not also inherit ours.
 #
@@ -23,26 +23,39 @@ schema_version: "1.0"
 #     Destructive confirmations use Modal, never Drawer.
 #     Icon-only controls carry a visible label from md up.
 #
-# A rule list is better where you can manage it, because a rule with an id can
+# A list is better where you can manage it, because a principle with an id can
 # be cited by a spec and checked by validation one at a time.
 #
 # Fields, all optional except id and requirement:
 #   id          stable and citable; specs reference this rather than the text
+#   title       a few words, for tables and reports
 #   dimension   accessibility | responsive | interaction | states | tokens
 #   applies_to  interactive | layout | text | media | motion | any  (default: any)
-#   requirement the MUST statement, written so it can become a spec requirement
+#   requirement the MUST/SHOULD statement, written so it can become a spec
+#               requirement as it stands
 #   verify      how validation checks it
 #   standard    a WCAG criterion where one applies
 #
-# Keep `requirement` normative and `verify` concrete. A rule nobody can check is
-# a preference, not a rule.
+# A principle is reported as `enforceable` when it has BOTH a MUST/SHOULD
+# requirement and a `verify` step - specific, testable, and mapped to a
+# verification. One without them is still returned and still worth reading; it
+# is simply not something a spec can cite as a requirement or validation can
+# hold anything to. Nothing is dropped for it: the ids come back under
+# `unenforceable`, which is a prompt to write the missing `verify`.
+#
+# Optional, and useful when you have it:
+#
+#   version: "2025.4"
+#
+# Reported as `principles_version` and recorded with decisions, so a citation
+# made against an older revision can be spotted rather than assumed current.
 
 prose: |
   Acme UI is a compact, keyboard-first system. Prefer the smallest component
   that carries the meaning, and prefer composition over configuration: a
   component with more than a handful of props is usually two components.
 
-rules:
+principles:
   - id: ACME-TARGET-SIZE
     dimension: accessibility
     applies_to: interactive

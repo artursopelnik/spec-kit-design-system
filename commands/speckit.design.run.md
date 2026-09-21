@@ -34,11 +34,13 @@ Where the RFC came from is not your concern. A file, a GitHub issue, a Jira tick
 
 Without bash: `python3 .specify/extensions/design/scripts/python/design.py gate --json`. Identical behaviour. Every command below has the same fallback, so it is not repeated.
 
-Parse `REACHABLE`, `UNREACHABLE_REASON`, `ADAPTER`, `GUIDELINES_SOURCE`, `FEATURE_DIR`, `CONFIG`.
+Parse `REACHABLE`, `UNREACHABLE_REASON`, `ADAPTER`, `PRINCIPLES_SOURCE`, `FEATURE_DIR`, `CONFIG`.
 
 **If `REACHABLE` is `false`**: report `UNREACHABLE_REASON` and stop. Do not proceed from a remembered component inventory. A run that invents the design system is worse than no run, because everything downstream will look properly sourced.
 
-**If `GUIDELINES_SOURCE` is `default`**: the design system supplied no guidelines and the small default set is in force. Say so once, in the run report. It is not an error, but the user should know which guidelines the work was held to.
+**If `PRINCIPLES_SOURCE` is `default`**: the design system supplied no principles and the small default set is in force. Say so once, in the run report. It is not an error, but the user should know which principles the work was held to.
+
+**If `PRINCIPLES_SOURCE` is `unavailable`**: nothing answered and the fallback is switched off, so no principles are in force. Report it and stop rather than proceeding: every phase after this one cites principles, and citing an empty set produces a spec that looks checked and is not.
 
 ## The loop
 
@@ -72,7 +74,7 @@ Write the answers into the RFC understanding you carry forward. Then run `/speck
 
 ### 2. Specify
 
-`/speckit.specify` creates the feature and the spec. The `after_specify` hook fires `/speckit.design.context`, which resolves the guidelines in force, searches the design system for each surface, and writes the `## Design System Requirements` section.
+`/speckit.specify` creates the feature and the spec. The `after_specify` hook fires `/speckit.design.context`, which resolves the principles in force, searches the design system for each surface, and writes the `## Design System Requirements` section.
 
 Let the hook do that work. Do not duplicate it here.
 
@@ -133,7 +135,7 @@ Last pass, over the whole change rather than per finding:
 
 - Every acceptance criterion in the RFC is met.
 - Every `DS-` requirement in the spec is satisfied.
-- Every guideline in force was honoured, or its exception is written down.
+- Every principle in force was honoured, or its exception is written down.
 - The tests the project already has still pass. Run them.
 - `workflow status` returns `complete: true`.
 
@@ -154,7 +156,7 @@ Short. The user asked for a change, not a narrative:
 
 - What was built, in one or two sentences.
 - Which design system components, patterns and tokens it used, and any surface that reached Extend or Create with the reason.
-- Which guidelines were in force and where they came from (`cli`, `adapter` or `default`).
+- Which principles were in force, where they came from (`cli`, `docs` or `default`) and at what version, plus any that could not be enforced for want of a `verify` step.
 - Validation: how many rounds, what was found, what was fixed.
 - Anything left open, and why.
 

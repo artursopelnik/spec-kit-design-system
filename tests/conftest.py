@@ -3,7 +3,7 @@
 The layout mirrors what `specify extension add` actually produces, verified
 against Spec Kit 1.0.9.dev0:
 
-    .specify/extensions/design/{extension.yml,design-config.yml,adapters/,guidelines/}
+    .specify/extensions/design/{extension.yml,design-config.yml,adapters/,principles/}
     .specify/memory/
     .specify/feature.json
     specs/<feature>/spec.md
@@ -60,20 +60,20 @@ def project(tmp_path, monkeypatch):
 
 @pytest.fixture
 def defaults_installed(project):
-    """guidelines/default.yml as the installer places it, under the extension dir."""
-    target = project / ".specify" / "extensions" / "design" / "guidelines" / "default.yml"
+    """principles/default.yml as the installer places it, under the extension dir."""
+    target = project / ".specify" / "extensions" / "design" / "principles" / "default.yml"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
-        (REPO / "guidelines" / "default.yml").read_text(encoding="utf-8"), encoding="utf-8"
+        (REPO / "principles" / "default.yml").read_text(encoding="utf-8"), encoding="utf-8"
     )
     return target
 
 
 @pytest.fixture
-def write_ds_guidelines(project):
-    """Guidelines published by the design system itself, as static data it ships."""
+def write_ds_principles(project):
+    """Principles published by the design system itself, as static data it ships."""
 
-    def _write(payload, name: str = "node_modules/@acme/design-system/guidelines.yml"):
+    def _write(payload, name: str = "node_modules/@acme/design-system/principles.yml"):
         path = project / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(yaml.safe_dump(payload), encoding="utf-8")
@@ -157,7 +157,7 @@ def fake_cli(project):
             #!/usr/bin/env bash
             case "$1" in
               boom)       echo '{"error":"not found"}'; exit 3 ;;
-              guidelines) echo '{"type":"docs","data":{"prose":"Acme speaks for itself.","rules":[{"id":"CLI-ONE","dimension":"tokens","applies_to":"any","requirement":"Everything MUST use tokens.","verify":"Check."}]}}' ;;
+              principles) echo '{"type":"docs","data":{"prose":"Acme speaks for itself.","rules":[{"id":"CLI-ONE","dimension":"tokens","applies_to":"any","requirement":"Everything MUST use tokens.","verify":"Check."}]}}' ;;
               envelopeless) echo '{"loose":"payload"}' ;;
               tokens)     echo '{"type":"tokens","data":{"color":{"fg":"#000000","bg":"#ffffff","muted":"#6b7280","accent":"#2563eb"},"space":{"1":"4px","2":"8px","3":"12px","4":"16px","5":"24px","6":"32px"},"type":{"body":"16px","small":"14px","h1":"32px","h2":"24px"},"breakpoints":{"sm":"640px","md":"768px","lg":"1024px"}}}' ;;
               unknown)    echo '{"code":"ERR_REGISTRY_DOWN"}' ;;
@@ -189,7 +189,7 @@ def fake_cli(project):
                 "registries": ["@one", "@two"],
                 "capabilities": {
                     "search": {"args": ["ok", "{query}", "{registries}"], "result_path": "data"},
-                    "guidelines": {"args": ["guidelines"], "result_path": "data"},
+                    "principles": {"args": ["principles"], "result_path": "data"},
                     "component": {
                         "args": ["{name}"],
                         "result_path": "data",

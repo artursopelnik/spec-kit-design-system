@@ -1,7 +1,7 @@
 {
   "_source": "Trimmed snapshot of the public shadcn/ui registry (ui.shadcn.com), written by hand for benchmarking. Regenerate a real one with `npx shadcn@latest build` and point the shadcn or static-json adapter at it.",
   "_snapshot": "2026-09",
-  "guidelines": "Components are copied into the project and owned there. Style with the CSS variables in the theme, never with literal colours. Compose primitives rather than adding a dependency for a control the primitives already reach.",
+  "principles": "Components are copied into the project and owned there. Style with the CSS variables in the theme, never with literal colours. Compose primitives rather than adding a dependency for a control the primitives already reach.",
   "breakpoints": {
     "sm": "640px",
     "md": "768px",

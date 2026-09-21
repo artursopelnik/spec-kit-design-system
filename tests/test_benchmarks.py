@@ -112,7 +112,7 @@ def test_case_is_well_formed(path):
                 re.compile(rule["pattern"])
                 assert rule["because"]
 
-        for group in case.get("guidelines", []) + case.get("criteria", []):
+        for group in case.get("principles", []) + case.get("criteria", []):
             assert group["evidence"], "a rule with no evidence can never be shown to be carried"
             for pattern in group["evidence"]:
                 re.compile(pattern)
@@ -333,7 +333,7 @@ def test_report_reports_the_median_and_the_spread(report_module, tmp_path):
                         "avoided_the_shortcuts": True,
                         "invented_nothing": True,
                         "no_literal_values": True,
-                        "every_guideline_carried": True,
+                        "every_principle_carried": True,
                         "every_criterion_traced": True,
                         "clean_sweep": arm == "extension",
                     },
@@ -451,13 +451,13 @@ def test_doing_nothing_does_not_pass_a_case(harness, tmp_path, path):
 def rules_in_force(harness, system_id: str) -> set[str]:
     """The ids a case on this system may cite: its own file, or the defaults."""
     system = harness.load_system(system_id, BENCHMARKS / "systems")
-    if system.get("guidelines"):
+    if system.get("principles"):
         published = yaml.safe_load(
-            (Path(system["_dir"]) / system["guidelines"]).read_text(encoding="utf-8")
+            (Path(system["_dir"]) / system["principles"]).read_text(encoding="utf-8")
         )
-        return {rule["id"] for rule in published["rules"]}
-    defaults = yaml.safe_load((REPO / "guidelines" / "default.yml").read_text(encoding="utf-8"))
-    return {rule["id"] for rule in defaults["rules"]}
+        return {rule["id"] for rule in published["principles"]}
+    defaults = yaml.safe_load((REPO / "principles" / "default.yml").read_text(encoding="utf-8"))
+    return {rule["id"] for rule in defaults["principles"]}
 
 
 @pytest.mark.parametrize("path", CASES, ids=lambda p: p.parent.name)
@@ -469,7 +469,7 @@ def test_case_cites_rules_that_are_actually_in_force(harness, path):
         return
 
     available = rules_in_force(harness, case["design_system"])
-    cited = {rule["id"] for rule in case["guidelines"]}
+    cited = {rule["id"] for rule in case["principles"]}
     assert cited <= available, (
         f"{case['id']} cites {sorted(cited - available)}, which nothing in force defines"
     )
@@ -477,9 +477,9 @@ def test_case_cites_rules_that_are_actually_in_force(harness, path):
 
 @pytest.mark.parametrize(
     "system_id,expected_source",
-    [("shadcn", "adapter"), ("mui", "adapter"), ("radix", "default")],
+    [("shadcn", "docs"), ("mui", "docs"), ("radix", "default")],
 )
-def test_guidelines_resolve_from_where_the_cases_assume(
+def test_principles_resolve_from_where_the_cases_assume(
     design, project, write_config, defaults_installed, harness, system_id, expected_source
 ):
     """One of the three systems publishes nothing, so the extension's own set
@@ -493,21 +493,21 @@ def test_guidelines_resolve_from_where_the_cases_assume(
     )
 
     config = {"adapter": system["adapter"]}
-    if system.get("guidelines"):
-        published = project / ".design-system" / "guidelines.yml"
+    if system.get("principles"):
+        published = project / ".design-system" / "principles.yml"
         published.write_text(
-            (Path(system["_dir"]) / system["guidelines"]).read_text(encoding="utf-8"),
+            (Path(system["_dir"]) / system["principles"]).read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        config["guidelines"] = {"source": ".design-system/guidelines.yml"}
+        config["principles"] = {"source": ".design-system/principles.yml"}
     write_config(config)
 
     loaded = design.load_config(project)
     adapter = design.load_adapter(project, loaded)
-    resolved = design.resolve_guidelines(project, loaded, adapter)
+    resolved = design.resolve_principles(project, loaded, adapter)
 
-    assert resolved["source"] == expected_source, resolved["source"]
-    assert {rule["id"] for rule in resolved["rules"]} == rules_in_force(harness, system_id)
+    assert resolved["principles_source"] == expected_source, resolved["principles_source"]
+    assert {rule["id"] for rule in resolved["principles"]} == rules_in_force(harness, system_id)
 
 
 # --- headline checks ----------------------------------------------------------
@@ -539,7 +539,7 @@ def test_clean_sweep_needs_every_check_answered(harness):
         {"id": "inventory_fidelity", "applicable": True,
          "detail": {"unknown_count": 0, "invalid_variants": []}, "score": 1.0},
         {"id": "token_discipline", "applicable": True, "detail": {"literal_values": 0}, "score": 1.0},
-        {"id": "guideline_coverage", "applicable": True, "detail": {}, "score": 1.0},
+        {"id": "principle_coverage", "applicable": True, "detail": {}, "score": 1.0},
         {"id": "criteria_traceability", "applicable": False, "detail": {}, "score": 0.0},
     ]
     checks = harness.headline_checks(metrics)

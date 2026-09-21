@@ -15,7 +15,7 @@
 #   "patterns":  [ { "name": "...", "description": "...", "composes": [...] } ],
 #   "tokens":    { "color": {...}, "space": {...}, "type": {...} },
 #   "breakpoints": { "sm": "640px", "md": "768px", "lg": "1024px", "xl": "1280px" },
-#   "guidelines": "Prose: your principles, do/don't guidance, house policy.",
+#   "principles": "Prose: your principles, do/don't guidance, house policy.",
 #                 // or { "prose": "...", "rules": [ { "id": ..., "requirement": ... } ] }
 # }
 #
@@ -58,17 +58,17 @@ capabilities:
     read_file: "{source}"
     result_path: "breakpoints"
 
-  guidelines:
+  principles:
     # Your design system's own principles, if you put them in the inventory.
     # Prose is fine; this is the system speaking for itself, so when this
-    # answers it becomes the authority for the run and the default guidelines
+    # answers it becomes the authority for the run and the default principles
     # shipped with the extension are not read.
     #
     # A separate file works too, and is usually easier to maintain:
     #   # design-config.yml
-    #   guidelines:
-    #     source: "node_modules/@acme/design-system/guidelines.yml"
+    #   principles:
+    #     source: "node_modules/@acme/design-system/principles.yml"
     read_file: "{source}"
-    result_path: "guidelines"
+    result_path: "principles"
 
   # extend / report_gap: unmapped, because a static inventory has no write side.

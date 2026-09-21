@@ -27,25 +27,31 @@ functional requirements above.
 Mark genuine ambiguity rather than resolving it silently:
 `[NEEDS CLARIFICATION: system offers both Drawer and Modal here. Which is correct?]`
 
-### Guidelines in force
+### Principles in force
 
 Cited by id rather than restated. The text lives at its source; copying it here
 would create a second source of truth that drifts.
 
-**Source**: cli | adapter | default — where these came from. `default` means the
-design system supplied none and the extension's small default set applies.
+**Source**: cli | docs | default | unavailable — where these came from. `default`
+means the design system supplied none and the extension's small default set
+applies; `unavailable` means nothing is in force and nothing below was checked.
+**Version**: [what the source calls this revision, or none stated]
 **Surface kinds**: [interactive, layout, text, media, motion — whichever apply]
 
-| Guideline | Dimension | Requirement |
-|---|---|---|
+Only principles that can be checked are cited here: each states a MUST or SHOULD
+and carries a `verify` step.
+
+| Principle | Dimension | Requirement |
+| --- | --- | --- |
 | … | … | [one line, with the system's real breakpoint and token names filled in] |
 
 **Disabled for this project**: [ids and why, or none]
+**Stated but not enforceable**: [ids with no `verify` step, or none]
 
 ### Dimensions
 
 Every dimension must be answered or explicitly excluded with a reason. A dimension
-counts as covered when a guideline or a `DS-` requirement speaks to it.
+counts as covered when a principle or a `DS-` requirement speaks to it.
 
 | Dimension | Requirement | Covered by |
 |---|---|---|

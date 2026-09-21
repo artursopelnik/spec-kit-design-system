@@ -1,14 +1,14 @@
 # Harness metadata for the Radix workspace.
 #
-# No guidelines file here, deliberately: Radix publishes no machine-readable
+# No principles file here, deliberately: Radix publishes no machine-readable
 # rules, so this workspace is the case where the extension falls back to its own
-# default set (GL-*). Cases on this system are scored against those rules.
+# default set (PRIN-*). Cases on this system are scored against those rules.
 
 id: radix
 name: "Radix UI"
 adapter: radix
 inventory: inventory.json
-guidelines: null
+principles: null
 
 install:
   inventory_path: ".design-system/inventory.json"

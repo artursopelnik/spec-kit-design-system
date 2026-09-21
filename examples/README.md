@@ -15,16 +15,16 @@ That runs `specify init`, installs the extension and preset from your working co
 
 ```
 node_modules/@acme/design-system/
-├── inventory.json     # 10 components, 2 patterns, tokens, breakpoints, guidelines prose
-└── guidelines.yml     # Acme's own guidelines: 4 rules plus prose
+├── inventory.json     # 10 components, 2 patterns, tokens, breakpoints, principles prose
+└── principles.yml     # Acme's own principles: 4 rules plus prose
 ```
 
-The config points at it the way a real multi-repo setup would, with the guidelines living inside the design system package rather than copied into the project. Because Acme publishes its own, the extension's default guidelines are never read — which you can see for yourself:
+The config points at it the way a real multi-repo setup would, with the principles living inside the design system package rather than copied into the project. Because Acme publishes its own, the extension's default principles are never read — which you can see for yourself:
 
 ```bash
 DS=.specify/extensions/design/scripts/bash/ds.sh
-$DS guidelines --json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['source'], [r['id'] for r in d['rules']])"
-# adapter ['ACME-TARGET-SIZE', 'ACME-OVERLAY-CHOICE', ...]   — no GL-* anywhere
+$DS principles --json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['source'], [r['id'] for r in d['rules']])"
+# adapter ['ACME-TARGET-SIZE', 'ACME-OVERLAY-CHOICE', ...]   — no PRIN-* anywhere
 ```
 
 ## Against a real design system
@@ -45,7 +45,7 @@ the obvious shortcut does not: shadcn has no date range component but a Calendar
 that takes `mode="range"`; Radix has `AlertDialog` for exactly the confirmation
 the RFC asks for; MUI documents collapsing an overflowing toolbar into a `Menu`.
 Radix publishes no rules of its own, so that one is also where the extension's
-default guidelines apply instead of a file the system ships.
+default principles apply instead of a file the system ships.
 
 What a good answer looks like for each is written down in
 `benchmarks/cases/<id>/case.yml`, and `benchmarks/README.md` explains how a run
@@ -108,10 +108,10 @@ $DS context specify --applies-to interactive,layout --query "date range selectio
 $DS query search "confirm destructive action" --json
 $DS query component DatePicker --json         # read its `avoid`
 $DS query breakpoints --json                  # sm md lg xl, by name
-$DS guidelines --applies-to interactive,layout --json
+$DS principles --applies-to interactive,layout --json
 ```
 
-Note what `context` returns and what it does not: guidelines that apply, the candidates for the query you asked about, and `available_on_demand` listing every other call you can still make. It never dumps the inventory, and it never stops you asking for it.
+Note what `context` returns and what it does not: principles that apply, the candidates for the query you asked about, and `available_on_demand` listing every other call you can still make. It never dumps the inventory, and it never stops you asking for it.
 
 Then prove the point of the ledger:
 

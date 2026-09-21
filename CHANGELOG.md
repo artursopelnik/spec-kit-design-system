@@ -6,7 +6,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — BREAKING
+
+- **Guidelines are now Principles, everywhere.** A design system states
+  principles; holding it to a word it does not use made the extension read like
+  a second opinion rather than a reader of its rules. The rename is mechanical
+  but it is not cosmetic: the vocabulary is what every generated spec, plan and
+  validation round carries.
+
+  | Was                                     | Is now                                     |
+  | --------------------------------------- | ------------------------------------------ |
+  | `guidelines/default.yml`, `example.yml` | `principles/default.yml`, `example.yml`     |
+  | adapter capability `guidelines`         | `principles`                                |
+  | config block `guidelines:`              | `principles:`                               |
+  | `ds.sh guidelines`                      | `ds.sh principles`                          |
+  | `GUIDELINES_*` in the gate              | `PRINCIPLES_*`                              |
+  | payload `source` / `rules` / `rule_count` | `principles_source` / `principles` / `principle_count` |
+  | source `adapter` / `none`               | `docs` / `unavailable`                      |
+  | default ids `GL-*`                      | `PRIN-*`                                    |
+
+  No alias, no carry-forward: a config that still says `guidelines:` is simply
+  not read. Nothing has been released against the old vocabulary, so keeping it
+  alive would cost more than it could ever save.
+
 ### Added
+
+- Each principle reports `enforceable`: it states a MUST or SHOULD **and**
+  carries a `verify` step — specific, testable, mapped to a verification.
+  Anything else comes back under `unenforceable` and is never dropped, because
+  what it needs is a `verify` step rather than deletion. Specs cite only what
+  can be checked; the rest is named as a gap in the principles themselves.
+- `principles_version` carries the revision the source states, and `null` where
+  it states none. An invented version would make a citation taken against last
+  quarter's principles look like one that was checked.
+- `principles_source: unavailable` says outright that nothing answered and the
+  fallback is switched off, so a gate that requires principles fails closed
+  rather than passing on an empty set.
+- Each principle may carry a `title`; the default set now does.
+- `DESIGN_DOC` records **Principles that apply** per surface, which is what the
+  validate phase reads back: a principle that applies and appears nowhere is a
+  finding, and so is the missing line.
 
 - Adapters can carve a capability's answer out of a response it shares with a
   larger one: `result_paths` (candidate dotted paths, first hit wins) and `pick`
@@ -45,7 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   alone, the agent with Spec Kit, the agent with the extension — against trimmed
   inventories of shadcn/ui, Radix UI and MUI, and is scored on five
   deterministic, arm-neutral measures: inventory fidelity, ladder outcome, token
-  discipline, guideline coverage and criteria traceability. Four cases, one per
+  discipline, principle coverage and criteria traceability. Four cases, one per
   RFC kind, each with the code the RFC is about. No results are published yet;
   the suite ships the apparatus.
 - Benchmark results in the three forms a claim actually takes: seven pass/fail
@@ -99,11 +138,11 @@ First release.
   read a generated inventory file, since those libraries have no query CLI.
   `adapter: auto` picks one from the project.
 - Capability contract: `search`, `component`, `pattern`, `tokens`,
-  `breakpoints`, `guidelines`, `validate`, `extend`, `report_gap`, `describe`,
+  `breakpoints`, `principles`, `validate`, `extend`, `report_gap`, `describe`,
   `list_components`.
-- Guidelines resolve from exactly one source, never merged: the design
+- Principles resolve from exactly one source, never merged: the design
   system's CLI, then static data it ships, then the small default set in
-  `guidelines/default.yml` (14 rules, no colors, breakpoints or sizes).
+  `principles/default.yml` (14 rules, no colors, breakpoints or sizes).
 - Focused context per phase via `ds.sh context <phase>`: only what applies,
   with `available_on_demand` and `retrieval` listing everything else still
   reachable.

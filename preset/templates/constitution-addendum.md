@@ -34,9 +34,9 @@ MUST be stated in the specification and carried into the plan. They are requirem
 not review comments. Raw color, spacing and typography values MUST NOT be used where a
 design token exists.
 
-The design system's own guidelines, where it publishes any, are the authority for how its
+The design system's own principles, where it publishes any, are the authority for how its
 components are used. Nothing MAY be substituted for them or merged into them. An
-implementation MUST be validated against the specification and those guidelines by a pass
+implementation MUST be validated against the specification and those principles by a pass
 independent of the one that wrote it, and findings MUST be resolved or argued in writing
 before the feature is considered done.
 

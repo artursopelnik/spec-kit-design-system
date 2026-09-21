@@ -1,11 +1,11 @@
 schema_version: "1.0"
 
-# House guidelines for the benchmark's shadcn workspace.
+# House principles for the benchmark's shadcn workspace.
 #
 # shadcn/ui publishes guidance as prose on its site, not as machine-readable
 # rules, so these are house rules written for this benchmark. They stand in for
 # what a team using shadcn would keep in their own repo. Both arms of a run see
-# this file; only the extension arm resolves it through the guidelines
+# this file; only the extension arm resolves it through the principles
 # capability, which is the difference being measured.
 
 prose: |
@@ -13,7 +13,7 @@ prose: |
   variables, never with literal colours. Reach for a composition of primitives
   before adding a dependency.
 
-rules:
+principles:
   - id: SHADCN-THEME-TOKENS
     dimension: tokens
     applies_to: any

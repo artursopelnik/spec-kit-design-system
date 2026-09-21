@@ -89,14 +89,14 @@ def test_what_was_not_handed_over_can_still_be_retrieved(
 def test_clarify_is_the_leanest_phase(
     design, project, write_config, inventory, defaults_installed
 ):
-    """Clarifying an RFC needs the guidelines and the RFC. Pulling components in
+    """Clarifying an RFC needs the principles and the RFC. Pulling components in
     would be guessing at an answer the ladder has not reached yet."""
     payload = context(design, "clarify")
 
     assert payload["components"] == {}
     assert payload["tokens"] is None
     assert payload["candidates"] is None
-    assert payload["guidelines"]["rule_count"] > 0
+    assert payload["principles"]["principle_count"] > 0
 
 
 def test_plan_gets_the_vocabulary_it_must_write_with(
@@ -121,12 +121,12 @@ def test_candidates_arrive_only_when_something_is_searched_for(
     assert [hit["name"] for hit in hits][0] == "Popover"
 
 
-def test_guidelines_are_filtered_to_the_surfaces_in_play(
+def test_principles_are_filtered_to_the_surfaces_in_play(
     design, project, write_config, inventory, defaults_installed
 ):
     write_config({"adapter": "static-json"})
-    every = context(design, "validate")["guidelines"]["rule_count"]
-    text = context(design, "validate", kinds=["text"])["guidelines"]["rule_count"]
+    every = context(design, "validate")["principles"]["principle_count"]
+    text = context(design, "validate", kinds=["text"])["principles"]["principle_count"]
     assert text < every
 
 
@@ -168,7 +168,7 @@ def test_the_context_says_what_each_section_costs(
     assert sizes["tokens"] == len(json.dumps(payload["tokens"], separators=(",", ":")).encode())
     assert sizes["components"] > 0
     assert sizes["total"] >= sum(
-        sizes[name] for name in ("guidelines", "components", "tokens", "breakpoints")
+        sizes[name] for name in ("principles", "components", "tokens", "breakpoints")
     )
 
 

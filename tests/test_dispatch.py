@@ -251,7 +251,7 @@ def test_a_file_backed_adapter_does_not_guess(
     """The opposite case: an adapter that points at a file knows that file's
     shape, so a missing section means the section is missing, not mismapped."""
     write_config({"adapter": "static-json"})
-    result = run(design, "guidelines")
+    result = run(design, "principles")
 
     assert result["available"] is True
     assert result["found"] is False

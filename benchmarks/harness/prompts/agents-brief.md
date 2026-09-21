@@ -7,7 +7,7 @@ The design system is legible to you:
 - `{inventory_path}` — every component and pattern it offers, with props,
   variants, states, what each is for and what it should not be used for, plus
   the tokens and the named breakpoints.
-{guidelines_line}
+{principles_line}
 
 The design system is the source of truth for anything visible. Use what it
 already has before building something new, and style through its tokens rather

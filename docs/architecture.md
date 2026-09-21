@@ -17,7 +17,7 @@ The public model is one sentence: give it an RFC, it runs the Spec Kit workflow 
 The separation earns its keep by kind of change:
 
 - A change to **judgement** — when a rung may be rejected, what counts as a finding, how hard to push back — is a prose edit in `commands/`. No code, no release of anything else.
-- A change to **mechanism** — how guidelines resolve, how context is assembled, how the workflow position is derived — is one Python function with a test.
+- A change to **mechanism** — how principles resolve, how context is assembled, how the workflow position is derived — is one Python function with a test.
 - A change to **which design system** — is a YAML file with no code in it at all.
 
 Nothing in `adapters/` may hold rules or component knowledge; a test enforces it (`test_adapters_only_map_and_never_model`). The moment an adapter can carry design knowledge, the design system stops being the source of truth and starts having a rival.
@@ -28,9 +28,9 @@ Nothing in `adapters/` may hold rules or component knowledge; a test enforces it
 
 | Subcommand           | Answers                                                                                 |
 | -------------------- | --------------------------------------------------------------------------------------- |
-| `gate`               | Prerequisites: feature paths, resolved config, adapter, reachability, guidelines source |
+| `gate`               | Prerequisites: feature paths, resolved config, adapter, reachability, principles source |
 | `query <capability>` | Anything the design system can be asked                                                 |
-| `guidelines`         | The guidelines in force, and where they came from                                       |
+| `principles`         | The principles in force, and where they came from                                       |
 | `context <phase>`    | What this phase starts with, and everything it can still retrieve                       |
 | `workflow status`    | Where the run is, and what comes next                                                   |
 | `rfc <path>`         | The RFC, normalized: sections, open questions, whether it is UI-bearing                 |
@@ -38,7 +38,7 @@ Nothing in `adapters/` may hold rules or component knowledge; a test enforces it
 
 ## Capability dispatch, and one rule
 
-An adapter maps capability names (`search`, `component`, `tokens`, `guidelines`, …) onto either a subprocess invocation or a file read. Anything unmapped is reported `available: false` and the commands degrade.
+An adapter maps capability names (`search`, `component`, `tokens`, `principles`, …) onto either a subprocess invocation or a file read. Anything unmapped is reported `available: false` and the commands degrade.
 
 The rule the whole extension rests on:
 
@@ -46,25 +46,27 @@ The rule the whole extension rests on:
 
 A registry outage, a missing binary, a changed flag: all `available: false`. Only an error code the adapter explicitly declares as "not found" becomes `found: false`. Get this wrong and an outage reads as an empty design system, which pushes every decision toward Create — the exact failure this extension exists to prevent. `probe_adapter` spends one real call at gate time for the same reason: trusting the adapter file would report a full capability set for a CLI that is not installed.
 
-## Guidelines resolution
+## Principles resolution
 
 ```text
-adapter maps `guidelines` as a command?  ──yes──▶ run it ──answers──▶ source: cli
+adapter maps `principles` as a command?  ──yes──▶ run it ──answers──▶ source: cli
                     │                                    │
                     no                                   no
                     ▼                                    ▼
-guidelines.source names a file?          ──yes──▶ read it ──▶ source: adapter
+principles.source names a file?          ──yes──▶ read it ──▶ source: docs
                     │
                     no
                     ▼
-adapter maps `guidelines` as a file?     ──yes──▶ read it ──▶ source: adapter
+adapter maps `principles` as a file?     ──yes──▶ read it ──▶ source: docs
                     │
                     no
                     ▼
-                                         guidelines/default.yml ──▶ source: default
+                                         principles/default.yml ──▶ source: default
 ```
 
-Exactly one source is used. `normalize_guidelines` accepts prose, a rule list, or a document with both, because there is no standard for stating a design rule in a checkable form and requiring one would mean asking teams to restate what their design system already says.
+Exactly one source is used, and `principles_source` names which: `cli`, `docs`, `default`, or `unavailable` when nothing answered and the fallback is switched off — the case a gate has to fail closed on rather than pass on an empty set. `normalize_principles` accepts prose, a list, or a document with both, under whatever key the system publishes its list (`principles`, `rules`, `items`), because there is no standard for stating a design rule in a checkable form and requiring one would mean asking teams to restate what their design system already says.
+
+Each principle comes back with `enforceable`: it states a MUST or SHOULD **and** carries a `verify` step. Anything else is returned, listed under `unenforceable`, and never dropped — a principle nobody can check is not one to hide, it is one to write a `verify` for, and only what a reader can see gets fixed.
 
 ## Focused context
 
@@ -72,11 +74,11 @@ Exactly one source is used. `normalize_guidelines` accepts prose, a rule list, o
 
 | Phase     | Starts with                                             |
 | --------- | ------------------------------------------------------- |
-| clarify   | RFC, guidelines                                         |
-| specify   | RFC, guidelines, candidates for what was searched       |
-| plan      | spec, guidelines, named components, tokens, breakpoints |
+| clarify   | RFC, principles                                         |
+| specify   | RFC, principles, candidates for what was searched       |
+| plan      | spec, principles, named components, tokens, breakpoints |
 | implement | plan, named components, tokens                          |
-| validate  | spec, guidelines, named components                      |
+| validate  | spec, principles, named components                      |
 
 Each response carries `bytes`, and the context carries a `sizes` block per section plus a total, so "focused" is a measured claim rather than an assumed one. Sizes are reported, never enforced: nothing is dropped from a payload on the way through. Where an answer is bulkier than it needs to be — `breakpoints` mapped onto the token command without a slice is the usual case — the context says so in `notes` and the fix belongs in the adapter, which is the only layer that knows the shape of that system's response.
 

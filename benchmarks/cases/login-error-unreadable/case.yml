@@ -36,7 +36,7 @@ surfaces:
       - [Form]
     forbidden: []
 
-guidelines:
+principles:
   - id: SHADCN-CONTRAST
     evidence:
       - '(?i)contrast'

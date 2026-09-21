@@ -14,7 +14,7 @@ the plan is accountable to.
 |---|---|---|---|
 | [capability phrase] | Reuse / Compose (pattern) / Compose (components) / Extend / Create | [component, pattern or composition] | recalled `dd-001` / newly walked |
 
-**Guidelines source**: cli | adapter | default
+**Principles source**: cli | docs | default | unavailable
 **Design system impact**: none | extension proposal | new component proposal
 **Open gaps**: [gap records filed, with identifiers, or none]
 **Decisions recorded**: [ids added to `.specify/memory/design-decisions.yml`, and any superseded]

@@ -1,5 +1,5 @@
 {
-  "_source": "Trimmed snapshot of Radix Primitives (radix-ui.com) as a team would inventory them: one styled wrapper per primitive, written by hand for benchmarking. Radix has no CLI, so the radix adapter reads a file exactly like this one. It carries no `guidelines` key on purpose: Radix publishes no rules, so this is the workspace where the extension falls back to its own default set, and the fallback is part of what the benchmark measures.",
+  "_source": "Trimmed snapshot of Radix Primitives (radix-ui.com) as a team would inventory them: one styled wrapper per primitive, written by hand for benchmarking. Radix has no CLI, so the radix adapter reads a file exactly like this one. It carries no `principles` key on purpose: Radix publishes no rules, so this is the workspace where the extension falls back to its own default set, and the fallback is part of what the benchmark measures.",
   "_snapshot": "2026-09",
   "breakpoints": {
     "sm": "520px",
