@@ -159,6 +159,7 @@ def fake_cli(project):
               boom)       echo '{"error":"not found"}'; exit 3 ;;
               guidelines) echo '{"type":"docs","data":{"prose":"Acme speaks for itself.","rules":[{"id":"CLI-ONE","dimension":"tokens","applies_to":"any","requirement":"Everything MUST use tokens.","verify":"Check."}]}}' ;;
               envelopeless) echo '{"loose":"payload"}' ;;
+              tokens)     echo '{"type":"tokens","data":{"color":{"fg":"#000000","bg":"#ffffff","muted":"#6b7280","accent":"#2563eb"},"space":{"1":"4px","2":"8px","3":"12px","4":"16px","5":"24px","6":"32px"},"type":{"body":"16px","small":"14px","h1":"32px","h2":"24px"},"breakpoints":{"sm":"640px","md":"768px","lg":"1024px"}}}' ;;
               unknown)    echo '{"code":"ERR_REGISTRY_DOWN"}' ;;
               missing)    echo '{"code":"ERR_GONE"}' ;;
               prose)      echo 'not json at all' ;;
@@ -193,6 +194,13 @@ def fake_cli(project):
                         "args": ["{name}"],
                         "result_path": "data",
                         "not_found_codes": ["ERR_GONE"],
+                    },
+                    "tokens": {"args": ["tokens"], "result_path": "data"},
+                    # The shared-command case: one CLI call answers two
+                    # questions, and only the adapter knows which slice is which.
+                    "breakpoints": {
+                        "args": ["tokens"],
+                        "result_paths": ["data.screens", "data.breakpoints"],
                     },
                     "report_gap": {
                         "args": ["ok", "--title", "{title}", "--body", "{body}"],

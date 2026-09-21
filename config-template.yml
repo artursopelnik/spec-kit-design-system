@@ -71,6 +71,15 @@ cwd: ""
 #     result_path: "data.results"
 #   tokens:
 #     read_file: "design/tokens.json"
+#   # Where one command answers two questions - most systems state their
+#   # breakpoints inside the token payload - carve out the slice, or
+#   # `breakpoints` answers with the whole token set and every phase that asks
+#   # pays for it twice. `result_paths` takes the first candidate that resolves;
+#   # `pick` keeps named keys. `ds.sh context plan --json` reports the size of
+#   # each section, and says so in `notes` when an answer arrives unnarrowed.
+#   breakpoints:
+#     args: ["tokens"]
+#     result_paths: ["data.breakpoints", "data.screens"]
 
 # workflow:
 #   # How many validate -> fix rounds before the run stops and asks for a human.

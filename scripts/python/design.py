@@ -405,6 +405,56 @@ def dig(data: Any, path: str) -> Any:
     return current
 
 
+def slice_result(data: Any, spec: dict) -> tuple[Any, bool]:
+    """The part of a response a capability actually answers with.
+
+    Three ways to say it, in the order they are tried:
+
+    * `result_path` - one dotted path, the common case.
+    * `result_paths` - an ordered list of candidates, first hit wins. One
+      command often answers two questions (`tokens` and `breakpoints` are
+      usually the same call), and the slice sits under a key that differs
+      between systems and versions.
+    * `pick` - keep only these keys of the resolved mapping. For the case where
+      the answer is several siblings rather than one subtree.
+
+    Returns the slice and whether a mapping was configured but resolved to
+    nothing, which callers report rather than silently pass off as an answer.
+    """
+    paths = [path for path in (spec.get("result_paths") or []) if path]
+    configured = bool(paths)
+    if not paths:
+        single = spec.get("result_path", "")
+        configured = bool(single)
+        paths = [single]
+
+    value = None
+    for path in paths:
+        value = dig(data, path)
+        if value is not None:
+            break
+
+    keys = [key for key in (spec.get("pick") or []) if key]
+    if value is not None and keys:
+        configured = True
+        if isinstance(value, dict):
+            narrowed = {key: value[key] for key in keys if key in value}
+            value = narrowed or None
+        # A list or scalar has no keys to pick from; `pick` cannot narrow it, so
+        # it is left as it is rather than reported as a miss.
+
+    return value, configured and value is None
+
+
+def payload_bytes(data: Any) -> int:
+    """Size of a payload as it will be handed on, so context cost is a number
+    somebody can see rather than something they discover in a token bill."""
+    try:
+        return len(json.dumps(data, separators=(",", ":"), default=str).encode("utf-8"))
+    except (TypeError, ValueError):
+        return 0
+
+
 def run_capability(
     root: Path,
     config: dict,
@@ -441,7 +491,7 @@ def run_capability(
                 "available": False,
                 "reason": f"{path} must hold a mapping at top level, got {type(data).__name__}",
             }
-        result = dig(data, spec.get("result_path", ""))
+        result, _ = slice_result(data, spec)
 
         key_field = spec.get("key_field")
         wanted = params.get("name")
@@ -460,6 +510,7 @@ def run_capability(
                 "available": True,
                 "found": match is not None,
                 "source": str(path),
+                "bytes": payload_bytes(match),
                 "data": match,
             }
 
@@ -501,6 +552,7 @@ def run_capability(
                 "available": True,
                 "found": bool(hits),
                 "source": str(path),
+                "bytes": payload_bytes(hits[:20]),
                 "data": hits[:20],
             }
 
@@ -512,6 +564,7 @@ def run_capability(
             "available": True,
             "found": result not in (None, [], {}),
             "source": str(path),
+            "bytes": payload_bytes(result),
             "data": result,
         }
 
@@ -577,8 +630,10 @@ def run_capability(
             "command": " ".join(argv),
         }
 
-    result_path = spec.get("result_path", "")
-    if raw and parsed is None and (result_path or envelope):
+    mapped_slice = bool(
+        spec.get("result_path") or spec.get("result_paths") or spec.get("pick")
+    )
+    if raw and parsed is None and (mapped_slice or envelope):
         # The adapter was written against a JSON CLI. Prose here means a flag
         # or output format changed, which is a failure to ask, not an answer.
         return {
@@ -595,17 +650,17 @@ def run_capability(
             "found": False,
             "command": " ".join(argv),
             "result_path_missed": False,
+            "bytes": 0,
             "data": None,
         }
     if parsed is None:
         data: Any = raw
         missed = False
     else:
-        data = dig(parsed, result_path)
+        data, missed = slice_result(parsed, spec)
         # A shipped adapter guesses at the CLI's envelope. When the guess misses,
         # hand back what the CLI actually said instead of a null that reads as
         # "the design system has nothing".
-        missed = bool(result_path) and data is None
         if missed:
             data = parsed
 
@@ -615,8 +670,31 @@ def run_capability(
         "found": True,
         "command": " ".join(argv),
         "result_path_missed": missed,
+        # Unnarrowed, this is the whole CLI payload: the number to watch when a
+        # capability that should answer narrowly starts costing context.
+        "bytes": payload_bytes(data),
         "data": data,
     }
+
+
+def project_fields(data: Any, fields: list[str]) -> Any:
+    """Keep only these keys of a result.
+
+    The caller's own trim, not the adapter's: an inventory listing is the
+    right answer to `list_components` and also the most expensive thing the
+    design system will say. Asking for `name,description` makes a survey cheap
+    without the full answer stopping being available on the next call.
+    """
+    if not fields:
+        return data
+    if isinstance(data, list):
+        return [
+            {key: item[key] for key in fields if key in item} if isinstance(item, dict) else item
+            for item in data
+        ]
+    if isinstance(data, dict):
+        return {key: data[key] for key in fields if key in data}
+    return data
 
 
 def read_structured(path: Path) -> Any:
@@ -851,6 +929,48 @@ PHASE_CONTEXT = {
 
 RETRIEVAL_HINT = "ds.sh query {capability} [args]"
 
+# Above this, a capability's answer is large enough to be worth narrowing. Not a
+# limit and not a filter: nothing is dropped, the size is just said out loud
+# where the person tuning the adapter will see it.
+LARGE_PAYLOAD_BYTES = 8192
+
+
+def cost_note(capability: str, result: dict) -> str | None:
+    """What a bulky or unnarrowed answer costs, phrased as the fix.
+
+    A capability mapped to a command it shares with a broader one (`breakpoints`
+    onto the token command is the usual pair) answers with the whole payload
+    unless the adapter carves out a slice. That is invisible at the call site:
+    the context is simply bigger, every phase, every run.
+    """
+    size = result.get("bytes") or 0
+    if result.get("result_path_missed"):
+        return (
+            f"{capability}: the adapter's result_path did not resolve, so the CLI's whole "
+            f"payload came back ({size} bytes). Narrow it with result_path, result_paths "
+            f"or pick in the adapter."
+        )
+    if size > LARGE_PAYLOAD_BYTES:
+        return (
+            f"{capability}: {size} bytes in this context. If the design system can answer "
+            f"it more narrowly, or the adapter can slice the response (result_path, "
+            f"result_paths, pick), that cost is paid once in the adapter instead of every run."
+        )
+    return None
+
+
+def context_sizes(payload: dict) -> dict:
+    """Bytes per section of the context, and the total.
+
+    Focused context is a claim about size, so it should be measurable. Without
+    this, a capability quietly answering with 50 KB looks exactly like one
+    answering with 50.
+    """
+    sections = ["guidelines", "components", "tokens", "breakpoints", "candidates"]
+    sizes = {name: payload_bytes(payload.get(name)) for name in sections}
+    sizes["total"] = payload_bytes(payload)
+    return sizes
+
 
 def build_context(
     root: Path,
@@ -900,6 +1020,7 @@ def build_context(
 
     if not probe["reachable"]:
         payload["notes"].append(probe.get("reason", "design system unreachable"))
+        payload["sizes"] = context_sizes(payload)
         return payload
 
     if "named_components" in wants:
@@ -923,11 +1044,37 @@ def build_context(
     if "tokens" in wants:
         tokens = run_capability(root, config, adapter, "tokens", {})
         payload["tokens"] = tokens.get("data") if tokens.get("available") else None
+        note = cost_note("tokens", tokens) if tokens.get("available") else None
+        if note:
+            payload["notes"].append(note)
 
     if "breakpoints" in wants:
         breakpoints = run_capability(root, config, adapter, "breakpoints", {})
         payload["breakpoints"] = breakpoints.get("data") if breakpoints.get("available") else None
+        if breakpoints.get("available"):
+            # The specific, common case: `breakpoints` mapped onto the token
+            # command and never narrowed, so both capabilities answer with the
+            # same thing. It works - the names are in there - and it doubles
+            # what this phase pays, silently, on every run.
+            duplicate = (
+                "tokens" in wants
+                and payload["tokens"] is not None
+                and payload["tokens"] == payload["breakpoints"]
+            )
+            if duplicate:
+                payload["notes"].append(
+                    f"breakpoints: answered with the same payload as tokens "
+                    f"({breakpoints.get('bytes', 0)} bytes, counted twice). The names are in "
+                    f"there; narrowing the adapter's breakpoints mapping (result_path, "
+                    f"result_paths, pick) is what stops this phase paying for the token set "
+                    f"a second time."
+                )
+            else:
+                note = cost_note("breakpoints", breakpoints)
+                if note:
+                    payload["notes"].append(note)
 
+    payload["sizes"] = context_sizes(payload)
     return payload
 
 
@@ -1270,6 +1417,36 @@ def detect_ui_bearing(spec_path: Path | None) -> bool | None:
     return len(UI_SIGNALS.findall(text)) >= SPEC_UI_THRESHOLD
 
 
+# Which capabilities carry which rung of the reuse ladder. The rungs themselves
+# live in `commands/speckit.design.check.md`; this only says what is automated,
+# so an adapter author can see what a missing mapping costs before a run does.
+LADDER_CAPABILITIES = {
+    "reuse": ["search", "component"],
+    "compose": ["pattern", "search"],
+    "extend": ["extend"],
+    "create": ["report_gap"],
+}
+
+
+def ladder_support(capabilities: list[str]) -> dict:
+    """Per rung: what backs it, and whether the design system can answer for it.
+
+    An unbacked rung is not a broken run - the command still walks it on the
+    component's own documentation, and a gap record is written whether or not
+    `report_gap` is mapped. It is a rung the design system is not being asked
+    about, which is worth knowing at gate time rather than inferring from a
+    thin ladder walk later.
+    """
+    reachable = set(capabilities)
+    return {
+        rung: {
+            "backed_by": backing,
+            "automated": bool(reachable & set(backing)),
+        }
+        for rung, backing in LADDER_CAPABILITIES.items()
+    }
+
+
 def effective_dimensions(config: dict, capabilities: list[str]) -> list[str]:
     """Dimensions this design system can actually be held to.
 
@@ -1317,6 +1494,9 @@ def cmd_gate(args: argparse.Namespace) -> None:
             "HAS_TOKENS": "tokens" in probe["capabilities"],
             "REQUIRED_DIMENSIONS": effective_dimensions(config, probe["capabilities"]),
             "MAPPED_CAPABILITIES": mapped_capabilities(adapter),
+            # Which rungs of the reuse ladder the design system can be asked
+            # about, and which the command has to walk on documentation alone.
+            "LADDER_SUPPORT": ladder_support(probe["capabilities"]),
             "REACHABLE": probe["reachable"],
             "UNREACHABLE_REASON": probe.get("reason", ""),
             "UI_BEARING": detect_ui_bearing(spec),
@@ -1393,7 +1573,16 @@ def cmd_query(args: argparse.Namespace) -> None:
     for key, value in zip(positional, args.args):
         params[key] = value
 
-    emit(run_capability(root, config, adapter, args.capability, params))
+    result = run_capability(root, config, adapter, args.capability, params)
+
+    fields = [field.strip() for field in (args.fields or "").split(",") if field.strip()]
+    if fields and result.get("available") and result.get("data") is not None:
+        result["bytes_unprojected"] = result.get("bytes", 0)
+        result["projected_fields"] = fields
+        result["data"] = project_fields(result["data"], fields)
+        result["bytes"] = payload_bytes(result["data"])
+
+    emit(result)
 
 
 def cmd_ledger(args: argparse.Namespace) -> None:
@@ -1448,6 +1637,13 @@ def main() -> None:
     query = sub.add_parser("query", parents=[common])
     query.add_argument("capability", choices=CAPABILITIES)
     query.add_argument("args", nargs="*")
+    query.add_argument(
+        "--fields",
+        help=(
+            "comma-separated keys to keep from the result, for surveying a large answer "
+            "cheaply (e.g. --fields name,description); the full answer stays one call away"
+        ),
+    )
     query.set_defaults(func=cmd_query)
 
     guidelines = sub.add_parser("guidelines", parents=[common])

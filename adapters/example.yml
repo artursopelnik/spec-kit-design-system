@@ -72,6 +72,26 @@ capabilities:
     # to wherever your system states them, even if that is the token command.
     args: ["breakpoints"]
     result_path: "data"
+    #
+    # Most systems have no breakpoint command and state them inside the token
+    # payload. Mapping both capabilities onto the same call is correct; leaving
+    # them mapped to the same *slice* of it is not, because `breakpoints` then
+    # answers with the entire token set and every phase that asks pays for it:
+    #
+    #   breakpoints:
+    #     args: ["tokens"]
+    #     result_paths: ["data.breakpoints", "data.screens", "data.theme.screens"]
+    #
+    # `result_paths` tries each candidate in order and takes the first that
+    # resolves, so one mapping can cover systems that name it differently.
+    # `pick` narrows to named keys where the answer is several siblings rather
+    # than one subtree:
+    #
+    #   pick: ["breakpoints", "container_widths"]
+    #
+    # When nothing resolves, the response comes back whole with
+    # `result_path_missed: true` rather than as a null, and `ds.sh context`
+    # says so in `notes`. That is the signal to fix the path here.
 
   guidelines:
     # Your design system's own principles and guidance, in whatever form it
@@ -85,12 +105,25 @@ capabilities:
     # The sanctioned way to customize a component, such as a command that copies
     # its source for local modification. Mapping this makes rung 4 a real check
     # rather than advice.
+    #
+    # Many CLIs have no such command. Leave it unmapped then: the ladder still
+    # walks rung 4 against the component's documented extension points, it just
+    # cannot confirm them with the system. `ds.sh gate --json` reports which
+    # rungs are automated under `LADDER_SUPPORT`, so the cost is visible rather
+    # than inferred. An invented mapping is worse than none, because a rung that
+    # reports success without checking anything is how a fork gets waved
+    # through as a sanctioned extension.
     args: ["eject", "{name}", "--dry-run"]
     result_path: "data"
 
   report_gap:
     # Where a genuine gap is filed. Mapping this means rung 5 routes into the
     # design system's own intake instead of dead-ending in a document.
+    #
+    # Unmapped, the gap record is still written to the feature directory and the
+    # gate still blocks without it; only the routing is manual. Anything that
+    # accepts a title and a body works: an issue CLI, a webhook script, a
+    # template generator.
     args: ["request", "--title", "{title}", "--body", "{body}"]
     result_path: "data"
 

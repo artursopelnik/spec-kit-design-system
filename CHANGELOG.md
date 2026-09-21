@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Adapters can carve a capability's answer out of a response it shares with a
+  larger one: `result_paths` (candidate dotted paths, first hit wins) and `pick`
+  (keep only these keys). Most design systems have no breakpoint command, so
+  `breakpoints` is mapped onto the token call; without a slice it answered with
+  the entire token payload, and every phase that asked for breakpoints paid for
+  the tokens twice.
+- Every capability result reports `bytes`, and `ds.sh context <phase>` reports
+  `sizes` per section plus a total. A capability answering with 50 KB previously
+  looked exactly like one answering with 50.
+- `ds.sh context` notes an answer that came back unnarrowed — `breakpoints`
+  answering with the same payload `tokens` just answered with, a mapped
+  `result_path` that resolved to nothing, or a payload past 8 KB — naming the
+  adapter keys that would narrow it. Reported, never trimmed: dropping half a
+  token set would make the agent confidently wrong, which is worse than an
+  expensive run.
+- `ds.sh query <capability> --fields name,description`: the caller's own trim
+  for surveying a large answer such as a full inventory, with
+  `bytes_unprojected` reporting what the untrimmed answer would have cost. The
+  full record stays one call away.
+- `ds.sh gate --json` reports `LADDER_SUPPORT`: per rung of the reuse ladder,
+  what backs it and whether the design system can be asked. `extend` and
+  `report_gap` are the mappings most CLIs cannot provide, and a rung walked on
+  documentation alone should be visible at gate time rather than inferred.
+
 - `benchmarks/`: a suite for measuring whether the extension produces better
   work, rather than asserting it. The same RFC runs in three arms — the agent
   alone, the agent with Spec Kit, the agent with the extension — against trimmed
