@@ -568,7 +568,14 @@ def run_capability(
             "data": result,
         }
 
-    binary = adapter.get("bin") or ""
+    # A capability may name its own binary. The two rungs at the top of the
+    # ladder are the reason: a gap is filed in an issue tracker and a component
+    # is ejected by a codegen tool, and neither is usually the design system's
+    # own CLI. Without this they can only be mapped by writing a wrapper script,
+    # which is how rungs 4 and 5 end up unmapped on systems that could support
+    # them. A file-backed adapter with no `bin` at all can map them this way too.
+    own_binary = bool(spec.get("bin"))
+    binary = spec.get("bin") or adapter.get("bin") or ""
     if not binary:
         return {"capability": capability, "available": False, "reason": "no binary configured"}
 
@@ -578,7 +585,11 @@ def run_capability(
 
     argv = shlex.split(binary)
     argv += substitute(list(spec.get("args") or []), merged)
-    argv += list(adapter.get("global_args") or [])
+    # `global_args` are the design system CLI's flags - usually the one that
+    # makes it emit JSON. Appending them to someone else's binary would be a
+    # mapping error the adapter author never wrote.
+    if not own_binary:
+        argv += list(adapter.get("global_args") or [])
 
     try:
         proc = subprocess.run(
@@ -600,7 +611,10 @@ def run_capability(
     except json.JSONDecodeError:
         parsed = None  # CLI printed prose; hand it back verbatim
 
-    envelope = adapter.get("envelope") or {}
+    # The envelope describes one CLI's response shape, so it applies to that
+    # CLI. Reading another tool's `code` field as this one's error code would
+    # turn a filed issue into a reported outage.
+    envelope = (adapter.get("envelope") or {}) if not own_binary else {}
     error_key = envelope.get("error_code_key")
     code = parsed.get(error_key) if (isinstance(parsed, dict) and error_key) else None
 

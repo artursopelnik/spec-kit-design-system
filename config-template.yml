@@ -80,6 +80,15 @@ cwd: ""
 #   breakpoints:
 #     args: ["tokens"]
 #     result_paths: ["data.breakpoints", "data.screens"]
+#   # A capability may name its own binary, for the jobs that are not the design
+#   # system's to do: filing a gap, ejecting a component. `bin` here wins over
+#   # the adapter's, and the adapter's `global_args` and `envelope` do not apply
+#   # to it. Works on a file-backed adapter too, which is how a static inventory
+#   # gets a write side.
+#   report_gap:
+#     bin: "gh"
+#     args: ["issue", "create", "--repo", "acme/design-system",
+#            "--title", "{title}", "--body", "{body}"]
 
 # workflow:
 #   # How many validate -> fix rounds before the run stops and asks for a human.

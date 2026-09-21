@@ -106,9 +106,16 @@ capabilities:
     # its source for local modification. Mapping this makes rung 4 a real check
     # rather than advice.
     #
-    # Many CLIs have no such command. Leave it unmapped then: the ladder still
-    # walks rung 4 against the component's documented extension points, it just
-    # cannot confirm them with the system. `ds.sh gate --json` reports which
+    # Many CLIs have no such command. Where another tool does the job, give the
+    # capability its own binary rather than writing a wrapper:
+    #
+    #   extend:
+    #     bin: "./scripts/swizzle.sh"
+    #     args: ["{name}", "--dry-run"]
+    #
+    # Otherwise leave it unmapped: the ladder still walks rung 4 against the
+    # component's documented extension points, it just cannot confirm them
+    # with the system. `ds.sh gate --json` reports which
     # rungs are automated under `LADDER_SUPPORT`, so the cost is visible rather
     # than inferred. An invented mapping is worse than none, because a rung that
     # reports success without checking anything is how a fork gets waved
@@ -120,10 +127,20 @@ capabilities:
     # Where a genuine gap is filed. Mapping this means rung 5 routes into the
     # design system's own intake instead of dead-ending in a document.
     #
+    # Almost never the design system's own CLI, so this one usually names its
+    # binary:
+    #
+    #   report_gap:
+    #     bin: "gh"
+    #     args: ["issue", "create", "--repo", "acme/design-system",
+    #            "--title", "{title}", "--body", "{body}"]
+    #
+    # A capability with its own binary is invoked on its own terms: `bin` here
+    # wins over the adapter's, and `global_args` and `envelope` above are not
+    # applied to it.
+    #
     # Unmapped, the gap record is still written to the feature directory and the
-    # gate still blocks without it; only the routing is manual. Anything that
-    # accepts a title and a body works: an issue CLI, a webhook script, a
-    # template generator.
+    # gate still blocks without it; only the routing is manual.
     args: ["request", "--title", "{title}", "--body", "{body}"]
     result_path: "data"
 

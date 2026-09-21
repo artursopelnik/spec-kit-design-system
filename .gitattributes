@@ -1,0 +1,21 @@
+# Line endings, decided here rather than by whoever cloned.
+#
+# Git for Windows defaults to core.autocrlf=true, which rewrites LF to CRLF on
+# checkout. A `.sh` that goes through that conversion is no longer executable on
+# Linux: the shebang reads `bash\r`, and the loader reports
+# `/usr/bin/env: 'bash\r': No such file or directory` - which names an
+# interpreter that does not exist rather than the file that was converted.
+#
+# That is not a Windows-only problem. It hits any WSL, container or CI run that
+# shares a Windows checkout, and the extension is installed by copying this
+# repository into a project, so a converted script travels with it.
+#
+# So: every text file in this repository is checked out with LF, on every
+# platform. `.editorconfig` already asks editors for the same thing; this is the
+# half git enforces.
+* text=auto eol=lf
+
+# Belt and braces for the two that break loudly, so the intent survives an edit
+# to the line above.
+*.sh text eol=lf
+*.py text eol=lf
