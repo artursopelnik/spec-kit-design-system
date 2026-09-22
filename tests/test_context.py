@@ -206,10 +206,10 @@ def test_a_large_answer_is_reported_but_never_trimmed(design):
     A context that silently dropped half a token set would make the agent
     confidently wrong, which is the one outcome worse than an expensive run."""
     big = {"tokens": {str(n): "x" * 64 for n in range(400)}}
-    note = design.cost_note("tokens", {"bytes": design.payload_bytes(big), "data": big})
+    note = design.Answer.cost_note("tokens", {"bytes": design.payload_bytes(big), "data": big})
 
     assert note and "bytes" in note
-    assert design.cost_note("breakpoints", {"bytes": 120}) is None
+    assert design.Answer.cost_note("breakpoints", {"bytes": 120}) is None
 
 
 def test_breakpoints_answering_with_the_token_set_is_named_as_such(
@@ -263,3 +263,39 @@ def test_the_artifacts_a_phase_reads_are_named_separately(
 
 def test_every_phase_declares_both_halves_of_its_input(design):
     assert set(design.PHASE_ARTIFACTS) == set(design.PHASE_CONTEXT)
+
+
+def test_breakpoints_answering_with_the_token_payload_is_reported(
+    design, project, write_config, inventory, defaults_installed
+):
+    """The most common adapter shortcut: most systems have no breakpoint
+    command, so both capabilities get mapped onto the token call and never
+    narrowed. It works -- the names are in there -- and it silently doubles what
+    every phase pays. The context has to say so, because nothing at the call
+    site would show it."""
+    write_config(
+        {
+            "adapter": "static-json",
+            "capabilities": {
+                "breakpoints": {"read_file": "{source}", "result_path": "tokens"}
+            },
+        }
+    )
+    payload = context(design, "plan")
+
+    assert payload["breakpoints"] == payload["tokens"]
+    assert any(
+        "counted twice" in note for note in payload["notes"]
+    ), payload["notes"]
+
+
+def test_a_narrowed_breakpoints_mapping_is_not_reported(
+    design, project, write_config, inventory, defaults_installed
+):
+    """The other half: an adapter that does carve out the slice must not be
+    nagged about a cost it is not paying."""
+    write_config({"adapter": "static-json"})
+    payload = context(design, "plan")
+
+    assert payload["breakpoints"] != payload["tokens"]
+    assert not any("counted twice" in note for note in payload["notes"])

@@ -95,6 +95,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`workflow_status` decides by an ordered rule table** rather than a nine-arm
   `elif` chain that mixed what each phase means with which one wins.
 
+- `Answer.cost_note` moved onto the class that owns the fields it reads, and
+  the repeated tokens/breakpoints fetch in `build_context` became one helper.
+  The breakpoints-answered-with-the-token-payload report, which the cost
+  accounting depends on, had no test and now has two.
+
 - Named constants for the timeouts, result caps and truncation lengths that
   were inline numbers, and adapter detection now reports a `package.json` it
   could not read (`DETECTION_NOTES` in the gate) instead of silently falling

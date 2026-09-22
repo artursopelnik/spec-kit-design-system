@@ -590,6 +590,33 @@ class Answer:
     def unavailable(capability: str, reason: str, **extra: Any) -> dict:
         return {"capability": capability, "available": False, "reason": reason, **extra}
 
+
+    @staticmethod
+    def cost_note(capability: str, result: dict) -> str | None:
+        """What a bulky or unnarrowed answer costs, phrased as the fix.
+
+        Reads `bytes` and `result_path_missed` off an answer, so it belongs to
+        whatever builds them. A capability mapped to a command it shares with a
+        broader one (`breakpoints` onto the token call is the usual pair)
+        answers with the whole payload unless the adapter carves out a slice,
+        and that is invisible at the call site: the context is simply bigger,
+        every phase, every run.
+        """
+        size = result.get("bytes") or 0
+        if result.get("result_path_missed"):
+            return (
+                f"{capability}: the adapter's result_path did not resolve, so the CLI's whole "
+                f"payload came back ({size} bytes). Narrow it with result_path, result_paths "
+                f"or pick in the adapter."
+            )
+        if size > LARGE_PAYLOAD_BYTES:
+            return (
+                f"{capability}: {size} bytes in this context. If the design system can answer "
+                f"it more narrowly, or the adapter can slice the response (result_path, "
+                f"result_paths, pick), that cost is paid once in the adapter instead of every run."
+            )
+        return None
+
     @staticmethod
     def answered(
         capability: str,
@@ -1430,30 +1457,6 @@ RETRIEVAL_HINT = "ds.sh query {capability} [args]"
 LARGE_PAYLOAD_BYTES = 8192
 
 
-def cost_note(capability: str, result: dict) -> str | None:
-    """What a bulky or unnarrowed answer costs, phrased as the fix.
-
-    A capability mapped to a command it shares with a broader one (`breakpoints`
-    onto the token command is the usual pair) answers with the whole payload
-    unless the adapter carves out a slice. That is invisible at the call site:
-    the context is simply bigger, every phase, every run.
-    """
-    size = result.get("bytes") or 0
-    if result.get("result_path_missed"):
-        return (
-            f"{capability}: the adapter's result_path did not resolve, so the CLI's whole "
-            f"payload came back ({size} bytes). Narrow it with result_path, result_paths "
-            f"or pick in the adapter."
-        )
-    if size > LARGE_PAYLOAD_BYTES:
-        return (
-            f"{capability}: {size} bytes in this context. If the design system can answer "
-            f"it more narrowly, or the adapter can slice the response (result_path, "
-            f"result_paths, pick), that cost is paid once in the adapter instead of every run."
-        )
-    return None
-
-
 def context_sizes(payload: dict) -> dict:
     """Bytes per section of the context, and the total.
 
@@ -1465,6 +1468,22 @@ def context_sizes(payload: dict) -> dict:
     sizes = {name: payload_bytes(payload.get(name)) for name in sections}
     sizes["total"] = payload_bytes(payload)
     return sizes
+
+
+def _bulk_section(ds: DesignSystem, payload: dict, capability: str, note: bool = True) -> dict:
+    """Ask for one of the big shared sections and record what it cost.
+
+    `tokens` and `breakpoints` are fetched the same way and were written out
+    twice. The cost note is optional because breakpoints has a more specific
+    thing to say when it answered with the token payload verbatim.
+    """
+    result = ds.ask(capability)
+    payload[capability] = result.get("data") if result.get("available") else None
+    if note and result.get("available"):
+        message = Answer.cost_note(capability, result)
+        if message:
+            payload["notes"].append(message)
+    return result
 
 
 def build_context(
@@ -1538,15 +1557,10 @@ def build_context(
         payload["candidates"] = search.get("data") if search.get("available") else None
 
     if "tokens" in wants:
-        tokens = ds.ask("tokens")
-        payload["tokens"] = tokens.get("data") if tokens.get("available") else None
-        note = cost_note("tokens", tokens) if tokens.get("available") else None
-        if note:
-            payload["notes"].append(note)
+        _bulk_section(ds, payload, "tokens")
 
     if "breakpoints" in wants:
-        breakpoints = ds.ask("breakpoints")
-        payload["breakpoints"] = breakpoints.get("data") if breakpoints.get("available") else None
+        breakpoints = _bulk_section(ds, payload, "breakpoints", note=False)
         if breakpoints.get("available"):
             # The specific, common case: `breakpoints` mapped onto the token
             # command and never narrowed, so both capabilities answer with the
@@ -1566,7 +1580,7 @@ def build_context(
                     f"a second time."
                 )
             else:
-                note = cost_note("breakpoints", breakpoints)
+                note = Answer.cost_note("breakpoints", breakpoints)
                 if note:
                     payload["notes"].append(note)
 
