@@ -49,8 +49,17 @@ def test_unrelated_query_does_not_match(design, project):
 
 
 def test_threshold_is_respected(design, project):
+    """A partial match is admitted or excluded by the threshold, not by taste.
+
+    The query below shares one token of three with the stored phrase, so it
+    scores 0.5: surfaced at the default 0.34, excluded at 0.6. It used to read
+    "period filter for bookings", which the union-based score put at 0.667 —
+    but that phrase *is* the stored alias plus a qualifier, so excluding it was
+    the bug the threshold was standing in for.
+    """
     record(design)
-    assert lookup(design, "period filter for bookings", threshold=0.99)["match_count"] == 0
+    assert lookup(design, "picking a delivery date", threshold=0.34)["match_count"] == 1
+    assert lookup(design, "picking a delivery date", threshold=0.6)["match_count"] == 0
 
 
 def test_superseded_decisions_are_hidden(design, project):
@@ -203,3 +212,55 @@ def test_the_feature_field_has_one_name(design, project, alias):
     entry = design.load_ledger(Path.cwd())["decisions"][-1]
     assert entry["decided_in"] == "001-booking-filters"
     assert alias not in entry or alias == "decided_in"
+
+
+# --- recall has to work for the phrasing the ladder insists on ----------------
+#
+# Surfaces are named by capability, never by component: "a control for picking a
+# start and end date", not "DateRangePicker". Scored against the union of the two
+# token sets, every word of that description the stored phrase happens not to use
+# counted against the match — so the more carefully a surface was described, the
+# less likely it was to recall the decision that already answered it.
+
+
+DESCRIPTIVE_QUERIES = [
+    "a control for picking a start and end date",
+    "choosing a start and end date",
+    "a way to pick a reporting period",
+    "filter bookings by period",
+    "date range",
+]
+
+
+@pytest.mark.parametrize("query", DESCRIPTIVE_QUERIES)
+def test_a_capability_phrase_recalls_the_decision(design, project, query):
+    record(design)
+    result = lookup(design, query)
+    assert result["match_count"] == 1, f"{query!r} scored below the default threshold"
+    assert result["matches"][0]["id"] == "dd-001"
+
+
+UNRELATED_QUERIES = [
+    "sorting a table by column",
+    "a transient confirmation message",
+    "uploading an avatar image",
+    "a navigation sidebar",
+    "pagination controls",
+    "a table of results",
+]
+
+
+@pytest.mark.parametrize("query", UNRELATED_QUERIES)
+def test_a_looser_score_did_not_cost_precision(design, project, query):
+    """Recall is only worth widening if the widening stays honest: a decision
+    surfaced for an unrelated surface is worse than no decision, because it
+    looks authoritative."""
+    record(design)
+    assert lookup(design, query)["match_count"] == 0
+
+
+def test_an_exact_phrase_still_scores_one(design, project):
+    record(design)
+    assert lookup(design, DECISION["capability"])["matches"][0]["match_score"] == 1.0
+    for alias in DECISION["aliases"]:
+        assert lookup(design, alias)["matches"][0]["match_score"] == 1.0

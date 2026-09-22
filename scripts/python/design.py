@@ -1493,9 +1493,25 @@ def normalize(text: str) -> list[str]:
 
 
 def score(query: str, decision: dict) -> float:
-    """Token overlap against the capability phrase and the wordings that were
-    actually searched when the decision was made. Aliases matter more than they
-    look: they are what makes a later, differently-worded lookup hit."""
+    """How well a prior decision answers this query.
+
+    Overlap as a fraction of the *shorter* side, not of the union. The
+    distinction is the whole feature, because of the discipline the ladder
+    imposes on the query: surfaces are named by capability, so lookups arrive as
+    "a control for picking a start and end date" rather than "DateRangePicker".
+    Measured against the union, every word of that description that the stored
+    phrase happens not to use counts against the match — so the more carefully a
+    surface is described, the less likely it is to recall the decision that
+    already answered it. It scored 0.167 against a 0.34 threshold, and Recall,
+    the rung the whole ledger exists to serve, quietly never fired.
+
+    Containment asks the question actually being asked: is one of these phrases
+    substantially about the other? An exact match is still 1.0, and a two-word
+    query against an unrelated decision is still 0.
+
+    Aliases matter more than they look: they are what makes a later,
+    differently-worded lookup hit.
+    """
     q = set(normalize(query))
     if not q:
         return 0.0
@@ -1505,7 +1521,7 @@ def score(query: str, decision: dict) -> float:
         tokens = set(normalize(phrase))
         if not tokens:
             continue
-        best = max(best, len(q & tokens) / len(q | tokens))
+        best = max(best, len(q & tokens) / min(len(q), len(tokens)))
     return round(best, 3)
 
 

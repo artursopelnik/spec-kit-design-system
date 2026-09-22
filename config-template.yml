@@ -110,6 +110,21 @@ cwd: ""
 #     args: ["issue", "create", "--repo", "acme/design-system",
 #            "--title", "{title}", "--body", "{body}"]
 
+# The decision ledger: prior ladder decisions, so the second feature to need a
+# date range reads the answer instead of searching for it again.
+#
+# ledger:
+#   # false stops both the lookup and the recording. Every feature then starts
+#   # from nothing and re-argues settled questions.
+#   enabled: true
+#   # How much of the shorter phrase must overlap for a prior decision to be
+#   # surfaced. Surfaced decisions are evidence, not instructions, so this leans
+#   # toward showing a near miss rather than hiding one. Raise it if lookups
+#   # surface decisions you keep rejecting; lower it if you keep re-deciding
+#   # things the ledger already answered. `ds.sh ledger lookup "<phrase>"`
+#   # reports the score of every match, which is how you tune it.
+#   match_threshold: 0.34
+
 # workflow:
 #   # How many validate -> fix rounds before the run stops and asks for a human.
 #   max_validation_rounds: 3
@@ -118,3 +133,15 @@ cwd: ""
 #   # false lets the ladder run and record findings without blocking planning.
 #   # Useful while adopting.
 #   enforce: true
+#   # How many existing candidates must be considered before a rung may be
+#   # rejected. Lower it only if your design system genuinely offers fewer.
+#   min_candidates_considered: 3
+
+# validation:
+#   # Raise a finding for a hardcoded value where the design system has a token.
+#   # Ignored when the system has no token layer at all.
+#   forbid_raw_values: true
+#   # What every UI feature must answer for. A dimension the design system
+#   # cannot supply is dropped rather than failed on, so `tokens` disappears
+#   # from this list for a system with no tokens.
+#   required_dimensions: [states, responsive, accessibility, tokens, interaction]
