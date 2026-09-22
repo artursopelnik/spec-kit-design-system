@@ -27,7 +27,7 @@ Where bash is unavailable, call the module directly. It behaves identically:
 
 Parse the JSON for `FEATURE_DIR`, `FEATURE_SPEC`, `DESIGN_DOC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON` and `UI_BEARING`.
 
-`CAPABILITIES` reflects what the design system could actually answer just now, not what the adapter file claims, because the script probes it. An empty list therefore means the source of truth is unavailable.
+`CAPABILITIES` is what the adapter maps **and** the design system was just reached for: the script spends one real call before reporting any of it, so a CLI that is not installed comes back with nothing rather than with a full contract. An empty list therefore means the source of truth is unavailable. One call is proof of reach, not of every mapping — an individual capability can still answer `available: false` with a `reason`, and that is a failure to ask, never the design system saying it has nothing.
 
 **If `UI_BEARING` is `false`**: the spec declares no user-facing surface. Write a one-line `DESIGN_DOC` recording that the gate was evaluated and found not applicable, then report and stop. Do not invent UI work to justify the gate.
 

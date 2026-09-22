@@ -24,7 +24,7 @@ Nothing in `adapters/` may hold rules or component knowledge; a test enforces it
 
 ## The script
 
-`scripts/python/design.py`, with `scripts/bash/ds.sh` as a shim that finds an interpreter and forwards. Every subcommand emits exactly one compact JSON object on stdout, per Spec Kit's script convention, and a failure is a JSON object saying why rather than a non-zero exit — so a command body can degrade deliberately instead of crashing.
+`scripts/python/design.py`, with `scripts/bash/ds.sh` as a shim that finds an interpreter and forwards. Every subcommand emits exactly one compact JSON object on stdout, per Spec Kit's script convention, and a failure is one too: a refusal is `{"available": false, "error": ...}` on stdout, carrying the same keys the caller's guard reads (`REACHABLE`, `principles_source`), so a command body degrades deliberately instead of crashing. A refusal also exits non-zero, which matters only to a shell running under `set -e`; the JSON is the interface.
 
 | Subcommand           | Answers                                                                                 |
 | -------------------- | --------------------------------------------------------------------------------------- |

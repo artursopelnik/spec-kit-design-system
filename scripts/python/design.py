@@ -1092,15 +1092,33 @@ def resolve_dod(root: Path, config: dict) -> dict:
 
 # --- focused context ----------------------------------------------------------
 
-# What each phase is given up front. Everything else stays one query away;
-# nothing here is a ceiling on what the agent may ask for.
+# What each phase is given up front, named by the key it actually arrives under.
+# Everything else stays one query away; nothing here is a ceiling on what the
+# agent may ask for.
+#
+# `includes` used to list `rfc`, `spec` and `plan` too, and `named_components`
+# for a section delivered as `components`. Those are files on disk that this
+# command has no business inlining — but a response advertising keys it does not
+# carry is a contract that reads as an empty answer. They are reported
+# separately, as what the phase should go and read for itself.
 PHASE_CONTEXT = {
-    "clarify": ["rfc", "principles"],
-    "specify": ["rfc", "principles", "candidates"],
-    "plan": ["spec", "principles", "named_components", "tokens", "breakpoints"],
-    "implement": ["plan", "named_components", "tokens"],
-    "validate": ["spec", "principles", "named_components"],
-    "verify": ["spec", "principles"],
+    "clarify": ["principles"],
+    "specify": ["principles", "candidates"],
+    "plan": ["principles", "components", "tokens", "breakpoints"],
+    "implement": ["components", "tokens"],
+    "validate": ["principles", "components"],
+    "verify": ["principles"],
+}
+
+# The artifacts a phase works from, which it reads itself. Named so a caller can
+# see the whole input to a phase in one place, not so this command fetches them.
+PHASE_ARTIFACTS = {
+    "clarify": ["rfc"],
+    "specify": ["rfc"],
+    "plan": ["spec"],
+    "implement": ["plan"],
+    "validate": ["spec"],
+    "verify": ["spec"],
 }
 
 RETRIEVAL_HINT = "ds.sh query {capability} [args]"
@@ -1176,7 +1194,10 @@ def build_context(
 
     payload: dict[str, Any] = {
         "phase": phase,
+        # Every name here is a key of this object. Anything the phase works from
+        # but has to open itself is under `read_from_artifacts`.
         "includes": wants,
+        "read_from_artifacts": PHASE_ARTIFACTS.get(phase, []),
         "adapter": adapter.get("id", ""),
         "reachable": probe["reachable"],
         "principles": principles,
@@ -1199,7 +1220,7 @@ def build_context(
         payload["sizes"] = context_sizes(payload)
         return payload
 
-    if "named_components" in wants:
+    if "components" in wants:
         for name in components or []:
             result = run_capability(root, config, adapter, "component", {"name": name})
             if not result.get("found"):

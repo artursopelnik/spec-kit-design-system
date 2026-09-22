@@ -14,6 +14,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 
 def context(design, phase, **kwargs):
     root = Path.cwd()
@@ -233,3 +235,36 @@ def test_breakpoints_answering_with_the_token_set_is_named_as_such(
 
     assert payload["breakpoints"] == payload["tokens"]
     assert any("same payload as tokens" in note for note in payload["notes"])
+
+
+# --- the contract has to describe the object it is attached to ----------------
+
+
+@pytest.mark.parametrize("phase", ["clarify", "specify", "plan", "implement", "validate", "verify"])
+def test_includes_names_only_keys_that_are_there(
+    design, project, write_config, inventory, defaults_installed, phase
+):
+    """`includes` listed `rfc`, `spec` and `plan` — files this command has no
+    business inlining and never did — and `named_components` for a section
+    delivered under `components`. A caller reading the contract and finding
+    nothing under the name reads it as the design system having nothing."""
+    write_config({"adapter": "static-json"})
+    payload = context(design, phase)
+    missing = [name for name in payload["includes"] if name not in payload]
+    assert missing == [], f"{phase}: advertised but absent -> {missing}"
+
+
+@pytest.mark.parametrize("phase", ["clarify", "plan", "implement"])
+def test_the_artifacts_a_phase_reads_are_named_separately(
+    design, project, write_config, inventory, defaults_installed, phase
+):
+    """Dropping them from `includes` must not lose them: the whole input to a
+    phase should still be visible in one place."""
+    write_config({"adapter": "static-json"})
+    payload = context(design, phase)
+    assert payload["read_from_artifacts"], phase
+    assert not set(payload["read_from_artifacts"]) & set(payload["includes"])
+
+
+def test_every_phase_declares_both_halves_of_its_input(design):
+    assert set(design.PHASE_ARTIFACTS) == set(design.PHASE_CONTEXT)

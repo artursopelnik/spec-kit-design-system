@@ -286,7 +286,7 @@ Or wire it to one of the real systems the benchmarks use, with the RFC and the c
 
 | Symptom | Cause and fix |
 |---|---|
-| "design system could not be reached" | The gate probes for real: CLI missing, wrong binary, or inventory not where `source` says. Check with `ds.sh query describe --json`. |
+| "design system could not be reached" | The gate probes for real: CLI missing, wrong binary, or inventory not where `source` says. `UNREACHABLE_REASON` in `ds.sh gate --json` names which, and `MAPPED_CAPABILITIES` beside an empty `CAPABILITIES` confirms the adapter is fine and the system is not. Where the adapter maps `describe` (`shadcn`, `example`), `ds.sh query describe --json` also asks the CLI to state its own command surface. |
 | Principles say `principles_source: default` | Your system supplied none. Map the `principles` capability in your adapter or set `principles.source`. |
 | Principles say `principles_source: unavailable` | Nothing answered and `principles.default` is `false`, so nothing is in force. Intended while adopting; a gate that requires principles fails closed here rather than passing on an empty set. |
 | A principle is listed under `unenforceable` | It states no MUST/SHOULD, or carries no `verify` step, so nothing can be checked against it. It is still returned and still worth reading — add a `verify` step at the source to make it citable. |
