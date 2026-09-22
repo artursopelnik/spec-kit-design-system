@@ -40,7 +40,7 @@ Nowhere — deliberately. Before each phase the run asks:
 ds.sh workflow status --json
 ```
 
-which derives the position from the artifacts on disk: whether `spec.md` still carries `[NEEDS CLARIFICATION]`, whether `plan.md` exists, whether `tasks.md` has unticked tasks, how many validation rounds `design-system.md` records, and which findings are still open. There is no `iterations.md`, no `memory.md`, no run-state file to get out of sync.
+which derives the position from the artifacts on disk: whether `spec.md` still carries `[NEEDS CLARIFICATION]`, whether `plan.md` exists, whether `tasks.md` has unticked tasks, how many validation rounds `design-system.md` records, which findings are still open, and whether it carries a `## Verification` section. There is no `iterations.md`, no `memory.md`, no run-state file to get out of sync.
 
 The practical benefit: an interrupted run resumes by reading. So does a second agent, a different session, or a human who wants to know where things stand.
 
@@ -57,6 +57,7 @@ ds.sh context implement --component DatePicker --component Popover --json
 - **plan** — spec, principles, named components, tokens, breakpoints
 - **implement** — plan, named components, tokens
 - **validate** — spec, principles, named components
+- **verify** — spec, principles
 
 The whole inventory is never inlined. But every response carries `available_on_demand` and `retrieval`, listing each capability the design system can still answer and the exact call that gets it, and the commands tell the agent to use them.
 
@@ -89,6 +90,8 @@ Two conditions end the loop, and one of them is subtle:
 
 - **A round with no findings ends it.** A round whose findings were _ticked off_ does not. Otherwise the fixing pass would be signing off its own fixes, and the checker separation would be decorative.
 - **`max_validation_rounds` (default 3) stops it.** The run reports what is still open, what it tried, and why it thinks the findings are not converging. Three rounds that fail the same way is information; a fourth is noise.
+
+Ending the loop is not finishing the run. A clean round sets `next` to `verify`, which asks the question validation does not: did the RFC actually get what it asked for. That pass appends a `## Verification` section to `design-system.md`, and `complete: true` follows from that section existing — the same artifact-derived rule as every other phase.
 
 Raise it if your project genuinely needs to:
 

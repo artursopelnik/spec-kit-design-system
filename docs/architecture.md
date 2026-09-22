@@ -79,6 +79,7 @@ Each principle comes back with `enforceable`: it states a MUST or SHOULD **and**
 | plan      | spec, principles, named components, tokens, breakpoints |
 | implement | plan, named components, tokens                          |
 | validate  | spec, principles, named components                      |
+| verify    | spec, principles                                        |
 
 Each response carries `bytes`, and the context carries a `sizes` block per section plus a total, so "focused" is a measured claim rather than an assumed one. Sizes are reported, never enforced: nothing is dropped from a payload on the way through. Where an answer is bulkier than it needs to be — `breakpoints` mapped onto the token command without a slice is the usual case — the context says so in `notes` and the fix belongs in the adapter, which is the only layer that knows the shape of that system's response.
 
@@ -95,10 +96,13 @@ The property to preserve when changing this: **focused, never restricted**. Two 
 | implemented         | `tasks.md` has no unticked task                         |
 | validated           | `design-system.md` has `## Validation round N` sections |
 | open findings       | unticked `- [ ] DS-F-nnn` entries                       |
+| verified            | `design-system.md` has a `## Verification` section      |
 
 So an interrupted run resumes by reading, and recorded state cannot drift from real state. The cost is a format contract with the validate command: the round heading and the finding checkbox are load-bearing, and that is stated in the command body where someone editing it will see it.
 
 The loop terminates on two conditions: a round with no findings at all ends it, and `max_validation_rounds` stops it. A round whose findings were ticked off does not count as clean — that would let the fixing pass sign off its own fixes.
+
+A clean round ends the *loop*, not the run: `next` becomes `verify`, and the run is complete only once a `## Verification` section records that the whole change was checked back against the RFC. Every phase here is derived from an artifact, so a phase with no artifact is one the run skips — which is what happened while `verify` was derived from the validate row rather than from anything it wrote.
 
 ## Where Spec Kit does the work
 
