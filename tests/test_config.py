@@ -225,3 +225,14 @@ def test_a_setting_the_script_ignores_is_named_by_a_command(setting):
         f"{setting} is enforced by nothing: the script does not read it and no "
         f"command body mentions it ({ENFORCED_BY_THE_COMMANDS[setting]})"
     )
+
+
+@pytest.mark.parametrize("word", ["ture", "enabled", ""])
+def test_an_unreadable_boolean_is_refused_not_read_as_false(design, word):
+    """`SPECKIT_DESIGN_GATE_ENFORCE=ture` read as false switches the gate off
+    without a word, which is the gate failing open on a typo."""
+    if not word:
+        assert design.coerce("off", bool) is False
+        return
+    with pytest.raises(SystemExit):
+        design.coerce(word, bool)

@@ -675,3 +675,84 @@ def test_an_mcp_server_that_fails_is_unavailable(design, project, write_config):
     result = run(design, "search", query="x")
     assert result["available"] is False and "found" not in result
     assert "connection refused" in result["reason"]
+
+
+# --- the probe must be harmless ------------------------------------------------
+
+
+def test_the_probe_never_calls_a_capability_with_side_effects(design, project, write_config):
+    """Filing an issue to find out whether the design system is there would file
+    one on every gate. With nothing safe to call, reach stays unproven."""
+    marker = project / "filed"
+    tool = project / "file-issue.sh"
+    tool.write_text(f"#!/usr/bin/env bash\ntouch {marker}\necho '{{}}'\n", encoding="utf-8")
+    tool.chmod(0o755)
+    write_config(
+        {"adapter": "custom", "capabilities": {"report_gap": {"bin": str(tool), "args": []}}}
+    )
+    probe = design.DesignSystem.resolve().probe
+
+    assert probe["reachable"] is False and "safe to probe" in probe["reason"]
+    assert not marker.exists()
+
+
+def test_a_read_only_capability_can_prove_reach(design, project, write_config, inventory):
+    write_config(
+        {
+            "adapter": "custom",
+            "source": ".design-system/inventory.json",
+            "capabilities": {"tokens": {"read_file": "{source}", "result_path": "tokens"}},
+        }
+    )
+    probe = design.DesignSystem.resolve().probe
+    assert probe["reachable"] is True and probe["probed"] == "tokens"
+
+
+def test_mcp_arguments_are_expanded_once(design, project, write_config):
+    """The client path is split once and the query substituted once: a space in
+    the path, or braces inside the query, must arrive as written."""
+    directory = project / "mcp tools"
+    directory.mkdir()
+    client = directory / "client.sh"
+    client.write_text(
+        "#!/usr/bin/env bash\n"
+        "python3 -c 'import json,sys; print(json.dumps({\"argv\": sys.argv[1:]}))' \"$@\"\n",
+        encoding="utf-8",
+    )
+    client.chmod(0o755)
+    write_config(
+        {
+            "adapter": "custom",
+            "capabilities": {
+                "search": {
+                    "mcp": {"tool": "search", "client": f"'{client}'"},
+                    "args": ["--query", "{query}"],
+                    "result_path": "argv",
+                }
+            },
+        }
+    )
+    result = run(design, "search", query="{name} picker")
+
+    assert result["available"] is True, result.get("reason")
+    assert result["data"] == ["--tool", "search", "--query", "{name} picker"]
+
+
+def test_a_malformed_yaml_inventory_is_unavailable(design, project, write_config):
+    """One capability that cannot answer, reported as such, not the whole
+    process exiting from inside a transport."""
+    source = project / ".design-system" / "inventory.yml"
+    source.parent.mkdir(parents=True)
+    source.write_text("components: [unclosed\n", encoding="utf-8")
+    write_config({"adapter": "static-json", "source": ".design-system/inventory.yml"})
+
+    result = run(design, "list_components")
+    assert result["available"] is False and "not valid YAML" in result["reason"]
+
+
+def test_a_file_mapping_with_no_source_says_so(design, project, write_config):
+    write_config(
+        {"adapter": "custom", "capabilities": {"tokens": {"read_file": "{source}"}}}
+    )
+    result = run(design, "tokens")
+    assert result["available"] is False and "source" in result["reason"]

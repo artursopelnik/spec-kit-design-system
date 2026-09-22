@@ -264,3 +264,36 @@ def test_an_exact_phrase_still_scores_one(design, project):
     assert lookup(design, DECISION["capability"])["matches"][0]["match_score"] == 1.0
     for alias in DECISION["aliases"]:
         assert lookup(design, alias)["matches"][0]["match_score"] == 1.0
+
+
+# --- superseding has to retire the clash ---------------------------------------
+
+
+def test_supersedes_must_name_an_active_decision(design, project):
+    """A typo in `supersedes` used to pass the clash check and leave two active
+    decisions for one capability."""
+    write(design, capability="a toast", resolution="reuse", decision="Toast")
+    with pytest.raises(SystemExit):
+        write(design, capability="a toast", resolution="create", decision="Snackbar",
+              supersedes="dd-999")
+    assert len(design.load_ledger(Path.cwd())["decisions"]) == 1
+
+
+def test_supersedes_must_retire_the_decision_it_clashes_with(design, project):
+    write(design, capability="a toast", resolution="reuse", decision="Toast")
+    other = write(design, capability="sorting a table", resolution="reuse",
+                  decision="DataTable")["recorded"]
+    with pytest.raises(SystemExit):
+        write(design, capability="a toast", resolution="create", decision="Snackbar",
+              supersedes=other)
+    active = [d for d in design.load_ledger(Path.cwd())["decisions"]
+              if d.get("status") != "superseded"]
+    assert len(active) == 2
+
+
+def test_a_taken_id_is_refused(design, project):
+    first = write(design, capability="a toast", resolution="reuse", decision="Toast")
+    with pytest.raises(SystemExit):
+        write(design, id=first["recorded"], capability="sorting a table",
+              resolution="reuse", decision="DataTable")
+
