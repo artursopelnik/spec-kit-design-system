@@ -34,7 +34,7 @@ Where the RFC came from is not your concern. A file, a GitHub issue, a Jira tick
 
 Without bash: `python3 .specify/extensions/design/scripts/python/design.py gate --json`. Identical behaviour. Every command below has the same fallback, so it is not repeated.
 
-Parse `REACHABLE`, `UNREACHABLE_REASON`, `ADAPTER`, `PRINCIPLES_SOURCE`, `FEATURE_DIR`, `CONFIG`.
+Parse `REACHABLE`, `UNREACHABLE_REASON`, `ADAPTER`, `PRINCIPLES_SOURCE`, `DOD_ITEMS`, `FEATURE_DIR`, `CONFIG`.
 
 **If `REACHABLE` is `false`**: report `UNREACHABLE_REASON` and stop. Do not proceed from a remembered component inventory. A run that invents the design system is worse than no run, because everything downstream will look properly sourced.
 
@@ -101,6 +101,8 @@ Before writing code for a surface, pull exactly what you need for it:
 
 Then implement against the component's real props, variants, states and accessibility notes rather than against what a component of that name usually does. If a token, breakpoint or pattern is not in front of you, query it. Never write a literal color, length or font stack where a token exists.
 
+Where `DOD_ITEMS` from the gate is non-empty, the team keeps a Definition of Done and validation will check it. Work to it as you go rather than discovering it in round 1: a missing changelog entry or story is cheap to write now and costs a whole round later.
+
 ### 5. Validate
 
 The `after_implement` hook fires `/speckit.design.validate`. That command is the checker, and it is deliberately a separate pass with its own prerequisites: the agent that wrote the code is not the one that gets to declare it correct.
@@ -136,6 +138,7 @@ Last pass, over the whole change rather than per finding:
 - Every acceptance criterion in the RFC is met.
 - Every `DS-` requirement in the spec is satisfied.
 - Every principle in force was honoured, or its exception is written down.
+- Every item of the team's Definition of Done is met, where `DOD_ITEMS` is non-empty.
 - The tests the project already has still pass. Run them.
 - `workflow status` returns `complete: true`.
 
@@ -158,6 +161,7 @@ Short. The user asked for a change, not a narrative:
 - Which design system components, patterns and tokens it used, and any surface that reached Extend or Create with the reason.
 - Which principles were in force, where they came from (`cli`, `docs` or `default`) and at what version, plus any that could not be enforced for want of a `verify` step.
 - Validation: how many rounds, what was found, what was fixed.
+- Where the project keeps a Definition of Done, that it was checked and is met. Say nothing about it where there is none.
 - Anything left open, and why.
 
 ## Done When

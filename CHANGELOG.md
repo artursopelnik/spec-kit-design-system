@@ -31,6 +31,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Optional Definition of Done.** A team that keeps one writes it as a plain
+  markdown list in `.specify/extensions/design/definition-of-done.md`; validation
+  checks each item against what was built and raises unmet ones as ordinary
+  `DS-F-nnn` findings, so they run through the existing fix loop rather than a
+  mechanism of their own. Surfaced as `DOD_ITEMS` and `DOD_SOURCE` in the gate.
+
+  Three decisions worth stating, because each is the opposite of how principles
+  work: **nothing ships as a default**, and nothing ever will — the default
+  principles are defensible because they cite WCAG, and there is no comparable
+  authority for what a team calls done, so a shipped set would raise findings
+  against rules nobody at that project agreed to. **The design system is never
+  asked** — no capability, no adapter mapping; a DoD is what a team decided
+  among themselves. **No file is the normal case**, not a degraded one: absent,
+  the step is skipped in silence rather than gating, warning or nagging. A
+  `dod.source` that is configured and does not resolve is the one case that is
+  reported (`DOD_ERROR`), because silence there would leave a team believing
+  their rules were being enforced.
+
+  It lives next to the config rather than in `.specify/memory/`, where the
+  ledger sits, because it is authored rather than derived. The ledger can be
+  rebuilt from the design system, so clearing that directory is a reasonable
+  thing to do; a DoD cannot be rebuilt from anything, and must not be collateral.
 - Each principle reports `enforceable`: it states a MUST or SHOULD **and**
   carries a `verify` step — specific, testable, mapped to a verification.
   Anything else comes back under `unenforceable` and is never dropped, because

@@ -36,6 +36,9 @@ CONFIG_NAME = "design-config.yml"
 LOCAL_CONFIG_NAME = "design-config.local.yml"
 LEDGER_NAME = "design-decisions.yml"
 DESIGN_DOC_NAME = "design-system.md"
+# The team's own Definition of Done, next to the config because it is authored
+# rather than derived. Optional: most projects will not have one.
+DOD_NAME = "definition-of-done.md"
 DEFAULT_PRINCIPLES = "principles/default.yml"
 
 # What a principle can apply to. A feature declares which of these it involves,
@@ -966,6 +969,66 @@ def _principles_payload(
     }
 
 
+# --- definition of done -------------------------------------------------------
+
+# A DoD line is a markdown bullet and nothing else, optionally written as a
+# checkbox. Teams already keep this list; they should not have to restate it as
+# a schema to have it checked.
+DOD_ITEM = re.compile(r"^\s*[-*]\s+(?:\[[ xX]\]\s*)?(.+?)\s*$")
+
+
+def dod_items(text: str) -> list[str]:
+    return [
+        match.group(1).strip()
+        for line in text.splitlines()
+        if (match := DOD_ITEM.match(line)) and match.group(1).strip()
+    ]
+
+
+def resolve_dod(root: Path, config: dict) -> dict:
+    """The team's Definition of Done, if they keep one.
+
+    Deliberately unlike `resolve_principles`, in every way that matters:
+
+    - **No source but the project's own file.** A DoD is never asked of the
+      design system. It is what a team decided among themselves, and no CLI
+      can answer for that.
+    - **No default set.** The default principles are defensible because they
+      cite WCAG and carry no values of their own. There is no equivalent for
+      "done": shipping one would hold every project to rules nobody there
+      agreed to, and produce findings against them.
+    - **No file is the normal case, not a failure.** Absent, this is simply
+      off, and nothing downstream mentions it. Gating would make a DoD
+      mandatory, which is the opposite of optional.
+
+    It lives next to the config rather than in `.specify/memory/` because it is
+    authored, not derived. The ledger there can go stale and be rebuilt from
+    the design system; this cannot be rebuilt from anything. Clearing memory to
+    re-derive the ledger must not take the team's own rules with it.
+    """
+    settings = config.get("dod") or {}
+    if not isinstance(settings, dict):
+        # Someone wrote the list inline under `dod:`. A natural guess, and the
+        # gate must say where it actually goes rather than crash on it.
+        return {
+            "items": [],
+            "source": "",
+            "error": f"dod: expected a mapping with `source`; the list itself belongs in {DOD_NAME}",
+        }
+    configured = str(settings.get("source") or "")
+    path = resolve_path(root, configured or DOD_NAME)
+    if path:
+        return {"items": dod_items(read_text(path)), "source": str(path), "error": ""}
+    # Nothing configured and no file: there is no DoD, which is fine and silent.
+    # A path someone *did* configure and that does not resolve is the opposite:
+    # they believe their rules are being enforced, and they are not.
+    return {
+        "items": [],
+        "source": "",
+        "error": f"dod.source: {configured} not found" if configured else "",
+    }
+
+
 # --- focused context ----------------------------------------------------------
 
 # What each phase is given up front. Everything else stays one query away;
@@ -1520,6 +1583,7 @@ def cmd_gate(args: argparse.Namespace) -> None:
     spec = feature / "spec.md" if feature else None
     probe = probe_adapter(root, config, adapter)
     principles = resolve_principles(root, config, adapter)
+    dod = resolve_dod(root, config)
 
     emit(
         {
@@ -1541,6 +1605,13 @@ def cmd_gate(args: argparse.Namespace) -> None:
             "PRINCIPLES_DISABLED": principles["disabled"],
             # Cited as requirements only where something can check them.
             "PRINCIPLES_UNENFORCEABLE": principles["unenforceable"],
+            # The team's Definition of Done. Empty is the normal case and means
+            # the project keeps none; nothing downstream should mention it then.
+            "DOD_ITEMS": dod["items"],
+            "DOD_SOURCE": dod["source"],
+            # Non-empty only when a configured DoD file did not resolve, which
+            # is a misconfiguration to report, not an absent DoD.
+            "DOD_ERROR": dod["error"],
             "ADAPTER": adapter.get("id", ""),
             "ADAPTER_NAME": adapter.get("name", ""),
             # Empty when the design system could not actually be reached. The
