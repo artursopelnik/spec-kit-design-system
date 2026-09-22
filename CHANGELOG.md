@@ -45,8 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `named_components` for a section delivered as `components`. The artifacts a
   phase reads for itself are reported as `read_from_artifacts`.
 
-- **Settings that did nothing are gone or named.** `ledger.revalidate_when_stale`
-  had a justifying comment and no reader. `gate.enforce`,
+- **Settings that did nothing are named.** `gate.enforce`,
   `gate.min_candidates_considered`, `ledger.enabled` and
   `validation.forbid_raw_values` are enforced by the command bodies rather than
   the script, which is now stated in `docs/architecture.md` instead of implied
@@ -63,6 +62,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The unreachability diagnostic points somewhere useful.** The troubleshooting
   table sent the reader to `ds.sh query describe`, which six of the eight
   shipped adapters do not map — including the one `adapter: auto` falls back to.
+
+### Removed
+
+- **The config carry-forward for a version that was never released.**
+  `migrate_config` mapped `rules.*` and `audit.*` onto the current keys so an
+  existing project would survive an upgrade — from a "pre-0.2" that does not
+  exist at version 0.1.0, for projects that cannot exist because nothing has
+  ever been released. It also contradicted the policy this changelog states
+  three paragraphs down for the `guidelines:` rename. One rule now: a key this
+  extension does not document is a key it does not read, and a retired key is
+  left untouched rather than quietly reinterpreted.
+
+- `ledger.revalidate_when_stale` and the unused `PHASES` constant.
 
 ### Added
 
