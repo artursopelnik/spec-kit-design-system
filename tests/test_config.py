@@ -1,12 +1,19 @@
 """Config resolution: extension defaults -> project -> local -> environment.
 
-Plus the migration of pre-0.2 keys, which matters because the alternative is an
-existing project silently losing its principles when it upgrades.
+Plus the rule that keeps that layering honest: a key this extension does not
+document is a key it does not read, and a default it ships is one something
+actually reads. Both directions have been wrong here — a carry-forward shim for
+a version that was never released, and a setting with a justifying comment and
+no reader at all.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+
+import pytest
+
+REPO = Path(__file__).resolve().parents[1]
 
 
 def test_defaults_come_from_the_extension_manifest(design, project):
@@ -44,33 +51,48 @@ def test_local_override_beats_project_config(design, project, write_config):
     assert design.load_config(Path.cwd())["gate"]["enforce"] is False
 
 
-def test_pre_02_rule_keys_still_work(design, project, write_config):
-    """`baseline` is gone as a concept, not as a setting someone already wrote."""
+def test_a_retired_key_is_not_read(design, project, write_config):
+    """Nothing has been released, so nobody can hold a config written against an
+    older vocabulary. The repository already decided this once, for `guidelines:`
+    — "no alias, no carry-forward" — and then carried `rules:` and `audit:`
+    forward anyway, from a "pre-0.2" that never existed at version 0.1.0.
+
+    One policy: a key this extension does not document is a key it does not
+    read. It is left in the config untouched rather than silently reinterpreted,
+    because a setting that quietly means something else is worse than one that
+    plainly does nothing.
+    """
     write_config(
         {
-            "rules": {
-                "baseline": False,
-                "house_rules": "node_modules/@acme/design-system/rules.yml",
-                "disabled": ["BL-MOTION-REDUCED"],
-            }
+            "adapter": "static-json",
+            "rules": {"baseline": False, "house_rules": "old/rules.yml"},
+            "audit": {"forbid_raw_values": False},
         }
     )
     config = design.load_config(Path.cwd())
 
-    assert "rules" not in config
-    assert config["principles"]["default"] is False
-    assert config["principles"]["source"].endswith("rules.yml")
-    assert config["principles"]["disabled"] == ["BL-MOTION-REDUCED"]
-    assert any("rules.baseline" in note for note in config["_migrated"])
+    # Not reinterpreted into the current keys...
+    assert config["principles"]["default"] is True
+    assert "source" not in config["principles"]
+    assert config["validation"]["forbid_raw_values"] is True
+    # ...and not rewritten behind the author's back either.
+    assert config["rules"] == {"baseline": False, "house_rules": "old/rules.yml"}
+    assert "_migrated" not in config
 
 
-def test_pre_02_audit_keys_still_work(design, project, write_config):
-    write_config({"audit": {"forbid_raw_values": False, "source_globs": ["src/ui/**"]}})
+def test_the_documented_keys_are_the_ones_that_work(design, project, write_config):
+    write_config(
+        {
+            "adapter": "static-json",
+            "principles": {"default": False, "source": "docs/principles.yml"},
+            "validation": {"forbid_raw_values": False},
+        }
+    )
     config = design.load_config(Path.cwd())
 
-    assert "audit" not in config
+    assert config["principles"]["default"] is False
+    assert config["principles"]["source"] == "docs/principles.yml"
     assert config["validation"]["forbid_raw_values"] is False
-    assert config["validation"]["source_globs"] == ["src/ui/**"]
 
 
 def test_environment_beats_local_override(design, project, write_config, monkeypatch):
@@ -142,3 +164,64 @@ def test_auto_adapter_detects_component_libraries(design, project):
         )
         assert design.load_adapter(root, config)["id"] == expected, dependency
 
+
+
+# Settings the *script* never reads, because the layer that enforces them is the
+# command body: the script hands them over in `CONFIG` and the agent acting on
+# the prose honours them. That is a real architectural choice — judgement lives
+# in `commands/`, mechanism in the script — and it is worth naming, because
+# "the gate blocks" reads as a mechanical guarantee and for these four it is
+# not. Each one must be named by a command body, or nothing enforces it at all.
+ENFORCED_BY_THE_COMMANDS = {
+    "gate.enforce": "check.md decides whether a failed gate errors or warns",
+    "gate.min_candidates_considered": "check.md rejects a rung walked on fewer candidates",
+    "ledger.enabled": "check.md and context.md skip lookup and recording when false",
+    "validation.forbid_raw_values": "validate.md raises a finding for a raw value",
+}
+
+
+def config_defaults() -> list[str]:
+    import yaml
+
+    manifest = yaml.safe_load((REPO / "extension.yml").read_text(encoding="utf-8"))
+
+    def leaves(node, prefix=""):
+        for key, value in (node or {}).items():
+            path = f"{prefix}{key}"
+            if isinstance(value, dict):
+                yield from leaves(value, f"{path}.")
+            else:
+                yield path
+
+    return sorted(leaves(manifest["config"]["defaults"]))
+
+
+def test_every_shipped_default_is_read_by_something():
+    """A default with a comment explaining why it matters, and no reader
+    anywhere, is a promise to whoever configures it that nothing keeps.
+    `ledger.revalidate_when_stale` sat in the manifest with a three-line
+    justification while staleness was reported unconditionally and the key was
+    never loaded by anything."""
+    source = (REPO / "scripts" / "python" / "design.py").read_text(encoding="utf-8")
+    unread = [
+        path
+        for path in config_defaults()
+        if path.rsplit(".", 1)[-1] not in source
+        and path not in ENFORCED_BY_THE_COMMANDS
+    ]
+    assert unread == [], f"declared as a default, read by nothing: {unread}"
+
+
+@pytest.mark.parametrize("setting", sorted(ENFORCED_BY_THE_COMMANDS))
+def test_a_setting_the_script_ignores_is_named_by_a_command(setting):
+    """These four are honoured only because a command body says so. If the body
+    stops mentioning one, the setting silently stops doing anything while still
+    appearing in the config as though it worked."""
+    bodies = "\n".join(
+        path.read_text(encoding="utf-8") for path in (REPO / "commands").glob("*.md")
+    )
+    leaf = setting.rsplit(".", 1)[-1]
+    assert setting in bodies or leaf in bodies, (
+        f"{setting} is enforced by nothing: the script does not read it and no "
+        f"command body mentions it ({ENFORCED_BY_THE_COMMANDS[setting]})"
+    )

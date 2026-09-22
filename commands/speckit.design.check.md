@@ -1,5 +1,5 @@
 ---
-description: "Walk the Reuse -> Compose -> Extend -> Create ladder against the design system and gate planning on the outcome"
+description: "Walk the Recall -> Reuse -> Compose -> Extend -> Create ladder against the design system and gate planning on the outcome"
 ---
 
 # Design System Check
@@ -25,9 +25,9 @@ Run:
 Where bash is unavailable, call the module directly. It behaves identically:
 `python3 .specify/extensions/design/scripts/python/design.py gate --json`
 
-Parse the JSON for `FEATURE_DIR`, `FEATURE_SPEC`, `DESIGN_DOC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON` and `UI_BEARING`.
+Parse the JSON for `FEATURE_DIR`, `FEATURE_SPEC`, `DESIGN_DOC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON`, `UI_BEARING` and `REQUIRED_DIMENSIONS`.
 
-`CAPABILITIES` reflects what the design system could actually answer just now, not what the adapter file claims, because the script probes it. An empty list therefore means the source of truth is unavailable.
+`CAPABILITIES` is what the adapter maps **and** the design system was just reached for: the script spends one real call before reporting any of it, so a CLI that is not installed comes back with nothing rather than with a full contract. An empty list therefore means the source of truth is unavailable. One call is proof of reach, not of every mapping — an individual capability can still answer `available: false` with a `reason`, and that is a failure to ask, never the design system saying it has nothing.
 
 **If `UI_BEARING` is `false`**: the spec declares no user-facing surface. Write a one-line `DESIGN_DOC` recording that the gate was evaluated and found not applicable, then report and stop. Do not invent UI work to justify the gate.
 
@@ -164,12 +164,20 @@ When `ledger.enabled` is true, record each newly-walked surface so the next feat
 JSON
 ```
 
-Two fields decide whether this ledger is worth having:
+`resolution` is one of `reuse`, `compose-pattern`, `compose-components`, `extend`,
+`create` — the rung, in the ledger's own spelling. Anything else is refused rather
+than stored, because a ledger is read back by string match long after the reasoning
+is gone, and two spellings of one rung are two answers to one question.
+
+Three fields decide whether this ledger is worth having:
 
 - **`aliases`**: record every wording you actually searched with, including the ones that missed. These are what make a future lookup hit when the next author phrases the same need differently. A decision with no aliases is a decision that will be re-derived.
 - **`design_system_version`**: so a later lookup can tell that the system has moved on. Get it from the CLI (`ds.sh query describe`) where available; otherwise from the design system package's version.
+- **`decided_in`**: the feature that took the decision, so a later reader can go and see the argument rather than just the verdict. This is the only name for it; `feature` is folded into it.
 
 Do not record a surface that was adopted unchanged from a prior decision, because it is already there. When re-walking produced a *different* answer, add `"supersedes": "<id>"` so the old decision is retired rather than left to contradict the new one.
+
+This is the **only** place a decision is written. A second active decision for the same capability is refused, and the refusal names the id to supersede. If you meant to replace the earlier answer, say so with `supersedes`; if you did not, the earlier answer already stands and there is nothing to write.
 
 Skip this step entirely when the gate fails. A decision that was never allowed to pass should not become the precedent the next feature inherits.
 

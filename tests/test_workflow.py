@@ -13,12 +13,13 @@ from pathlib import Path
 
 import pytest
 
+REPO = Path(__file__).resolve().parents[1]
+
 
 @pytest.fixture
 def status(design, project):
     def _status():
-        root = Path.cwd()
-        return design.workflow_status(root, design.load_config(root))
+        return design.workflow_status(design.DesignSystem.resolve())
 
     return _status
 
@@ -41,6 +42,16 @@ def validation_round(feature, number: int, findings: list[str], fixed: list[str]
         feature / "design-system.md"
     ).is_file() else "# Design System\n\n"
     (feature / "design-system.md").write_text(existing + "\n".join(lines) + "\n", encoding="utf-8")
+
+
+def verification(feature, verdict: str = "Meets its design requirements.") -> None:
+    """What the verify pass leaves behind. `workflow status` derives the phase
+    from it, so a run is not complete until it exists."""
+    doc = feature / "design-system.md"
+    existing = doc.read_text() if doc.is_file() else "# Design System\n\n"
+    doc.write_text(
+        f"{existing}\n## Verification — 2026-05-14\n\n{verdict}\n", encoding="utf-8"
+    )
 
 
 # --- progression ---------------------------------------------------------------
@@ -79,17 +90,36 @@ def test_the_phases_advance_without_being_driven_by_hand(status, feature):
     seen.append(status()["next"])
     validation_round(feature, 1, [])
     seen.append(status()["next"])
+    verification(feature)
+    seen.append(status()["next"])
 
-    assert seen == ["plan", "implement", "validate", "done"]
+    assert seen == ["plan", "implement", "validate", "verify", "done"]
 
 
-def test_a_clean_first_validation_finishes_the_run(status, feature):
+def test_a_clean_validation_is_not_the_end_of_the_run(status, feature):
+    """Validation says the implementation matches what was decided. Verify asks
+    the different question — whether the RFC actually got what it asked for —
+    so a clean round hands over to it rather than finishing."""
     plan_and_tasks(feature)
     validation_round(feature, 1, [])
     result = status()
 
     assert result["open_findings"] == []
+    assert result["phases"]["validate"] == "done"
+    assert result["phases"]["verify"] == "pending"
+    assert result["next"] == "verify"
+    assert result["complete"] is False
+
+
+def test_the_run_finishes_once_verification_is_recorded(status, feature):
+    plan_and_tasks(feature)
+    validation_round(feature, 1, [])
+    verification(feature)
+    result = status()
+
+    assert result["open_findings"] == []
     assert result["phases"]["verify"] == "done"
+    assert result["verified"] is True
     assert result["complete"] is True
 
 
@@ -120,6 +150,12 @@ def test_fixing_then_revalidating_reaches_done(status, feature):
     result = status()
     assert result["validation_rounds_used"] == 2
     assert result["closed_findings"] == ["DS-F-001"]
+    # Clean, but the whole change has not been checked against the RFC yet.
+    assert result["next"] == "verify"
+    assert result["complete"] is False
+
+    verification(feature)
+    result = status()
     assert result["next"] == "done"
     assert result["complete"] is True
 
@@ -158,7 +194,7 @@ def test_progress_survives_an_interrupted_run(status, feature, design):
     validation_round(feature, 1, ["DS-F-001 **violation** · raw padding"])
 
     first = status()
-    second = design.workflow_status(Path.cwd(), design.load_config(Path.cwd()))
+    second = design.workflow_status(design.DesignSystem.resolve())
     assert first == second
 
 
@@ -171,3 +207,170 @@ def test_no_state_file_is_created(status, feature, project):
 
     files = {path.name for path in feature.iterdir()}
     assert files == {"spec.md", "plan.md", "tasks.md", "design-system.md"}
+
+
+# --- verify is a phase, not a restatement of the one before it ----------------
+#
+# Position is derived from artifacts, so a phase needs an artifact. `verify` was
+# derived from `last_round_clean and implemented` — the same condition as
+# `validate` — which meant it reported itself done the moment validation passed,
+# and `next` went straight from a clean round to `done`. A run following `next`,
+# as the run command tells it to, skipped the pass entirely.
+
+
+def test_a_clean_round_asks_for_verification_before_done(design, project, feature):
+    (feature / "spec.md").write_text("# Spec", encoding="utf-8")
+    (feature / "plan.md").write_text("# Plan", encoding="utf-8")
+    (feature / "tasks.md").write_text("- [x] T001\n", encoding="utf-8")
+    (feature / "design-system.md").write_text(
+        "## Validation round 1\n\nNo findings.\n", encoding="utf-8"
+    )
+
+    status = design.workflow_status(design.DesignSystem.resolve())
+    assert status["next"] == "verify", status["reason"]
+    assert status["complete"] is False
+    assert status["verified"] is False
+    assert status["phases"]["verify"] == "pending"
+    assert status["phases"]["validate"] == "done"
+
+
+def test_a_recorded_verification_completes_the_run(design, project, feature):
+    (feature / "spec.md").write_text("# Spec", encoding="utf-8")
+    (feature / "plan.md").write_text("# Plan", encoding="utf-8")
+    (feature / "tasks.md").write_text("- [x] T001\n", encoding="utf-8")
+    (feature / "design-system.md").write_text(
+        "## Validation round 1\n\nNo findings.\n\n"
+        "## Verification — 2026-05-14\n\nRFC criteria: 3 of 3 met.\n",
+        encoding="utf-8",
+    )
+
+    status = design.workflow_status(design.DesignSystem.resolve())
+    assert status["next"] == "done"
+    assert status["complete"] is True
+    assert status["verified"] is True
+    assert status["phases"]["verify"] == "done"
+
+
+def test_verification_does_not_skip_an_open_finding(design, project, feature):
+    """A verification heading is not a way past the fix loop."""
+    (feature / "spec.md").write_text("# Spec", encoding="utf-8")
+    (feature / "plan.md").write_text("# Plan", encoding="utf-8")
+    (feature / "tasks.md").write_text("- [x] T001\n", encoding="utf-8")
+    (feature / "design-system.md").write_text(
+        "## Validation round 1\n\n- [ ] DS-F-001 **violation** · raw px\n\n"
+        "## Verification\n\nPremature.\n",
+        encoding="utf-8",
+    )
+
+    status = design.workflow_status(design.DesignSystem.resolve())
+    assert status["next"] == "fix", status["reason"]
+    assert status["complete"] is False
+
+
+def test_the_run_command_states_the_verification_format():
+    """The heading is a contract between the command body and `workflow_status`,
+    the same as the validation round heading. If the body stops teaching it, the
+    phase silently stops being reachable."""
+    body = (REPO / "commands" / "speckit.design.run.md").read_text(encoding="utf-8")
+    assert "## Verification" in body
+    assert "design-system.md" in body
+
+
+# --- the format contract, against what a model actually writes ----------------
+#
+# Position is derived by regex from a markdown file that a language model
+# writes. The existing tests feed it the exact shape the command body teaches,
+# which proves the parser reads its own examples. The risk is the other case: a
+# model that formats reasonably but not identically, where a missed heading
+# does not error -- it silently stops the fix loop terminating.
+
+
+REALISTIC_ROUND_HEADINGS = [
+    "## Validation round 1 — 2026-05-14",      # as taught
+    "## Validation round 1 - 2026-05-14",      # hyphen, not em dash
+    "## Validation round 1",                   # no date
+    "## Validation Round 1",                   # title case
+    "### Validation round 1",                  # nested a level deeper
+    "##  Validation round 1  ",                # loose whitespace
+    "## Validation round 10 — 2026-05-14",     # two digits
+]
+
+
+@pytest.mark.parametrize("heading", REALISTIC_ROUND_HEADINGS)
+def test_a_round_heading_is_recognised(design, heading):
+    found = design.VALIDATION_ROUND.findall(heading)
+    assert found, f"not recognised as a round: {heading!r}"
+    assert found[0].isdigit()
+
+
+REALISTIC_FINDING_LINES = [
+    "- [ ] DS-F-001 **violation** · Date range · bespoke input",
+    "- [ ] DS-F-001 violation: bespoke input",
+    "  - [ ] DS-F-012 nested under a surface heading",
+    "-   [ ] DS-F-003 extra spaces after the dash",
+]
+
+
+@pytest.mark.parametrize("line", REALISTIC_FINDING_LINES)
+def test_an_open_finding_is_recognised(design, line):
+    assert design.FINDING_OPEN.findall(line), f"open finding missed: {line!r}"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "- [x] DS-F-001 fixed by using the system's focus token",
+        "- [X] DS-F-002 fixed",
+        "  - [x] DS-F-003 fixed",
+    ],
+)
+def test_a_closed_finding_is_recognised(design, line):
+    assert design.FINDING_CLOSED.findall(line), f"closed finding missed: {line!r}"
+    assert not design.FINDING_OPEN.findall(line), "a fixed finding still reads as open"
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "## Verification — 2026-05-14",
+        "## Verification",
+        "### Verification of the whole change",
+        "## verification",
+    ],
+)
+def test_a_verification_heading_is_recognised(design, heading):
+    assert design.VERIFICATION.search(heading), f"verification missed: {heading!r}"
+
+
+def test_a_finding_inside_prose_does_not_count_as_open(design):
+    """`DS-F-001` mentioned in a sentence is a reference, not a finding. Only a
+    checkbox at the start of a list item opens one."""
+    prose = "Round 2 confirmed that DS-F-001 no longer reproduces.\n"
+    assert not design.FINDING_OPEN.findall(prose)
+
+
+def test_the_loop_terminates_on_a_realistically_formatted_document(
+    design, project, feature
+):
+    """End to end on markdown written the way a model writes it rather than the
+    way the example does: hyphen instead of em dash, a surface heading between
+    the rounds, findings indented under it."""
+    (feature / "plan.md").write_text("# Plan", encoding="utf-8")
+    (feature / "tasks.md").write_text("- [x] T001\n", encoding="utf-8")
+    (feature / "design-system.md").write_text(
+        "# Design System\n\n"
+        "## Surface: a control for picking a date range\n\n"
+        "**Resolution**: Compose (components)\n\n"
+        "### Validation round 1 - 2026-05-14\n\n"
+        "  - [x] DS-F-001 raw padding, fixed with space.3\n\n"
+        "### Validation round 2 - 2026-05-15\n\n"
+        "No findings.\n\n"
+        "## Verification\n\nRFC criteria: 3 of 3 met.\n",
+        encoding="utf-8",
+    )
+
+    status = design.workflow_status(design.DesignSystem.resolve())
+    assert status["validation_rounds_used"] == 2
+    assert status["closed_findings"] == ["DS-F-001"]
+    assert status["open_findings"] == []
+    assert status["next"] == "done", status["reason"]

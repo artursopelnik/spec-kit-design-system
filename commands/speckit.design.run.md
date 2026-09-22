@@ -34,7 +34,7 @@ Where the RFC came from is not your concern. A file, a GitHub issue, a Jira tick
 
 Without bash: `python3 .specify/extensions/design/scripts/python/design.py gate --json`. Identical behaviour. Every command below has the same fallback, so it is not repeated.
 
-Parse `REACHABLE`, `UNREACHABLE_REASON`, `ADAPTER`, `PRINCIPLES_SOURCE`, `DOD_ITEMS`, `FEATURE_DIR`, `CONFIG`.
+Parse `REACHABLE`, `UNREACHABLE_REASON`, `ADAPTER`, `PRINCIPLES_SOURCE`, `DOD_ITEMS`, `FEATURE_DIR`, `DESIGN_DOC`, `CONFIG`.
 
 **If `REACHABLE` is `false`**: report `UNREACHABLE_REASON` and stop. Do not proceed from a remembered component inventory. A run that invents the design system is worse than no run, because everything downstream will look properly sourced.
 
@@ -82,7 +82,7 @@ When the spec comes back carrying `[NEEDS CLARIFICATION]` markers, resolve them:
 
 ### 3. Plan
 
-`/speckit.plan`. The `before_plan` hook fires `/speckit.design.check`, which walks Reuse → Compose → Extend → Create for every surface and blocks planning if a surface is unaccounted for.
+`/speckit.plan`. The `before_plan` hook fires `/speckit.design.check`, which walks Recall → Reuse → Compose → Extend → Create for every surface and blocks planning if a surface is unaccounted for.
 
 If the gate fails, fix the cause and re-run it. Do not disable it and do not route around it.
 
@@ -133,25 +133,52 @@ A finding you disagree with is not fixed by deleting it. Argue it in the design 
 
 ### 7. Verify
 
-Last pass, over the whole change rather than per finding:
+`workflow status` returns `next: "verify"` once validation is clean. This is the
+last pass, over the whole change rather than per finding:
 
 - Every acceptance criterion in the RFC is met.
 - Every `DS-` requirement in the spec is satisfied.
 - Every principle in force was honoured, or its exception is written down.
 - Every item of the team's Definition of Done is met, where `DOD_ITEMS` is non-empty.
 - The tests the project already has still pass. Run them.
-- `workflow status` returns `complete: true`.
 
-Record each new ladder decision so the next feature does not re-derive it:
+Then record that it happened, by appending a `## Verification` section to
+`design-system.md`. The heading is load-bearing in the same way the validation
+round heading is: `workflow status` reads it to derive the phase, and without it
+the run has no artifact saying this pass ever ran. Say what was checked and what
+the verdict was, not just that it was done:
+
+```markdown
+## Verification — 2026-05-14
+
+RFC acceptance criteria: 3 of 3 met.
+Spec requirements: DS-001 … DS-005 satisfied.
+Principles: `docs` (version 2025.4), all applicable honoured; ACME-DENSITY not
+enforceable (no verify step), noted rather than checked.
+Definition of Done: no file; not checked.
+Tests: 48 passed.
+
+Verdict: the change meets its design requirements.
+```
+
+Only then does `workflow status` return `complete: true`.
+
+The ladder decisions are already recorded: `/speckit.design.check` writes each
+surface it walks, at the moment it walks it, which is the only point where the
+candidates and the reasoning are still in hand. **Do not record them again here.**
+A second write for the same capability is refused, and rightly — two active
+decisions for one surface is the drift the ladder exists to prevent.
+
+Confirm instead that the walk landed:
 
 ```
-.specify/extensions/design/scripts/bash/ds.sh ledger record - --json <<'JSON'
-{"capability":"selection of a date range","resolution":"compose",
- "decision":"Popover + Calendar + two DateField inputs",
- "aliases":["date range picker","period filter"],
- "feature":"001-booking-filters","design_system_version":"2.1.0"}
-JSON
+.specify/extensions/design/scripts/bash/ds.sh ledger list --json
 ```
+
+Every surface resolved in `DESIGN_DOC` should appear, except those adopted
+unchanged from a prior decision, which were already there. A surface that is
+missing means the gate passed without committing its reasoning to memory: record
+it now, with the aliases actually searched, before the run closes.
 
 ## Completion Report
 
@@ -172,4 +199,5 @@ Short. The user asked for a change, not a narrative:
 - [ ] The implementation uses the system's own components and tokens, with no invented names
 - [ ] Validation ran as an independent pass and its findings were fixed or argued
 - [ ] The final validation round is clean, or the run stopped and said why
-- [ ] New ladder decisions are in the ledger
+- [ ] Every newly-walked surface is in the ledger, recorded once, by the gate
+- [ ] A `## Verification` section in `design-system.md` records what was checked and the verdict

@@ -395,20 +395,19 @@ def test_benchmark_inventories_answer_through_the_shipped_adapters(
     )
     write_config({"adapter": system["adapter"]})
 
-    config = design.load_config(project)
-    adapter = design.load_adapter(project, config)
+    ds = design.DesignSystem.resolve()
 
-    listed = design.run_capability(project, config, adapter, "list_components", {})
+    listed = ds.ask("list_components")
     assert listed["available"] is True and listed["data"]
 
     first = listed["data"][0]["name"]
-    one = design.run_capability(project, config, adapter, "component", {"name": first})
+    one = ds.ask("component", name=first)
     assert one["found"] is True and one["data"]["name"] == first
 
-    hits = design.run_capability(project, config, adapter, "search", {"query": "dialog overlay"})
+    hits = ds.ask("search", query="dialog overlay")
     assert hits["available"] is True and hits["data"]
 
-    breakpoints = design.run_capability(project, config, adapter, "breakpoints", {})
+    breakpoints = ds.ask("breakpoints")
     assert breakpoints["available"] is True and breakpoints["data"]
 
 
@@ -502,9 +501,7 @@ def test_principles_resolve_from_where_the_cases_assume(
         config["principles"] = {"source": ".design-system/principles.yml"}
     write_config(config)
 
-    loaded = design.load_config(project)
-    adapter = design.load_adapter(project, loaded)
-    resolved = design.resolve_principles(project, loaded, adapter)
+    resolved = design.resolve_principles(design.DesignSystem.resolve())
 
     assert resolved["principles_source"] == expected_source, resolved["principles_source"]
     assert {rule["id"] for rule in resolved["principles"]} == rules_in_force(harness, system_id)

@@ -11,12 +11,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 
 def run(design, capability, **params):
-    root = Path.cwd()
-    config = design.load_config(root)
-    adapter = design.load_adapter(root, config)
-    return design.run_capability(root, config, adapter, capability, params)
+    return design.DesignSystem.resolve().ask(capability, **params)
 
 
 # --- static inventory --------------------------------------------------------
@@ -120,8 +119,7 @@ def test_missing_binary_is_unavailable(design, project, write_config, fake_cli):
 def test_probe_reports_capabilities_when_reachable(design, project, write_config, inventory):
     write_config({"adapter": "static-json"})
     root = Path.cwd()
-    config = design.load_config(root)
-    probe = design.probe_adapter(root, config, design.load_adapter(root, config))
+    probe = design.DesignSystem.resolve().probe
     assert probe["reachable"] is True
     assert "component" in probe["capabilities"]
 
@@ -133,14 +131,12 @@ def test_probe_fails_closed_when_the_design_system_is_unreachable(
     CLI would report a full set for a design system that is not installed, and
     the commands' fail-closed guard could never fire."""
     write_config({"adapter": "example", "bin": "./definitely-not-here"})
-    root = Path.cwd()
-    config = design.load_config(root)
-    adapter = design.load_adapter(root, config)
+    ds = design.DesignSystem.resolve()
 
     # The template adapter maps the whole contract, so the gap between what is
     # declared and what is reachable is as wide as it can get.
-    assert design.mapped_capabilities(adapter) == design.CAPABILITIES
-    probe = design.probe_adapter(root, config, adapter)
+    assert design.mapped_capabilities(ds.adapter) == design.CAPABILITIES
+    probe = ds.probe
     assert probe["reachable"] is False
     assert probe["capabilities"] == []
 
@@ -533,3 +529,149 @@ def test_another_tools_response_is_not_read_through_this_cli_envelope(
     result = run(design, "report_gap", title="Date range", body="...")
     assert result["available"] is True
     assert result["data"]["url"] == "http://x/1"
+
+
+# --- the seams the refactor introduced ----------------------------------------
+#
+# Dispatch was one 234-line function with five jobs in it: routing, two
+# transports, three query strategies and envelope construction. The value of
+# splitting it is only real if a new transport is a class and a registry entry,
+# so that is what these check.
+
+
+def test_every_transport_answers_the_protocol(design):
+    for transport in design.TRANSPORTS:
+        assert hasattr(transport, "handles") and hasattr(transport, "fetch")
+
+
+def test_every_strategy_answers_the_protocol(design):
+    for strategy in design.STRATEGIES:
+        assert hasattr(strategy, "handles") and hasattr(strategy, "answer")
+
+
+def test_the_last_strategy_always_handles(design):
+    """Selection uses `next(...)` without a default, so the fallback has to be
+    total or an unusual mapping raises StopIteration instead of answering."""
+    request = design.Request("tokens", {}, {}, Path.cwd(), {}, 30)
+    assert design.STRATEGIES[-1].handles(request) is True
+
+
+def test_a_transport_is_chosen_by_the_mapping_not_by_order(design):
+    base = Path.cwd()
+    file_spec = design.Request("tokens", {"read_file": "x.json"}, {}, base, {}, 30)
+    mcp_spec = design.Request("search", {"mcp": {"tool": "t"}}, {}, base, {}, 30)
+    cli_spec = design.Request("search", {"args": ["search"]}, {"bin": "ds"}, base, {}, 30)
+
+    picked = lambda req: type(  # noqa: E731
+        next(t for t in design.TRANSPORTS if t.handles(req))
+    ).__name__
+    assert picked(file_spec) == "FileTransport"
+    assert picked(mcp_spec) == "McpTransport"
+    assert picked(cli_spec) == "ProcessTransport"
+
+
+def test_an_unmapped_capability_reaches_no_transport(design, project, write_config):
+    write_config({"adapter": "static-json"})
+    result = run(design, "report_gap", title="t", body="b")
+    assert result["available"] is False and "does not map" in result["reason"]
+
+
+# --- Answer keeps the invariant in one place ----------------------------------
+
+
+def test_unavailable_never_claims_an_answer(design):
+    envelope = design.Answer.unavailable("search", "CLI not installed")
+    assert envelope["available"] is False
+    assert "found" not in envelope, (
+        "a failure to ask must not carry `found`: a caller reading found=False "
+        "would take it for the design system saying it has nothing"
+    )
+
+
+def test_answered_reports_its_own_size(design):
+    envelope = design.Answer.answered("tokens", {"space": {"3": "12px"}})
+    assert envelope["available"] is True and envelope["found"] is True
+    assert envelope["bytes"] == design.payload_bytes(envelope["data"])
+    assert envelope["result_path_missed"] is False
+
+
+@pytest.mark.parametrize("empty", [None, [], {}])
+def test_an_empty_answer_is_still_an_answer(design, empty):
+    envelope = design.Answer.answered("pattern", empty)
+    assert envelope["available"] is True and envelope["found"] is False
+
+
+# --- MCP: the transport the README has always promised ------------------------
+
+
+def test_mcp_without_a_client_is_unavailable_not_empty(design, project, write_config):
+    """The failure mode that matters: an MCP mapping nobody can call must read
+    as a failure to ask, never as a design system with nothing in it."""
+    write_config(
+        {
+            "adapter": "custom",
+            "capabilities": {"search": {"mcp": {"server": "ds", "tool": "search"}}},
+        }
+    )
+    result = run(design, "search", query="date range")
+    assert result["available"] is False
+    assert "found" not in result
+    assert "MCP client" in result["reason"]
+
+
+def test_mcp_mapping_without_a_tool_is_rejected(design, project, write_config):
+    write_config(
+        {"adapter": "custom", "capabilities": {"search": {"mcp": {"server": "ds"}}}}
+    )
+    result = run(design, "search", query="x")
+    assert result["available"] is False and "tool" in result["reason"]
+
+
+def test_mcp_calls_the_client_with_the_tool_and_the_query(design, project, write_config):
+    """A stand-in client that echoes what it was handed, so the argv the
+    transport builds is observable."""
+    client = project / "mcp-client.sh"
+    client.write_text(
+        '#!/usr/bin/env bash\n'
+        'printf \'{"results":[{"name":"Calendar","argv":"%s"}]}\\n\' "$*"\n',
+        encoding="utf-8",
+    )
+    client.chmod(0o755)
+    write_config(
+        {
+            "adapter": "custom",
+            "capabilities": {
+                "search": {
+                    "mcp": {"server": "design-system", "tool": "search_components",
+                            "client": str(client)},
+                    "args": ["--query", "{query}"],
+                    "result_path": "results",
+                }
+            },
+        }
+    )
+    result = run(design, "search", query="date range")
+
+    assert result["available"] is True and result["found"] is True
+    argv = result["data"][0]["argv"]
+    assert "--server design-system" in argv
+    assert "--tool search_components" in argv
+    assert "--query date range" in argv
+
+
+def test_an_mcp_server_that_fails_is_unavailable(design, project, write_config):
+    client = project / "broken-client.sh"
+    client.write_text('#!/usr/bin/env bash\necho "connection refused" >&2\nexit 1\n',
+                      encoding="utf-8")
+    client.chmod(0o755)
+    write_config(
+        {
+            "adapter": "custom",
+            "capabilities": {
+                "search": {"mcp": {"tool": "search", "client": str(client)}},
+            },
+        }
+    )
+    result = run(design, "search", query="x")
+    assert result["available"] is False and "found" not in result
+    assert "connection refused" in result["reason"]

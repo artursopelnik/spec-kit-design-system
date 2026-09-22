@@ -27,9 +27,10 @@ import re
 import shlex
 import subprocess
 import sys
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 EXT_ID = "design"
 CONFIG_NAME = "design-config.yml"
@@ -45,29 +46,76 @@ DEFAULT_PRINCIPLES = "principles/default.yml"
 # and only the matching principles reach its context.
 SURFACE_KINDS = ["interactive", "layout", "text", "media", "motion", "any"]
 
-# Capabilities the commands are written against. An adapter maps these to real
+@dataclass(frozen=True)
+class Capability:
+    """One question the commands know how to ask.
+
+    Everything about a capability in one row. Adding one used to mean editing
+    four places -- the name list, `cmd_query`'s positional map, `PROBE_PARAMS`
+    and `LADDER_CAPABILITIES` -- with nothing to say they had drifted apart.
+
+    `positional` names what `ds.sh query <capability> a b` means. `probe_with`
+    is a call cheap enough to prove the design system is reachable, and only a
+    capability that carries one may be probed. `rung` is which step of the
+    ladder this capability backs, so an adapter author can see what a missing
+    mapping costs before a run does.
+    """
+
+    name: str
+    positional: tuple[str, ...] = ()
+    probe_with: dict[str, str] | None = None
+    rung: str | None = None
+    note: str = ""
+
+
+# The contract the commands are written against. An adapter maps these to real
 # invocations; anything unmapped is reported as unavailable rather than faked.
-CAPABILITIES = [
-    "describe",
-    "search",
-    "list_components",
-    "component",
-    "pattern",
-    "tokens",
-    # Breakpoints are their own query because "use our breakpoints" is
-    # unenforceable unless the agent can find out what they actually are.
-    "breakpoints",
-    # The design system's own principles. When this answers, it IS the
-    # principles for the run; nothing shipped here is merged into it.
-    "principles",
-    "extend",
-    "validate",
-    "report_gap",
+CAPABILITY_LIST = [
+    Capability("describe", probe_with={}),
+    Capability("search", ("query",), probe_with={"query": "button"}, rung="reuse"),
+    Capability("list_components", probe_with={}),
+    Capability("component", ("name",), probe_with={"name": "Button"}, rung="reuse"),
+    Capability("pattern", ("name",), rung="compose"),
+    Capability("tokens", ("theme",)),
+    Capability(
+        "breakpoints",
+        ("theme",),
+        note="Its own query because 'use our breakpoints' is unenforceable "
+        "unless the agent can find out what they actually are.",
+    ),
+    Capability(
+        "principles",
+        note="When this answers, it IS the principles for the run; nothing "
+        "shipped here is merged into it.",
+    ),
+    Capability("extend", ("name",), rung="extend"),
+    Capability("validate", ("target",)),
+    Capability("report_gap", ("title", "body"), rung="create"),
 ]
 
-# Phases of the autonomous workflow, in order. `clarify` and `verify` bracket
-# the spec-kit lifecycle; the rest map onto spec-kit's own commands.
-PHASES = ["clarify", "specify", "plan", "implement", "validate", "verify"]
+CAPABILITY_REGISTRY = {capability.name: capability for capability in CAPABILITY_LIST}
+CAPABILITIES = [capability.name for capability in CAPABILITY_LIST]
+
+# How long the design system gets to answer. The probe is held to a shorter
+# leash than a real question: it runs before every gate and context call, and a
+# system that needs two minutes to say hello is already unusable.
+DEFAULT_TIMEOUT = 120
+PROBE_TIMEOUT = 30
+
+# How much of a failure to quote back. Enough to recognise the error, not enough
+# to bury the JSON object it travels in.
+ERROR_DETAIL_CHARS = 500
+CLI_PROSE_CHARS = 200
+
+# How many results a listing hands back before the caller has to narrow the
+# question. Not a limit on the design system: the full answer is one call away.
+SEARCH_HITS_RETURNED = 20
+LEDGER_MATCHES_RETURNED = 5
+RFC_QUESTIONS_RETURNED = 20
+
+# Below this a document is too thin to have said much, and the clarify phase
+# should expect to do real work.
+RFC_SHORT_WORDS = 30
 
 # A hit on the name is worth more than a hit buried in prose.
 FIELD_WEIGHTS = {"name": 3.0, "usage": 1.5, "description": 1.0}
@@ -80,9 +128,49 @@ STOPWORDS = {
 
 def die(message: str, code: int = 1) -> None:
     print(f"[design] {message}", file=sys.stderr)
-    # Callers parse stdout, so a refusal is JSON there too, not just stderr text.
-    emit({"available": False, "error": message})
+    # Callers parse stdout, so a refusal is JSON there too, not just stderr text,
+    # and it carries the same fail-closed markers an unexpected error would.
+    emit(failure_envelope(ACTIVE_COMMAND, message))
     raise SystemExit(code)
+
+
+# Which subcommand is running. `die` can be reached from deep inside config or
+# adapter loading, long before the caller sees a result, and the shape of a
+# refusal depends on who is about to read it.
+ACTIVE_COMMAND: str | None = None
+
+# The keys each subcommand is read through when it fails. A command body decides
+# to stop on `REACHABLE`/`principles_source`, so an envelope that carries neither
+# is not a refusal it can act on — it reads as a malformed response and the guard
+# never fires. Failing closed has to survive the failure being an unexpected one.
+FAILURE_MARKERS: dict[str, dict[str, Any]] = {
+    "gate": {
+        "REACHABLE": False,
+        "CAPABILITIES": [],
+        "PRINCIPLES_SOURCE": "unavailable",
+        "REQUIRED_DIMENSIONS": [],
+        "HAS_TOKENS": False,
+        "DOD_ITEMS": [],
+    },
+    "principles": {"principles_source": "unavailable", "principles": [], "principle_count": 0},
+    "context": {"reachable": False, "principles": {"principles_source": "unavailable"}},
+    "workflow": {"next": "stop", "complete": False},
+}
+
+
+def failure_envelope(command: str | None, message: str) -> dict:
+    """A refusal shaped like the answer its caller is about to read.
+
+    Every command body guards on the same two things — the design system was not
+    reachable, or no principles are in force — and stops. An error that arrives
+    without those keys slips past both guards, which is how a crash turns into a
+    run that proceeds on no principles at all.
+    """
+    envelope: dict[str, Any] = {"available": False, "error": message}
+    envelope.update(FAILURE_MARKERS.get(command or "", {}))
+    if command in ("gate", "context", "principles"):
+        envelope["UNREACHABLE_REASON"] = message
+    return envelope
 
 
 def emit(obj: Any) -> None:
@@ -206,52 +294,13 @@ def set_path(target: dict, dotted: str, value: Any) -> None:
     target[parts[-1]] = value
 
 
-def migrate_config(config: dict) -> dict:
-    """Carry pre-0.2 configuration forward.
-
-    `baseline` is gone as a public concept: what it named is now the *default*
-    principles, used only when the design system supplies none. Old keys are
-    mapped rather than ignored, so an existing project keeps working, and the
-    mapping is reported so it can be cleaned up.
-    """
-    notes: list[str] = []
-
-    rules = config.pop("rules", None)
-    if isinstance(rules, dict):
-        principles = dict(config.get("principles") or {})
-        if "baseline" in rules and "default" not in principles:
-            principles["default"] = bool(rules["baseline"])
-            notes.append("rules.baseline -> principles.default")
-        if rules.get("house_rules") and not principles.get("source"):
-            principles["source"] = rules["house_rules"]
-            notes.append("rules.house_rules -> principles.source")
-        if rules.get("disabled") and not principles.get("disabled"):
-            principles["disabled"] = rules["disabled"]
-            notes.append("rules.disabled -> principles.disabled")
-        config["principles"] = principles
-
-    audit = config.pop("audit", None)
-    if isinstance(audit, dict):
-        config["validation"] = deep_merge(audit, config.get("validation") or {})
-        notes.append("audit.* -> validation.*")
-
-    gate = config.get("gate")
-    if isinstance(gate, dict) and "require_gap_report" in gate:
-        gate.pop("require_gap_report")
-        notes.append("gate.require_gap_report dropped: a gap record is always required")
-
-    if notes:
-        config["_migrated"] = notes
-    return config
-
-
 def load_config(root: Path) -> dict:
     """Resolution order: extension defaults -> project config -> local override
     -> environment. This mirrors spec-kit's own layering, so a developer can
     point at a scratch design system without touching the committed config."""
     config = load_yaml(ext_dir(root) / "extension.yml").get("config", {}).get("defaults", {})
-    config = deep_merge(config, migrate_config(load_yaml(ext_dir(root) / CONFIG_NAME)))
-    config = deep_merge(config, migrate_config(load_yaml(ext_dir(root) / LOCAL_CONFIG_NAME)))
+    config = deep_merge(config, load_yaml(ext_dir(root) / CONFIG_NAME))
+    config = deep_merge(config, load_yaml(ext_dir(root) / LOCAL_CONFIG_NAME))
 
     for variable, (dotted, kind) in ENV_OVERRIDES.items():
         raw = os.environ.get(variable)
@@ -260,6 +309,9 @@ def load_config(root: Path) -> dict:
 
     return config
 
+
+# Anything detection could not read, reported by the gate rather than swallowed.
+DETECTION_NOTES: list[str] = []
 
 # Dependency name -> adapter. Ordered: the first match wins.
 LIBRARY_ADAPTERS = (
@@ -284,8 +336,13 @@ def detect_adapter(root: Path, config: dict) -> str:
         package = json.loads((base / "package.json").read_text(encoding="utf-8"))
         for key in ("dependencies", "devDependencies"):
             deps.update(package.get(key) or {})
-    except (OSError, ValueError, AttributeError):
-        pass
+    except FileNotFoundError:
+        pass  # No package.json at all is the ordinary case, not a problem.
+    except (OSError, ValueError, AttributeError) as exc:
+        # A package.json that exists and cannot be read is different: detection
+        # silently falls through to static-json and the project is left
+        # wondering why its component library was not recognised.
+        DETECTION_NOTES.append(f"could not read {base / 'package.json'}: {exc}")
     for package, adapter_id in LIBRARY_ADAPTERS:
         if package in deps or (package.endswith("/") and any(d.startswith(package) for d in deps)):
             return adapter_id
@@ -324,13 +381,13 @@ def mapped_capabilities(adapter: dict) -> list[str]:
     return [name for name in CAPABILITIES if name in mapped and mapped[name]]
 
 
-# Probed in this order; the first mapped one is used. `describe` is cheapest and
-# most informative where a CLI self-describes.
-PROBE_ORDER = ["describe", "list_components", "search", "component"]
-PROBE_PARAMS = {"search": {"query": "button"}, "component": {"name": "Button"}}
+# Probed in this order; the first mapped one is used. Only a capability that
+# declares a `probe_with` call can stand in for reachability.
+PROBE_ORDER = [c.name for c in CAPABILITY_LIST if c.probe_with is not None]
+PROBE_PARAMS = {c.name: c.probe_with for c in CAPABILITY_LIST if c.probe_with}
 
 
-def probe_adapter(root: Path, config: dict, adapter: dict) -> dict:
+def probe_adapter(ds: DesignSystem) -> dict:
     """Actually reach the design system before reporting what it can do.
 
     Reading capabilities off the adapter YAML alone would report a full set for
@@ -338,13 +395,13 @@ def probe_adapter(root: Path, config: dict, adapter: dict) -> dict:
     guard unreachable: the gate would pass precisely when it cannot check
     anything. So this spends one call to find out.
     """
-    mapped = mapped_capabilities(adapter)
+    mapped = mapped_capabilities(ds.adapter)
     if not mapped:
         return {"capabilities": [], "reachable": False, "reason": "adapter maps no capabilities"}
 
     probe = next((name for name in PROBE_ORDER if name in mapped), mapped[0])
     result = run_capability(
-        root, config, adapter, probe, dict(PROBE_PARAMS.get(probe, {})), timeout=30
+        ds, probe, dict(PROBE_PARAMS.get(probe, {})), timeout=PROBE_TIMEOUT
     )
 
     if not result.get("available"):
@@ -355,6 +412,62 @@ def probe_adapter(root: Path, config: dict, adapter: dict) -> dict:
             "reason": result.get("reason", "design system could not be reached"),
         }
     return {"capabilities": mapped, "reachable": True, "probed": probe}
+
+
+@dataclass
+class DesignSystem:
+    """One resolved view of the project and the system it asks.
+
+    `(root, config, adapter)` used to be threaded through nine functions and
+    rebuilt at the top of every subcommand. That cost three things: the same
+    three-line preamble in every `cmd_*`, no place to cache anything, and
+    signatures that drifted out of order.
+
+    The caching is the part that shows up in a run. `gate` probes the design
+    system, then each `context <phase>` probed it again, and for a CLI-backed
+    system resolved its principles a second time too -- so a phase transition
+    paid for four round-trips where two would do. Resolving once per process
+    fixes that without any command having to know it happened.
+    """
+
+    root: Path
+    config: dict
+    adapter: dict
+    _probe: dict | None = field(default=None, repr=False)
+
+    @classmethod
+    def resolve(cls) -> DesignSystem:
+        root = repo_root()
+        config = load_config(root)
+        return cls(root, config, load_adapter(root, config))
+
+    @property
+    def base(self) -> Path:
+        """Where paths and subprocesses resolve. `cwd` points a monorepo at one
+        package, and it has to mean the same thing for both kinds of capability."""
+        return self.root / self.config["cwd"] if self.config.get("cwd") else self.root
+
+    @property
+    def adapter_id(self) -> str:
+        return self.adapter.get("id", "")
+
+    @property
+    def probe(self) -> dict:
+        if self._probe is None:
+            self._probe = probe_adapter(self)
+        return self._probe
+
+    @property
+    def capabilities(self) -> list[str]:
+        """What the design system could actually be reached for just now."""
+        return self.probe["capabilities"]
+
+    @property
+    def reachable(self) -> bool:
+        return self.probe["reachable"]
+
+    def ask(self, capability: str, timeout: int | None = None, **params: Any) -> dict:
+        return run_capability(self, capability, params, timeout=timeout)
 
 
 # --- capability dispatch -----------------------------------------------------
@@ -458,240 +571,489 @@ def payload_bytes(data: Any) -> int:
         return 0
 
 
-def run_capability(
-    root: Path,
-    config: dict,
-    adapter: dict,
-    capability: str,
-    params: dict[str, str],
-    timeout: int = 120,
-) -> dict:
-    spec = (adapter.get("capabilities") or {}).get(capability)
-    if not spec:
-        return {
-            "capability": capability,
-            "available": False,
-            "reason": f"adapter '{adapter.get('id')}' does not map '{capability}'",
-        }
+class Answer:
+    """One capability's response, built in one place.
 
-    # Paths and subprocesses resolve against the same base, so `cwd` works for
-    # monorepos whichever kind of capability the adapter maps.
-    base = root / config["cwd"] if config.get("cwd") else root
+    Thirteen return statements used to construct this dict by hand, and the
+    shape drifted between them: the file-backed paths never carried
+    `result_path_missed`, six of the failure paths never carried `bytes`, and a
+    caller reading a missing key cannot tell it from a different kind of answer.
 
-    # File-backed capability, such as a static inventory.
-    if spec.get("read_file"):
-        target = substitute([spec["read_file"]], {**params, "source": adapter.get("source", "")})
-        path = base / target[0] if target else None
-        if not path or not path.is_file():
-            return {"capability": capability, "available": False, "reason": f"{path} not found"}
-        try:
-            data = read_structured(path)
-        except ValueError as exc:
-            return {"capability": capability, "available": False, "reason": str(exc)}
-        if not isinstance(data, dict):
-            return {
-                "capability": capability,
-                "available": False,
-                "reason": f"{path} must hold a mapping at top level, got {type(data).__name__}",
-            }
-        result, _ = slice_result(data, spec)
+    The distinction the two constructors encode is the invariant the whole
+    extension rests on. `unavailable` is a failure to *ask* — an outage, a
+    missing binary, a changed flag. `answered` is the design system speaking,
+    and only then may `found` be false. Collapsing the two would let a registry
+    outage read as an empty design system and push the ladder toward Create.
+    """
 
-        key_field = spec.get("key_field")
-        wanted = params.get("name")
-        if key_field and wanted and isinstance(result, list):
-            match = next(
-                (
-                    item
-                    for item in result
-                    if isinstance(item, dict)
-                    and str(item.get(key_field, "")).lower() == wanted.lower()
-                ),
-                None,
+    @staticmethod
+    def unavailable(capability: str, reason: str, **extra: Any) -> dict:
+        return {"capability": capability, "available": False, "reason": reason, **extra}
+
+
+    @staticmethod
+    def cost_note(capability: str, result: dict) -> str | None:
+        """What a bulky or unnarrowed answer costs, phrased as the fix.
+
+        Reads `bytes` and `result_path_missed` off an answer, so it belongs to
+        whatever builds them. A capability mapped to a command it shares with a
+        broader one (`breakpoints` onto the token call is the usual pair)
+        answers with the whole payload unless the adapter carves out a slice,
+        and that is invisible at the call site: the context is simply bigger,
+        every phase, every run.
+        """
+        size = result.get("bytes") or 0
+        if result.get("result_path_missed"):
+            return (
+                f"{capability}: the adapter's result_path did not resolve, so the CLI's whole "
+                f"payload came back ({size} bytes). Narrow it with result_path, result_paths "
+                f"or pick in the adapter."
             )
-            return {
-                "capability": capability,
-                "available": True,
-                "found": match is not None,
-                "source": str(path),
-                "bytes": payload_bytes(match),
-                "data": match,
-            }
+        if size > LARGE_PAYLOAD_BYTES:
+            return (
+                f"{capability}: {size} bytes in this context. If the design system can answer "
+                f"it more narrowly, or the adapter can slice the response (result_path, "
+                f"result_paths, pick), that cost is paid once in the adapter instead of every run."
+            )
+        return None
 
-        if spec.get("match_fields") and wanted is None and not params.get("query"):
-            return {
-                "capability": capability,
-                "available": False,
-                "reason": f"'{capability}' needs a query",
-            }
-
-        if spec.get("match_fields") and wanted is None and params.get("query"):
-            query_tokens = set(normalize(params["query"]))
-            hits = []
-            for section in spec.get("search_keys") or []:
-                for item in data.get(section) or []:
-                    if not isinstance(item, dict):
-                        continue
-                    # Weighted per field rather than one bag of words. A raw
-                    # overlap count makes every candidate tie at 1 on short
-                    # descriptions, so results come back in insertion order and
-                    # "pull detail on the strongest hits" has nothing to act on.
-                    score = 0.0
-                    for field in spec["match_fields"]:
-                        tokens = set(normalize(str(item.get(field, ""))))
-                        if not tokens:
-                            continue
-                        overlap = query_tokens & tokens
-                        if overlap:
-                            weight = FIELD_WEIGHTS.get(field, 1.0)
-                            score += weight * len(overlap) / len(query_tokens)
-                    if score:
-                        hits.append(
-                            {"kind": section, "score": round(score, 3), **item}
-                        )
-            # Ties break on name so ordering is stable rather than positional.
-            hits.sort(key=lambda entry: (-entry["score"], str(entry.get("name", ""))))
-            return {
-                "capability": capability,
-                "available": True,
-                "found": bool(hits),
-                "source": str(path),
-                "bytes": payload_bytes(hits[:20]),
-                "data": hits[:20],
-            }
-
-        # No envelope guessing here: a file-backed adapter knows the shape of the
-        # file it points at, so a missing `result_path` means the file genuinely
-        # does not carry that section, not that the mapping was wrong.
+    @staticmethod
+    def answered(
+        capability: str,
+        data: Any,
+        *,
+        found: bool | None = None,
+        size: int | None = None,
+        missed: bool = False,
+        **extra: Any,
+    ) -> dict:
         return {
             "capability": capability,
             "available": True,
-            "found": result not in (None, [], {}),
-            "source": str(path),
-            "bytes": payload_bytes(result),
-            "data": result,
+            "found": (data not in (None, [], {})) if found is None else found,
+            "result_path_missed": missed,
+            "bytes": payload_bytes(data) if size is None else size,
+            "data": data,
+            **extra,
         }
 
-    # A capability may name its own binary. The two rungs at the top of the
-    # ladder are the reason: a gap is filed in an issue tracker and a component
-    # is ejected by a codegen tool, and neither is usually the design system's
-    # own CLI. Without this they can only be mapped by writing a wrapper script,
-    # which is how rungs 4 and 5 end up unmapped on systems that could support
-    # them. A file-backed adapter with no `bin` at all can map them this way too.
-    own_binary = bool(spec.get("bin"))
-    binary = spec.get("bin") or adapter.get("bin") or ""
-    if not binary:
-        return {"capability": capability, "available": False, "reason": "no binary configured"}
 
-    merged: dict[str, Any] = {**(spec.get("defaults") or {}), **params}
-    if adapter.get("registries"):
-        merged.setdefault("registries", list(adapter["registries"]))
+@dataclass
+class Request:
+    """One question, with everything needed to ask it. Passed to a transport so
+    the transports stay stateless and orderable."""
 
-    argv = shlex.split(binary)
-    argv += substitute(list(spec.get("args") or []), merged)
-    # `global_args` are the design system CLI's flags - usually the one that
-    # makes it emit JSON. Appending them to someone else's binary would be a
-    # mapping error the adapter author never wrote.
-    if not own_binary:
-        argv += list(adapter.get("global_args") or [])
+    capability: str
+    spec: dict
+    adapter: dict
+    base: Path
+    params: dict
+    timeout: int
 
-    try:
-        proc = subprocess.run(
-            argv, cwd=base, capture_output=True, text=True, timeout=timeout, check=False
+
+@dataclass
+class Fetched:
+    """What a transport got back, before anything decided what it means.
+
+    `status` is the three-way the invariant needs: reached and answered,
+    reached and explicitly told no, or never reached at all. Only a transport
+    knows which of the three happened; only a strategy knows what the payload
+    means. Keeping them apart is what stopped `run_capability` being one
+    234-line function with both jobs in it.
+    """
+
+    status: str  # "ok" | "not_found" | "unreachable"
+    document: Any = None
+    raw: str = ""
+    source: str = ""
+    reason: str = ""
+    detail: dict = field(default_factory=dict)
+    # Whether the adapter was guessing at this payload's shape. A shipped
+    # adapter guesses at a CLI's envelope, so a mapping that resolves to
+    # nothing probably means the guess missed and the whole payload is worth
+    # more than a null. A file-backed adapter knows the shape of the file it
+    # points at, so the same miss means the file genuinely does not carry that
+    # section -- handing the whole document back there would turn "no
+    # principles in this inventory" into "here is the entire inventory".
+    shape_is_guessed: bool = False
+
+    @property
+    def ok(self) -> bool:
+        return self.status == "ok"
+
+
+class Transport(Protocol):
+    """How one capability is reached.
+
+    A new way of asking a design system is a new class and one registry entry.
+    It never edits the dispatcher, which is the property the README's promise of
+    "CLI, MCP, or files" needs and did not have: adding a third transport used
+    to mean operating inside a 234-line function between the other two.
+    """
+
+    def handles(self, request: Request) -> bool: ...
+
+    def fetch(self, request: Request) -> Fetched: ...
+
+
+class FileTransport:
+    """A capability answered by reading a file the project already generates."""
+
+    def handles(self, request: Request) -> bool:
+        return bool(request.spec.get("read_file"))
+
+    def fetch(self, request: Request) -> Fetched:
+        target = substitute(
+            [request.spec["read_file"]],
+            {**request.params, "source": request.adapter.get("source", "")},
         )
-    except FileNotFoundError:
-        return {
-            "capability": capability,
-            "available": False,
-            "reason": f"'{argv[0]}' not found. Is the design system CLI installed?",
-        }
-    except subprocess.TimeoutExpired:
-        return {"capability": capability, "available": False, "reason": f"CLI timed out after {timeout}s"}
+        path = request.base / target[0] if target else None
+        if not path or not path.is_file():
+            return Fetched("unreachable", reason=f"{path} not found")
+        try:
+            document = read_structured(path)
+        except ValueError as exc:
+            return Fetched("unreachable", reason=str(exc))
+        if not isinstance(document, dict):
+            return Fetched(
+                "unreachable",
+                reason=(
+                    f"{path} must hold a mapping at top level, "
+                    f"got {type(document).__name__}"
+                ),
+            )
+        return Fetched("ok", document=document, source=str(path))
 
-    raw = proc.stdout.strip()
-    parsed: Any
-    try:
-        parsed = json.loads(raw) if raw else None
-    except json.JSONDecodeError:
-        parsed = None  # CLI printed prose; hand it back verbatim
 
-    # The envelope describes one CLI's response shape, so it applies to that
-    # CLI. Reading another tool's `code` field as this one's error code would
-    # turn a filed issue into a reported outage.
-    envelope = (adapter.get("envelope") or {}) if not own_binary else {}
-    error_key = envelope.get("error_code_key")
-    code = parsed.get(error_key) if (isinstance(parsed, dict) and error_key) else None
+class ProcessTransport:
+    """A capability answered by the design system's own CLI."""
 
-    # A code the adapter declares as "not found" is a real answer: the design
-    # system was reached and does not have this thing.
-    if code and code in set(spec.get("not_found_codes") or []):
-        return {
-            "capability": capability,
-            "available": True,
-            "found": False,
-            "error_code": code,
-            "command": " ".join(argv),
-        }
+    def handles(self, request: Request) -> bool:
+        return bool(request.spec.get("bin") or request.adapter.get("bin"))
 
-    # Anything else that failed is a failure to ask, not an answer. Reporting it
-    # as "nothing found" would let a registry outage read as an empty design
-    # system and push the ladder toward Create, the exact outcome this
-    # extension exists to prevent.
-    if code or proc.returncode != 0:
-        detail = (proc.stderr or "").strip() or (raw if parsed is None else json.dumps(parsed))
-        return {
-            "capability": capability,
-            "available": False,
-            "reason": (detail or "non-zero exit").strip()[:500],
-            "error_code": code,
-            "exit_code": proc.returncode,
-            "command": " ".join(argv),
-        }
+    def fetch(self, request: Request) -> Fetched:
+        spec, adapter = request.spec, request.adapter
+        # A capability may name its own binary: filing a gap and ejecting a
+        # component are not usually the design system's own CLI. Its own binary
+        # means the adapter's global flags and envelope do not apply to it.
+        own_binary = bool(spec.get("bin"))
+        binary = spec.get("bin") or adapter.get("bin") or ""
 
-    mapped_slice = bool(
-        spec.get("result_path") or spec.get("result_paths") or spec.get("pick")
+        merged: dict[str, Any] = {**(spec.get("defaults") or {}), **request.params}
+        if adapter.get("registries"):
+            merged.setdefault("registries", list(adapter["registries"]))
+
+        argv = shlex.split(binary)
+        argv += substitute(list(spec.get("args") or []), merged)
+        if not own_binary:
+            argv += list(adapter.get("global_args") or [])
+
+        try:
+            proc = subprocess.run(
+                argv,
+                cwd=request.base,
+                capture_output=True,
+                text=True,
+                timeout=request.timeout,
+                check=False,
+            )
+        except FileNotFoundError:
+            return Fetched(
+                "unreachable",
+                reason=f"'{argv[0]}' not found. Is the design system CLI installed?",
+            )
+        except subprocess.TimeoutExpired:
+            return Fetched(
+                "unreachable", reason=f"CLI timed out after {request.timeout}s"
+            )
+
+        command = " ".join(argv)
+        raw = proc.stdout.strip()
+        try:
+            parsed = json.loads(raw) if raw else None
+        except json.JSONDecodeError:
+            parsed = None  # CLI printed prose; hand it back verbatim
+
+        # The envelope describes one CLI's response shape, so it applies to that
+        # CLI. Reading another tool's `code` field as this one's error code
+        # would turn a filed issue into a reported outage.
+        envelope = (adapter.get("envelope") or {}) if not own_binary else {}
+        error_key = envelope.get("error_code_key")
+        code = parsed.get(error_key) if (isinstance(parsed, dict) and error_key) else None
+
+        # A code the adapter declares as "not found" is a real answer: the
+        # design system was reached and does not have this thing.
+        if code and code in set(spec.get("not_found_codes") or []):
+            return Fetched(
+                "not_found", source=command, detail={"error_code": code, "command": command}
+            )
+
+        # Anything else that failed is a failure to ask, not an answer.
+        if code or proc.returncode != 0:
+            detail = (proc.stderr or "").strip() or (
+                raw if parsed is None else json.dumps(parsed)
+            )
+            return Fetched(
+                "unreachable",
+                reason=(detail or "non-zero exit").strip()[:ERROR_DETAIL_CHARS],
+                detail={
+                    "error_code": code,
+                    "exit_code": proc.returncode,
+                    "command": command,
+                },
+            )
+
+        mapped_slice = bool(
+            spec.get("result_path") or spec.get("result_paths") or spec.get("pick")
+        )
+        if raw and parsed is None and (mapped_slice or envelope):
+            # The adapter was written against a JSON CLI. Prose here means a
+            # flag or output format changed: a failure to ask, not an answer.
+            return Fetched(
+                "unreachable",
+                reason=f"expected JSON from the CLI, got: {raw[:CLI_PROSE_CHARS]}",
+                detail={"exit_code": proc.returncode, "command": command},
+            )
+
+        return Fetched(
+            "ok",
+            document=parsed,
+            raw=raw,
+            source=command,
+            detail={"command": command},
+            shape_is_guessed=True,
+        )
+
+
+class McpTransport:
+    """A capability answered by an MCP server.
+
+    The README has promised "CLI, MCP, or files" from the start. It could not be
+    written while dispatch was one function: there was no seam to add it at. It
+    is here to keep that promise and to prove the seam holds — a transport is a
+    class and a registry entry, nothing else.
+
+    The call itself is delegated to a command the adapter names, because this
+    extension does not ship an MCP client and should not grow one: stdio
+    framing, session handling and auth belong to whatever the project already
+    uses to talk to its servers.
+
+        capabilities:
+          search:
+            mcp:
+              server: "design-system"
+              tool: "search_components"
+              client: "npx @acme/mcp-call"     # optional; defaults to mcp.client
+            args: ["--query", "{query}"]
+    """
+
+    def handles(self, request: Request) -> bool:
+        return bool(request.spec.get("mcp"))
+
+    def fetch(self, request: Request) -> Fetched:
+        mcp = request.spec["mcp"]
+        if not isinstance(mcp, dict) or not mcp.get("tool"):
+            return Fetched("unreachable", reason="mcp mapping needs a `tool`")
+
+        client = mcp.get("client") or (request.adapter.get("mcp") or {}).get("client")
+        if not client:
+            return Fetched(
+                "unreachable",
+                reason="no MCP client configured. Name one under `mcp.client`.",
+            )
+
+        argv = shlex.split(client)
+        if mcp.get("server"):
+            argv += ["--server", str(mcp["server"])]
+        argv += ["--tool", str(mcp["tool"])]
+        argv += substitute(
+            list(request.spec.get("args") or []),
+            {**(request.spec.get("defaults") or {}), **request.params},
+        )
+
+        # Reuse the process transport's failure semantics rather than restating
+        # them: an MCP server that cannot be reached is exactly as unavailable
+        # as a CLI that is not installed, and must never read as an empty
+        # design system.
+        delegated = Request(
+            capability=request.capability,
+            spec={**request.spec, "bin": argv[0], "args": argv[1:], "mcp": None},
+            adapter=request.adapter,
+            base=request.base,
+            params={},
+            timeout=request.timeout,
+        )
+        return ProcessTransport().fetch(delegated)
+
+
+# Ordered: the first transport that recognises the mapping is used.
+TRANSPORTS: tuple[Transport, ...] = (FileTransport(), McpTransport(), ProcessTransport())
+
+
+class Strategy(Protocol):
+    """How to answer from whatever the transport returned.
+
+    The other axis. A transport knows where the bytes came from; a strategy
+    knows what question they answer. Keeping the weighted inventory search in
+    here rather than in the dispatcher is also what keeps it out of the layer
+    that is supposed to know nothing about any particular design system.
+    """
+
+    def handles(self, request: Request) -> bool: ...
+
+    def answer(self, request: Request, fetched: Fetched) -> dict: ...
+
+
+class KeyFieldLookup:
+    """One record out of a list, by name. `component`, `pattern`, `extend`."""
+
+    def handles(self, request: Request) -> bool:
+        return bool(request.spec.get("key_field")) and bool(request.params.get("name"))
+
+    def answer(self, request: Request, fetched: Fetched) -> dict:
+        sliced, _ = slice_result(fetched.document, request.spec)
+        if not isinstance(sliced, list):
+            return SliceOnly().answer(request, fetched)
+
+        key_field = request.spec["key_field"]
+        wanted = str(request.params["name"]).lower()
+        match = next(
+            (
+                item
+                for item in sliced
+                if isinstance(item, dict)
+                and str(item.get(key_field, "")).lower() == wanted
+            ),
+            None,
+        )
+        return Answer.answered(
+            request.capability, match, found=match is not None, source=fetched.source
+        )
+
+
+class WeightedSearch:
+    """Rank an inventory's sections against a query.
+
+    Weighted per field rather than one bag of words: a raw overlap count makes
+    every candidate tie at 1 on short descriptions, so results come back in
+    insertion order and "pull detail on the strongest hits" has nothing to act
+    on.
+    """
+
+    def handles(self, request: Request) -> bool:
+        return bool(request.spec.get("match_fields")) and not request.params.get("name")
+
+    def answer(self, request: Request, fetched: Fetched) -> dict:
+        spec, params = request.spec, request.params
+        if not params.get("query"):
+            return Answer.unavailable(
+                request.capability, f"'{request.capability}' needs a query"
+            )
+
+        query_tokens = set(normalize(params["query"]))
+        document = fetched.document if isinstance(fetched.document, dict) else {}
+        hits = []
+        for section in spec.get("search_keys") or []:
+            for item in document.get(section) or []:
+                if not isinstance(item, dict):
+                    continue
+                score = 0.0
+                for field_name in spec["match_fields"]:
+                    tokens = set(normalize(str(item.get(field_name, ""))))
+                    if not tokens or not query_tokens:
+                        continue
+                    overlap = query_tokens & tokens
+                    if overlap:
+                        weight = FIELD_WEIGHTS.get(field_name, 1.0)
+                        score += weight * len(overlap) / len(query_tokens)
+                if score:
+                    hits.append({"kind": section, "score": round(score, 3), **item})
+
+        # Ties break on name so ordering is stable rather than positional.
+        hits.sort(key=lambda entry: (-entry["score"], str(entry.get("name", ""))))
+        top = hits[:SEARCH_HITS_RETURNED]
+        return Answer.answered(
+            request.capability, top, found=bool(hits), source=fetched.source
+        )
+
+
+class SliceOnly:
+    """The default: hand back the part of the payload the adapter mapped."""
+
+    def handles(self, request: Request) -> bool:
+        return True
+
+    def answer(self, request: Request, fetched: Fetched) -> dict:
+        extra = dict(fetched.detail)
+        extra.pop("error_code", None)
+
+        # A CLI that printed nothing at all was reached and had nothing to say.
+        if fetched.document is None and not fetched.raw:
+            return Answer.answered(
+                request.capability, None, found=False, size=0, **extra
+            )
+
+        # Prose from a CLI the adapter did not promise JSON for is still the
+        # design system speaking. Hand it back verbatim.
+        if fetched.document is None and fetched.raw:
+            return Answer.answered(request.capability, fetched.raw, found=True, **extra)
+
+        data, missed = slice_result(fetched.document, request.spec)
+        if missed and fetched.shape_is_guessed:
+            # The guess missed, so hand back what the design system actually
+            # said instead of a null that reads as "it has nothing".
+            data = fetched.document
+
+        if fetched.source and "source" not in extra and "command" not in extra:
+            extra["source"] = fetched.source
+
+        # A file-backed adapter knows the shape of the file it points at, so a
+        # mapping that resolves to nothing means the file genuinely does not
+        # carry that section.
+        return Answer.answered(request.capability, data, missed=missed, **extra)
+
+
+STRATEGIES: tuple[Strategy, ...] = (KeyFieldLookup(), WeightedSearch(), SliceOnly())
+
+
+def run_capability(
+    ds: DesignSystem, capability: str, params: dict[str, Any], timeout: int | None = None
+) -> dict:
+    """Ask the design system one question, through whatever the adapter maps.
+
+    Routing only. Reaching the system is a transport's job and interpreting the
+    answer is a strategy's, which is what lets a new transport be a class rather
+    than a branch.
+    """
+    spec = (ds.adapter.get("capabilities") or {}).get(capability)
+    if not spec:
+        return Answer.unavailable(
+            capability, f"adapter '{ds.adapter.get('id')}' does not map '{capability}'"
+        )
+
+    request = Request(
+        capability=capability,
+        spec=spec,
+        adapter=ds.adapter,
+        base=ds.base,
+        params=params,
+        timeout=DEFAULT_TIMEOUT if timeout is None else timeout,
     )
-    if raw and parsed is None and (mapped_slice or envelope):
-        # The adapter was written against a JSON CLI. Prose here means a flag
-        # or output format changed, which is a failure to ask, not an answer.
-        return {
-            "capability": capability,
-            "available": False,
-            "reason": f"expected JSON from the CLI, got: {raw[:200]}",
-            "exit_code": proc.returncode,
-            "command": " ".join(argv),
-        }
-    if not raw:
-        return {
-            "capability": capability,
-            "available": True,
-            "found": False,
-            "command": " ".join(argv),
-            "result_path_missed": False,
-            "bytes": 0,
-            "data": None,
-        }
-    if parsed is None:
-        data: Any = raw
-        missed = False
-    else:
-        data, missed = slice_result(parsed, spec)
-        # A shipped adapter guesses at the CLI's envelope. When the guess misses,
-        # hand back what the CLI actually said instead of a null that reads as
-        # "the design system has nothing".
-        if missed:
-            data = parsed
 
-    return {
-        "capability": capability,
-        "available": True,
-        "found": True,
-        "command": " ".join(argv),
-        "result_path_missed": missed,
-        # Unnarrowed, this is the whole CLI payload: the number to watch when a
-        # capability that should answer narrowly starts costing context.
-        "bytes": payload_bytes(data),
-        "data": data,
-    }
+    transport = next((t for t in TRANSPORTS if t.handles(request)), None)
+    if transport is None:
+        return Answer.unavailable(capability, "no binary configured")
+
+    fetched = transport.fetch(request)
+    if fetched.status == "unreachable":
+        return Answer.unavailable(capability, fetched.reason, **fetched.detail)
+    if fetched.status == "not_found":
+        return Answer.answered(
+            capability, None, found=False, size=0, **fetched.detail
+        )
+
+    strategy = next(s for s in STRATEGIES if s.handles(request))
+    return strategy.answer(request, fetched)
 
 
 def project_fields(data: Any, fields: list[str]) -> Any:
@@ -712,6 +1074,14 @@ def project_fields(data: Any, fields: list[str]) -> Any:
     if isinstance(data, dict):
         return {key: data[key] for key in fields if key in data}
     return data
+
+
+def surface_kinds(value: str | None) -> list[str] | None:
+    """`--applies-to interactive,layout` as a list. None means unfiltered, which
+    is not the same as an empty list: every principle applies rather than none."""
+    if not value:
+        return None
+    return [kind.strip() for kind in value.split(",") if kind.strip()] or None
 
 
 def read_structured(path: Path) -> Any:
@@ -816,6 +1186,27 @@ def normalize_principles(payload: Any) -> dict:
     return {"prose": str(payload), "rules": [], "version": None, "extra": {}}
 
 
+def applies_to_kinds(rule: dict) -> set[str]:
+    """The surface kinds one principle claims, as a set.
+
+    A principle that genuinely bears on two kinds has only one natural way to
+    say so — `applies_to: [interactive, layout]` — and a design system writing
+    its own principles will reach for it. Reading that as a scalar used to raise
+    `unhashable type: 'list'` from the membership test below, which surfaced as
+    an internal-error envelope with no `principles_source` at all: the gate went
+    on reporting the principles as present and authoritative while the phase
+    that writes them into the spec got nothing. Accepting both shapes is the
+    same promise `normalize_principles` already makes about the document.
+    """
+    applies = rule.get("applies_to", "any")
+    if applies in (None, ""):
+        return {"any"}
+    if isinstance(applies, (list, tuple, set)):
+        kinds = {str(kind).strip() for kind in applies if str(kind).strip()}
+        return kinds or {"any"}
+    return {str(applies).strip() or "any"}
+
+
 def select_principles(rules: list[dict], kinds: list[str] | None, disabled: set[str]) -> tuple:
     """Filter to what this feature actually involves. Anything without an
     `applies_to` is unconditional, because a design system writing free-form
@@ -825,17 +1216,15 @@ def select_principles(rules: list[dict], kinds: list[str] | None, disabled: set[
     for rule in rules:
         if str(rule.get("id", "")) in disabled:
             continue
-        applies = rule.get("applies_to", "any")
-        if wanted and applies != "any" and applies not in wanted:
+        applies = applies_to_kinds(rule)
+        if wanted and "any" not in applies and not (applies & wanted):
             skipped += 1
             continue
         selected.append(rule)
     return selected, skipped
 
 
-def resolve_principles(
-    root: Path, config: dict, adapter: dict, kinds: list[str] | None = None
-) -> dict:
+def resolve_principles(ds: DesignSystem, kinds: list[str] | None = None) -> dict:
     """The principles in force, resolved from exactly one source.
 
         1. the design system's CLI        (`principles` capability, invoked)
@@ -846,26 +1235,26 @@ def resolve_principles(
     not a floor: merging it into a real design system's principles would mean
     holding that system to rules it never wrote.
     """
-    settings = config.get("principles") or {}
+    settings = ds.config.get("principles") or {}
     disabled = {str(entry) for entry in (settings.get("disabled") or [])}
     attempts: list[dict] = []
 
-    spec = (adapter.get("capabilities") or {}).get("principles") or {}
+    spec = (ds.adapter.get("capabilities") or {}).get("principles") or {}
     is_file_backed = bool(spec.get("read_file"))
 
     # 1. The CLI.
     if spec and not is_file_backed:
-        result = run_capability(root, config, adapter, "principles", {})
+        result = ds.ask("principles")
         if result.get("available") and result.get("data") not in (None, "", [], {}):
             return _principles_payload(
-                "cli", result.get("command", adapter.get("bin", "")),
+                "cli", result.get("command", ds.adapter.get("bin", "")),
                 result["data"], kinds, disabled, attempts,
             )
         attempts.append({"source": "cli", "reason": result.get("reason", "no principles returned")})
 
     # 2. Adapter-provided static data: a file the design system ships, either
     #    named in config or mapped by the adapter as a file-backed capability.
-    configured = resolve_path(root, str(settings.get("source") or ""))
+    configured = resolve_path(ds.root, str(settings.get("source") or ""))
     if configured:
         try:
             payload = read_structured(configured)
@@ -879,7 +1268,7 @@ def resolve_principles(
         attempts.append({"source": "docs", "reason": f"{settings['source']} not found"})
 
     if is_file_backed:
-        result = run_capability(root, config, adapter, "principles", {})
+        result = ds.ask("principles")
         if result.get("available") and result.get("data") not in (None, "", [], {}):
             return _principles_payload(
                 "docs", result.get("source", ""), result["data"], kinds, disabled, attempts
@@ -908,7 +1297,7 @@ def resolve_principles(
             "attempted": attempts,
         }
 
-    path = ext_dir(root) / DEFAULT_PRINCIPLES
+    path = ext_dir(ds.root) / DEFAULT_PRINCIPLES
     payload = load_yaml(path)
     return _principles_payload("default", str(path), payload, kinds, disabled, attempts)
 
@@ -985,7 +1374,7 @@ def dod_items(text: str) -> list[str]:
     ]
 
 
-def resolve_dod(root: Path, config: dict) -> dict:
+def resolve_dod(ds: DesignSystem) -> dict:
     """The team's Definition of Done, if they keep one.
 
     Deliberately unlike `resolve_principles`, in every way that matters:
@@ -1006,7 +1395,7 @@ def resolve_dod(root: Path, config: dict) -> dict:
     the design system; this cannot be rebuilt from anything. Clearing memory to
     re-derive the ledger must not take the team's own rules with it.
     """
-    settings = config.get("dod") or {}
+    settings = ds.config.get("dod") or {}
     if not isinstance(settings, dict):
         # Someone wrote the list inline under `dod:`. A natural guess, and the
         # gate must say where it actually goes rather than crash on it.
@@ -1016,7 +1405,7 @@ def resolve_dod(root: Path, config: dict) -> dict:
             "error": f"dod: expected a mapping with `source`; the list itself belongs in {DOD_NAME}",
         }
     configured = str(settings.get("source") or "")
-    path = resolve_path(root, configured or DOD_NAME)
+    path = resolve_path(ds.root, configured or DOD_NAME)
     if path:
         return {"items": dod_items(read_text(path)), "source": str(path), "error": ""}
     # Nothing configured and no file: there is no DoD, which is fine and silent.
@@ -1031,15 +1420,33 @@ def resolve_dod(root: Path, config: dict) -> dict:
 
 # --- focused context ----------------------------------------------------------
 
-# What each phase is given up front. Everything else stays one query away;
-# nothing here is a ceiling on what the agent may ask for.
+# What each phase is given up front, named by the key it actually arrives under.
+# Everything else stays one query away; nothing here is a ceiling on what the
+# agent may ask for.
+#
+# `includes` used to list `rfc`, `spec` and `plan` too, and `named_components`
+# for a section delivered as `components`. Those are files on disk that this
+# command has no business inlining — but a response advertising keys it does not
+# carry is a contract that reads as an empty answer. They are reported
+# separately, as what the phase should go and read for itself.
 PHASE_CONTEXT = {
-    "clarify": ["rfc", "principles"],
-    "specify": ["rfc", "principles", "candidates"],
-    "plan": ["spec", "principles", "named_components", "tokens", "breakpoints"],
-    "implement": ["plan", "named_components", "tokens"],
-    "validate": ["spec", "principles", "named_components"],
-    "verify": ["spec", "principles"],
+    "clarify": ["principles"],
+    "specify": ["principles", "candidates"],
+    "plan": ["principles", "components", "tokens", "breakpoints"],
+    "implement": ["components", "tokens"],
+    "validate": ["principles", "components"],
+    "verify": ["principles"],
+}
+
+# The artifacts a phase works from, which it reads itself. Named so a caller can
+# see the whole input to a phase in one place, not so this command fetches them.
+PHASE_ARTIFACTS = {
+    "clarify": ["rfc"],
+    "specify": ["rfc"],
+    "plan": ["spec"],
+    "implement": ["plan"],
+    "validate": ["spec"],
+    "verify": ["spec"],
 }
 
 RETRIEVAL_HINT = "ds.sh query {capability} [args]"
@@ -1048,30 +1455,6 @@ RETRIEVAL_HINT = "ds.sh query {capability} [args]"
 # limit and not a filter: nothing is dropped, the size is just said out loud
 # where the person tuning the adapter will see it.
 LARGE_PAYLOAD_BYTES = 8192
-
-
-def cost_note(capability: str, result: dict) -> str | None:
-    """What a bulky or unnarrowed answer costs, phrased as the fix.
-
-    A capability mapped to a command it shares with a broader one (`breakpoints`
-    onto the token command is the usual pair) answers with the whole payload
-    unless the adapter carves out a slice. That is invisible at the call site:
-    the context is simply bigger, every phase, every run.
-    """
-    size = result.get("bytes") or 0
-    if result.get("result_path_missed"):
-        return (
-            f"{capability}: the adapter's result_path did not resolve, so the CLI's whole "
-            f"payload came back ({size} bytes). Narrow it with result_path, result_paths "
-            f"or pick in the adapter."
-        )
-    if size > LARGE_PAYLOAD_BYTES:
-        return (
-            f"{capability}: {size} bytes in this context. If the design system can answer "
-            f"it more narrowly, or the adapter can slice the response (result_path, "
-            f"result_paths, pick), that cost is paid once in the adapter instead of every run."
-        )
-    return None
 
 
 def context_sizes(payload: dict) -> dict:
@@ -1087,10 +1470,24 @@ def context_sizes(payload: dict) -> dict:
     return sizes
 
 
+def _bulk_section(ds: DesignSystem, payload: dict, capability: str, note: bool = True) -> dict:
+    """Ask for one of the big shared sections and record what it cost.
+
+    `tokens` and `breakpoints` are fetched the same way and were written out
+    twice. The cost note is optional because breakpoints has a more specific
+    thing to say when it answered with the token payload verbatim.
+    """
+    result = ds.ask(capability)
+    payload[capability] = result.get("data") if result.get("available") else None
+    if note and result.get("available"):
+        message = Answer.cost_note(capability, result)
+        if message:
+            payload["notes"].append(message)
+    return result
+
+
 def build_context(
-    root: Path,
-    config: dict,
-    adapter: dict,
+    ds: DesignSystem,
     phase: str,
     kinds: list[str] | None = None,
     components: list[str] | None = None,
@@ -1110,13 +1507,16 @@ def build_context(
         die(f"unknown phase '{phase}'. One of: {', '.join(PHASE_CONTEXT)}")
 
     wants = PHASE_CONTEXT[phase]
-    probe = probe_adapter(root, config, adapter)
-    principles = resolve_principles(root, config, adapter, kinds)
+    probe = ds.probe
+    principles = resolve_principles(ds, kinds)
 
     payload: dict[str, Any] = {
         "phase": phase,
+        # Every name here is a key of this object. Anything the phase works from
+        # but has to open itself is under `read_from_artifacts`.
         "includes": wants,
-        "adapter": adapter.get("id", ""),
+        "read_from_artifacts": PHASE_ARTIFACTS.get(phase, []),
+        "adapter": ds.adapter_id,
         "reachable": probe["reachable"],
         "principles": principles,
         "components": {},
@@ -1138,11 +1538,11 @@ def build_context(
         payload["sizes"] = context_sizes(payload)
         return payload
 
-    if "named_components" in wants:
+    if "components" in wants:
         for name in components or []:
-            result = run_capability(root, config, adapter, "component", {"name": name})
+            result = ds.ask("component", name=name)
             if not result.get("found"):
-                result = run_capability(root, config, adapter, "pattern", {"name": name})
+                result = ds.ask("pattern", name=name)
             payload["components"][name] = result.get("data") if result.get("found") else None
             if not result.get("found"):
                 payload["notes"].append(f"{name}: not found in the design system")
@@ -1153,19 +1553,14 @@ def build_context(
             )
 
     if "candidates" in wants and query:
-        search = run_capability(root, config, adapter, "search", {"query": query})
+        search = ds.ask("search", query=query)
         payload["candidates"] = search.get("data") if search.get("available") else None
 
     if "tokens" in wants:
-        tokens = run_capability(root, config, adapter, "tokens", {})
-        payload["tokens"] = tokens.get("data") if tokens.get("available") else None
-        note = cost_note("tokens", tokens) if tokens.get("available") else None
-        if note:
-            payload["notes"].append(note)
+        _bulk_section(ds, payload, "tokens")
 
     if "breakpoints" in wants:
-        breakpoints = run_capability(root, config, adapter, "breakpoints", {})
-        payload["breakpoints"] = breakpoints.get("data") if breakpoints.get("available") else None
+        breakpoints = _bulk_section(ds, payload, "breakpoints", note=False)
         if breakpoints.get("available"):
             # The specific, common case: `breakpoints` mapped onto the token
             # command and never narrowed, so both capabilities answer with the
@@ -1185,7 +1580,7 @@ def build_context(
                     f"a second time."
                 )
             else:
-                note = cost_note("breakpoints", breakpoints)
+                note = Answer.cost_note("breakpoints", breakpoints)
                 if note:
                     payload["notes"].append(note)
 
@@ -1198,6 +1593,12 @@ def build_context(
 FINDING_OPEN = re.compile(r"^\s*-\s*\[ \]\s*(DS-F-\S+)", re.MULTILINE)
 FINDING_CLOSED = re.compile(r"^\s*-\s*\[[xX]\]\s*(DS-F-\S+)", re.MULTILINE)
 VALIDATION_ROUND = re.compile(r"^##+\s*Validation round\s+(\d+)", re.MULTILINE | re.IGNORECASE)
+# What the verify pass leaves behind. Without it there is no artifact to derive
+# the phase from, and a phase nothing can observe is one the run skips: status
+# went straight from a clean round to `done`, reporting `verify: done` for work
+# that never ran. The heading is the same kind of contract as the round heading
+# above, in the same file, and `speckit.design.run.md` states the format.
+VERIFICATION = re.compile(r"^##+\s*Verification\b", re.MULTILINE | re.IGNORECASE)
 CLARIFICATION = re.compile(r"\[NEEDS CLARIFICATION", re.IGNORECASE)
 TASK_OPEN = re.compile(r"^\s*-\s*\[ \]\s", re.MULTILINE)
 TASK_DONE = re.compile(r"^\s*-\s*\[[xX]\]\s", re.MULTILINE)
@@ -1221,14 +1622,65 @@ def last_round_findings(design: str) -> list[str]:
     return FINDING_OPEN.findall(section) + FINDING_CLOSED.findall(section)
 
 
-def workflow_status(root: Path, config: dict) -> dict:
+@dataclass(frozen=True)
+class Position:
+    """Everything the next step is decided from, read off the artifacts."""
+
+    spec: str
+    plan: str
+    phases: dict
+    rounds: list
+    rounds_used: int
+    open_findings: list
+    last_round_clean: bool
+    may_validate_again: bool
+    verified: bool
+
+
+# Ordered: the first rule that fires decides, so priority is the order of this
+# list. It was an `elif` chain, which mixed the two things a reader needs to
+# separate -- what each phase means, and which one wins when several are true.
+# Inserting a phase is now inserting a row; `verify` had to be threaded through
+# the middle of the chain by hand.
+WORKFLOW_RULES: list[tuple[Any, str, Any]] = [
+    (lambda p: p.phases["clarify"] == "blocked",
+     "clarify", "the spec still carries [NEEDS CLARIFICATION] markers"),
+    (lambda p: not p.spec, "specify", "no specification yet"),
+    (lambda p: not p.plan, "plan", "no plan yet"),
+    (lambda p: p.phases["implement"] != "done", "implement", "tasks remain open"),
+    (lambda p: p.open_findings and not p.may_validate_again, "stop",
+     lambda p: (
+         f"{len(p.open_findings)} finding(s) still open after {p.rounds_used} validation "
+         f"round(s), the configured maximum. This needs a human."
+     )),
+    (lambda p: bool(p.open_findings), "fix",
+     lambda p: f"{len(p.open_findings)} open finding(s) from validation"),
+    (lambda p: not p.rounds, "validate", "the implementation has not been validated yet"),
+    (lambda p: not p.last_round_clean, "validate",
+     lambda p: f"round {p.rounds_used} raised findings that are now fixed; they need checking"),
+    (lambda p: not p.verified, "verify",
+     "validation is clean; the whole change still needs checking against the RFC's "
+     "acceptance criteria, the spec's DS- requirements and the principles in force"),
+]
+
+DONE_REASON = "validation was clean and the change was verified against the RFC"
+
+
+def next_step(position: Position) -> tuple[str, str]:
+    for fires, step, reason in WORKFLOW_RULES:
+        if fires(position):
+            return step, reason(position) if callable(reason) else reason
+    return "done", DONE_REASON
+
+
+def workflow_status(ds: DesignSystem) -> dict:
     """Where the run has got to, derived from the artifacts on disk.
 
     There is no run-state file. Progress is whatever the spec, plan, tasks and
     design document already say, which means an interrupted run can be resumed
     by reading them, and nothing can drift out of sync with the work itself.
     """
-    feature = feature_dir(root)
+    feature = feature_dir(ds.root)
     if not feature:
         return {
             "feature_dir": "",
@@ -1246,7 +1698,7 @@ def workflow_status(root: Path, config: dict) -> dict:
     rounds = [int(match) for match in VALIDATION_ROUND.findall(design)]
     open_findings = sorted(set(FINDING_OPEN.findall(design)))
     closed_findings = sorted(set(FINDING_CLOSED.findall(design)))
-    max_rounds = int((config.get("workflow") or {}).get("max_validation_rounds", 3))
+    max_rounds = int((ds.config.get("workflow") or {}).get("max_validation_rounds", 3))
 
     # A round that raised findings does not become clean because they were
     # ticked off. Only a fresh round with nothing in it ends the loop, which is
@@ -1257,6 +1709,10 @@ def workflow_status(root: Path, config: dict) -> dict:
     tasks_done = len(TASK_DONE.findall(tasks))
 
     implemented = bool(tasks) and tasks_open == 0 and tasks_done > 0
+    # Derived from its own artifact, like every other phase. Deriving it from
+    # `last_round_clean and implemented` restated the validate row and reported
+    # work as done that nothing had recorded.
+    verified = bool(VERIFICATION.search(design))
     phases = {
         "clarify": "done" if spec and not CLARIFICATION.search(spec) else
                    ("blocked" if spec else "pending"),
@@ -1264,35 +1720,25 @@ def workflow_status(root: Path, config: dict) -> dict:
         "plan": "done" if plan else "pending",
         "implement": "done" if implemented else ("in_progress" if tasks else "pending"),
         "validate": "done" if last_round_clean else ("in_progress" if rounds else "pending"),
-        "verify": "done" if last_round_clean and implemented else "pending",
+        "verify": "done" if verified else "pending",
     }
 
     rounds_used = max(rounds) if rounds else 0
     may_validate_again = rounds_used < max_rounds
 
-    if phases["clarify"] == "blocked":
-        nxt, reason = "clarify", "the spec still carries [NEEDS CLARIFICATION] markers"
-    elif not spec:
-        nxt, reason = "specify", "no specification yet"
-    elif not plan:
-        nxt, reason = "plan", "no plan yet"
-    elif phases["implement"] != "done":
-        nxt, reason = "implement", "tasks remain open"
-    elif open_findings and not may_validate_again:
-        nxt, reason = "stop", (
-            f"{len(open_findings)} finding(s) still open after {rounds_used} validation "
-            f"round(s), the configured maximum. This needs a human."
+    nxt, reason = next_step(
+        Position(
+            spec=spec,
+            plan=plan,
+            phases=phases,
+            rounds=rounds,
+            rounds_used=rounds_used,
+            open_findings=open_findings,
+            last_round_clean=last_round_clean,
+            may_validate_again=may_validate_again,
+            verified=verified,
         )
-    elif open_findings:
-        nxt, reason = "fix", f"{len(open_findings)} open finding(s) from validation"
-    elif not rounds:
-        nxt, reason = "validate", "the implementation has not been validated yet"
-    elif not last_round_clean:
-        nxt, reason = "validate", (
-            f"round {rounds_used} raised findings that are now fixed; they need checking"
-        )
-    else:
-        nxt, reason = "done", "the last validation round was clean"
+    )
 
     return {
         "feature_dir": str(feature),
@@ -1302,6 +1748,7 @@ def workflow_status(root: Path, config: dict) -> dict:
         "tasks_done": tasks_done,
         "validation_rounds_used": rounds_used,
         "last_round_clean": last_round_clean,
+        "verified": verified,
         "max_validation_rounds": max_rounds,
         "may_validate_again": may_validate_again,
         "open_findings": open_findings,
@@ -1385,14 +1832,14 @@ def parse_rfc(text: str, origin: str = "") -> dict:
         warnings.append("no problem statement found; clarify what the RFC is solving")
     if not sections.get("acceptance"):
         warnings.append("no acceptance criteria found; clarify what done means")
-    if len(text.split()) < 30:
+    if len(text.split()) < RFC_SHORT_WORDS:
         warnings.append("the RFC is very short; expect the clarify phase to do real work")
 
     return {
         "origin": origin,
         "title": title,
         "sections": sections,
-        "open_questions": sorted(set(q for q in open_questions if q))[:20],
+        "open_questions": sorted(set(q for q in open_questions if q))[:RFC_QUESTIONS_RETURNED],
         "ui_bearing": len(UI_SIGNALS.findall(text)) >= RFC_UI_THRESHOLD,
         "word_count": len(text.split()),
         "warnings": warnings,
@@ -1432,9 +1879,25 @@ def normalize(text: str) -> list[str]:
 
 
 def score(query: str, decision: dict) -> float:
-    """Token overlap against the capability phrase and the wordings that were
-    actually searched when the decision was made. Aliases matter more than they
-    look: they are what makes a later, differently-worded lookup hit."""
+    """How well a prior decision answers this query.
+
+    Overlap as a fraction of the *shorter* side, not of the union. The
+    distinction is the whole feature, because of the discipline the ladder
+    imposes on the query: surfaces are named by capability, so lookups arrive as
+    "a control for picking a start and end date" rather than "DateRangePicker".
+    Measured against the union, every word of that description that the stored
+    phrase happens not to use counts against the match — so the more carefully a
+    surface is described, the less likely it is to recall the decision that
+    already answered it. It scored 0.167 against a 0.34 threshold, and Recall,
+    the rung the whole ledger exists to serve, quietly never fired.
+
+    Containment asks the question actually being asked: is one of these phrases
+    substantially about the other? An exact match is still 1.0, and a two-word
+    query against an unrelated decision is still 0.
+
+    Aliases matter more than they look: they are what makes a later,
+    differently-worded lookup hit.
+    """
     q = set(normalize(query))
     if not q:
         return 0.0
@@ -1444,12 +1907,12 @@ def score(query: str, decision: dict) -> float:
         tokens = set(normalize(phrase))
         if not tokens:
             continue
-        best = max(best, len(q & tokens) / len(q | tokens))
+        best = max(best, len(q & tokens) / min(len(q), len(tokens)))
     return round(best, 3)
 
 
 def ledger_lookup(
-    root: Path, query: str, threshold: float, config: dict, current_version: str | None
+    root: Path, query: str, threshold: float, current_version: str | None
 ) -> dict:
     ledger = load_ledger(root)
 
@@ -1481,8 +1944,44 @@ def ledger_lookup(
         "staleness_checked": current_version is not None,
         "ledger": str(ledger_path(root)),
         "match_count": len(matches),
-        "matches": matches[:5],
+        "matches": matches[:LEDGER_MATCHES_RETURNED],
     }
+
+
+# The rungs, as the ledger stores them. One spelling, because a ledger is read
+# back by string match years after it was written: `compose` and
+# `compose-components` sitting side by side is two answers to one question.
+# Rung 0 (Recall) is not among them — adopting a prior decision records nothing,
+# it reuses the entry that is already there.
+RESOLUTIONS = ("reuse", "compose-pattern", "compose-components", "extend", "create")
+
+# What the prose, the design document and an author in a hurry actually write.
+# Normalized rather than rejected: the point is one spelling in the file, not a
+# spelling test at the point of writing.
+RESOLUTION_ALIASES = {
+    "compose": "compose-components",
+    "compose (components)": "compose-components",
+    "compose components": "compose-components",
+    "compose_components": "compose-components",
+    "compose (pattern)": "compose-pattern",
+    "compose pattern": "compose-pattern",
+    "compose_pattern": "compose-pattern",
+    "pattern": "compose-pattern",
+    "reused": "reuse",
+    "extended": "extend",
+    "created": "create",
+    "new": "create",
+}
+
+# Two names for "which feature decided this" were in circulation. `decided_in`
+# wins because it says when as well as where; `feature` is folded into it.
+FEATURE_FIELD_ALIASES = ("feature", "decided_in_feature")
+
+
+def canonical_resolution(value: Any) -> str | None:
+    text = str(value or "").strip().lower()
+    text = RESOLUTION_ALIASES.get(text, text)
+    return text if text in RESOLUTIONS else None
 
 
 def ledger_record(root: Path, payload: dict) -> dict:
@@ -1491,8 +1990,43 @@ def ledger_record(root: Path, payload: dict) -> dict:
     if missing:
         die(f"decision is missing required field(s): {', '.join(sorted(missing))}")
 
+    resolution = canonical_resolution(payload["resolution"])
+    if resolution is None:
+        die(
+            f"unknown resolution {payload['resolution']!r}. "
+            f"One of: {', '.join(RESOLUTIONS)}"
+        )
+    payload["resolution"] = resolution
+
+    for alias in FEATURE_FIELD_ALIASES:
+        if alias in payload and not payload.get("decided_in"):
+            payload["decided_in"] = payload.pop(alias)
+        else:
+            payload.pop(alias, None)
+
     ledger = load_ledger(root)
     decisions = ledger["decisions"]
+
+    # One capability, one active decision. Recording a second without retiring
+    # the first is the drift the ladder exists to prevent, and it arrives by
+    # accident: the gate records a surface when it walks it, and a later phase
+    # records the same surface again from its own notes.
+    phrase = str(payload["capability"]).strip().lower()
+    clash = next(
+        (
+            entry
+            for entry in decisions
+            if entry.get("status") != "superseded"
+            and str(entry.get("capability", "")).strip().lower() == phrase
+        ),
+        None,
+    )
+    if clash and not payload.get("supersedes"):
+        die(
+            f"'{payload['capability']}' already has an active decision "
+            f"({clash.get('id')}: {clash.get('resolution')}). Adopt it, or supersede it "
+            f'explicitly with "supersedes": "{clash.get("id")}".'
+        )
 
     numbers = [
         int(match.group(1))
@@ -1535,12 +2069,15 @@ def detect_ui_bearing(spec_path: Path | None) -> bool | None:
 # Which capabilities carry which rung of the reuse ladder. The rungs themselves
 # live in `commands/speckit.design.check.md`; this only says what is automated,
 # so an adapter author can see what a missing mapping costs before a run does.
-LADDER_CAPABILITIES = {
-    "reuse": ["search", "component"],
-    "compose": ["pattern", "search"],
-    "extend": ["extend"],
-    "create": ["report_gap"],
-}
+# Which capabilities back which rung, derived from the registry so the two
+# cannot drift. The rungs themselves live in `commands/speckit.design.check.md`;
+# this only says what is automated.
+LADDER_CAPABILITIES: dict[str, list[str]] = {}
+for _capability in CAPABILITY_LIST:
+    if _capability.rung:
+        LADDER_CAPABILITIES.setdefault(_capability.rung, []).append(_capability.name)
+# Compose is walked by searching as well as by asking for a named pattern.
+LADDER_CAPABILITIES["compose"].append("search")
 
 
 def ladder_support(capabilities: list[str]) -> dict:
@@ -1576,14 +2113,13 @@ def effective_dimensions(config: dict, capabilities: list[str]) -> list[str]:
 
 
 def cmd_gate(args: argparse.Namespace) -> None:
-    root = repo_root()
-    config = load_config(root)
-    adapter = load_adapter(root, config)
+    ds = DesignSystem.resolve()
+    root = ds.root
     feature = feature_dir(root)
     spec = feature / "spec.md" if feature else None
-    probe = probe_adapter(root, config, adapter)
-    principles = resolve_principles(root, config, adapter)
-    dod = resolve_dod(root, config)
+    probe = ds.probe
+    principles = resolve_principles(ds)
+    dod = resolve_dod(ds)
 
     emit(
         {
@@ -1612,33 +2148,32 @@ def cmd_gate(args: argparse.Namespace) -> None:
             # Non-empty only when a configured DoD file did not resolve, which
             # is a misconfiguration to report, not an absent DoD.
             "DOD_ERROR": dod["error"],
-            "ADAPTER": adapter.get("id", ""),
-            "ADAPTER_NAME": adapter.get("name", ""),
+            "ADAPTER": ds.adapter_id,
+            "ADAPTER_NAME": ds.adapter.get("name", ""),
             # Empty when the design system could not actually be reached. The
             # commands treat that as a gate failure, not a pass.
             "CAPABILITIES": probe["capabilities"],
             "HAS_TOKENS": "tokens" in probe["capabilities"],
-            "REQUIRED_DIMENSIONS": effective_dimensions(config, probe["capabilities"]),
-            "MAPPED_CAPABILITIES": mapped_capabilities(adapter),
+            "REQUIRED_DIMENSIONS": effective_dimensions(ds.config, probe["capabilities"]),
+            "MAPPED_CAPABILITIES": mapped_capabilities(ds.adapter),
             # Which rungs of the reuse ladder the design system can be asked
             # about, and which the command has to walk on documentation alone.
             "LADDER_SUPPORT": ladder_support(probe["capabilities"]),
             "REACHABLE": probe["reachable"],
             "UNREACHABLE_REASON": probe.get("reason", ""),
+            # Non-empty when adapter detection hit something it could not read,
+            # which otherwise falls through to static-json without a word.
+            "DETECTION_NOTES": list(DETECTION_NOTES),
             "UI_BEARING": detect_ui_bearing(spec),
             "SPEC_EXISTS": bool(spec and spec.is_file()),
             "DESIGN_DOC_EXISTS": bool(feature and (feature / DESIGN_DOC_NAME).is_file()),
-            "CONFIG": config,
+            "CONFIG": ds.config,
         }
     )
 
 
 def cmd_principles(args: argparse.Namespace) -> None:
-    root = repo_root()
-    config = load_config(root)
-    adapter = load_adapter(root, config)
-    kinds = (args.applies_to or "").split(",") if args.applies_to else None
-    result = resolve_principles(root, config, adapter, kinds)
+    result = resolve_principles(DesignSystem.resolve(), surface_kinds(args.applies_to))
     if args.dimension:
         result["principles"] = [
             entry for entry in result["principles"] if entry.get("dimension") == args.dimension
@@ -1652,21 +2187,19 @@ def cmd_principles(args: argparse.Namespace) -> None:
 
 
 def cmd_context(args: argparse.Namespace) -> None:
-    root = repo_root()
-    config = load_config(root)
-    adapter = load_adapter(root, config)
-    kinds = (args.applies_to or "").split(",") if args.applies_to else None
     emit(
         build_context(
-            root, config, adapter, args.phase,
-            kinds=kinds, components=args.component, query=args.query,
+            DesignSystem.resolve(),
+            args.phase,
+            kinds=surface_kinds(args.applies_to),
+            components=args.component,
+            query=args.query,
         )
     )
 
 
 def cmd_workflow(args: argparse.Namespace) -> None:
-    root = repo_root()
-    emit(workflow_status(root, load_config(root)))
+    emit(workflow_status(DesignSystem.resolve()))
 
 
 def cmd_rfc(args: argparse.Namespace) -> None:
@@ -1687,31 +2220,14 @@ def cmd_rfc(args: argparse.Namespace) -> None:
 
 
 def cmd_query(args: argparse.Namespace) -> None:
-    root = repo_root()
-    config = load_config(root)
-    adapter = load_adapter(root, config)
+    params = dict(zip(CAPABILITY_REGISTRY[args.capability].positional, args.args))
+    result = DesignSystem.resolve().ask(args.capability, **params)
 
-    params: dict[str, str] = {}
-    positional = {
-        "search": ["query"],
-        "component": ["name"],
-        "pattern": ["name"],
-        "extend": ["name"],
-        "validate": ["target"],
-        "tokens": ["theme"],
-        "breakpoints": ["theme"],
-        "report_gap": ["title", "body"],
-    }.get(args.capability, [])
-    for key, value in zip(positional, args.args):
-        params[key] = value
-
-    result = run_capability(root, config, adapter, args.capability, params)
-
-    fields = [field.strip() for field in (args.fields or "").split(",") if field.strip()]
-    if fields and result.get("available") and result.get("data") is not None:
+    wanted = [name.strip() for name in (args.fields or "").split(",") if name.strip()]
+    if wanted and result.get("available") and result.get("data") is not None:
         result["bytes_unprojected"] = result.get("bytes", 0)
-        result["projected_fields"] = fields
-        result["data"] = project_fields(result["data"], fields)
+        result["projected_fields"] = wanted
+        result["data"] = project_fields(result["data"], wanted)
         result["bytes"] = payload_bytes(result["data"])
 
     emit(result)
@@ -1732,7 +2248,7 @@ def cmd_ledger(args: argparse.Namespace) -> None:
         if threshold is None:
             threshold = float(config.get("ledger", {}).get("match_threshold", 0.34))
         current_version = args.current_version or config.get("design_system_version")
-        emit(ledger_lookup(root, args.value, threshold, config, current_version))
+        emit(ledger_lookup(root, args.value, threshold, current_version))
     elif args.action == "record":
         if args.value in (None, "-"):
             raw = sys.stdin.read()
@@ -1823,12 +2339,14 @@ def main() -> None:
     ledger.set_defaults(func=cmd_ledger)
 
     args = parser.parse_args()
+    global ACTIVE_COMMAND
+    ACTIVE_COMMAND = args.command
     try:
         args.func(args)
     except SystemExit:
         raise
     except Exception as exc:  # noqa: BLE001 - commands degrade on JSON, never a traceback
-        emit({"available": False, "error": f"internal error: {type(exc).__name__}: {exc}"})
+        emit(failure_envelope(ACTIVE_COMMAND, f"internal error: {type(exc).__name__}: {exc}"))
 
 
 if __name__ == "__main__":

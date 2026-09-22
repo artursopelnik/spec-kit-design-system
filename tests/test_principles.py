@@ -23,10 +23,7 @@ KINDS = {"interactive", "layout", "text", "media", "motion", "any"}
 
 
 def resolve(design, kinds=None):
-    root = Path.cwd()
-    config = design.load_config(root)
-    adapter = design.load_adapter(root, config)
-    return design.resolve_principles(root, config, adapter, kinds)
+    return design.resolve_principles(design.DesignSystem.resolve(), kinds)
 
 
 # --- the shipped default set --------------------------------------------------
@@ -385,3 +382,101 @@ def test_an_unversioned_source_says_so_rather_than_inventing_one(
     path = write_ds_principles({"prose": "Keyboard first."})
     write_config({"principles": {"source": str(path.relative_to(Path.cwd()))}})
     assert resolve(design)["principles_version"] is None
+
+
+# --- the shape a design system actually publishes -----------------------------
+#
+# `normalize_principles` promises to accept whatever a design system says. The
+# filter downstream of it has to keep that promise, or the promise is only about
+# the document and not about the rules inside it.
+
+
+def test_applies_to_may_be_a_list(design):
+    """A principle that bears on two kinds has one natural way to say so.
+
+    Reading `applies_to` as a scalar raised `unhashable type: 'list'` from the
+    membership test, which the top-level handler turned into an error envelope.
+    The gate went on reporting the principles as present and authoritative,
+    because it resolves them without kinds and never hit the branch.
+    """
+    rules = [{"id": "A", "applies_to": ["interactive", "layout"]}]
+
+    assert design.select_principles(rules, ["interactive"], set())[0] == rules
+    assert design.select_principles(rules, ["layout"], set())[0] == rules
+    assert design.select_principles(rules, ["motion"], set())[0] == []
+    assert design.select_principles(rules, None, set())[0] == rules
+
+
+@pytest.mark.parametrize(
+    "applies, kinds, kept",
+    [
+        ("interactive", ["interactive"], True),
+        (["interactive"], ["interactive"], True),
+        (["interactive", "layout"], ["layout", "text"], True),
+        (["interactive"], ["layout"], False),
+        ("any", ["motion"], True),
+        (["any", "text"], ["motion"], True),
+        (None, ["motion"], True),          # unclassified is unconditional
+        ("", ["motion"], True),
+        ([], ["motion"], True),            # an empty list classifies nothing
+        (["  interactive  "], ["interactive"], True),
+    ],
+)
+def test_applies_to_shapes(design, applies, kinds, kept):
+    rule = {"id": "A"} if applies is None else {"id": "A", "applies_to": applies}
+    selected, skipped = design.select_principles([rule], kinds, set())
+    assert bool(selected) is kept, (applies, kinds, selected)
+    assert skipped == (0 if kept else 1)
+
+
+def test_a_list_valued_principle_survives_the_whole_resolution(design, tmp_path, monkeypatch):
+    """End to end: the crash showed up as principles silently going missing in
+    the one phase that writes them into the spec."""
+    source = tmp_path / "principles.yml"
+    source.write_text(
+        "principles:\n"
+        "  - id: ACME-BOTH\n"
+        "    dimension: accessibility\n"
+        "    applies_to: [interactive, layout]\n"
+        "    requirement: Targets MUST be at least 48x48px.\n"
+        "    verify: Measure the rendered target.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    config = {"principles": {"source": str(source)}}
+    ds = design.DesignSystem(tmp_path, config, {"capabilities": {}})
+    result = design.resolve_principles(ds, ["interactive"])
+
+    assert result["principles_source"] == "docs"
+    assert [p["id"] for p in result["principles"]] == ["ACME-BOTH"]
+    assert result["principles"][0]["enforceable"] is True
+
+
+# --- a refusal has to be readable by the guard that stops the run -------------
+
+
+@pytest.mark.parametrize(
+    "command, key, value",
+    [
+        ("gate", "REACHABLE", False),
+        ("gate", "PRINCIPLES_SOURCE", "unavailable"),
+        ("gate", "CAPABILITIES", []),
+        ("principles", "principles_source", "unavailable"),
+        ("context", "reachable", False),
+        ("workflow", "next", "stop"),
+    ],
+)
+def test_a_failure_envelope_fails_closed(design, command, key, value):
+    """Every command body stops on `REACHABLE` or `principles_source`. An error
+    that carries neither slips past both guards, and the run proceeds on no
+    principles at all — which is the failure this extension exists to prevent,
+    arriving through the one path nobody wrote a branch for."""
+    envelope = design.failure_envelope(command, "boom")
+    assert envelope["available"] is False
+    assert envelope["error"] == "boom"
+    assert envelope[key] == value
+
+
+def test_a_failure_envelope_for_an_unknown_command_is_still_a_refusal(design):
+    envelope = design.failure_envelope(None, "boom")
+    assert envelope["available"] is False and envelope["error"] == "boom"

@@ -14,6 +14,12 @@ The public model is one sentence: give it an RFC, it runs the Spec Kit workflow 
   adapters/        declarative YAML        "how to ask your design system"
 ```
 
+Inside the script, one object carries the resolved project: `DesignSystem` holds
+`root`, `config` and `adapter`, and caches the probe. That tuple used to be
+threaded through nine functions and rebuilt at the top of every subcommand,
+which is why `gate` and each `context` call each paid for their own probe —
+four round-trips per phase transition where two would do.
+
 The separation earns its keep by kind of change:
 
 - A change to **judgement** — when a rung may be rejected, what counts as a finding, how hard to push back — is a prose edit in `commands/`. No code, no release of anything else.
@@ -24,7 +30,7 @@ Nothing in `adapters/` may hold rules or component knowledge; a test enforces it
 
 ## The script
 
-`scripts/python/design.py`, with `scripts/bash/ds.sh` as a shim that finds an interpreter and forwards. Every subcommand emits exactly one compact JSON object on stdout, per Spec Kit's script convention, and a failure is a JSON object saying why rather than a non-zero exit — so a command body can degrade deliberately instead of crashing.
+`scripts/python/design.py`, with `scripts/bash/ds.sh` as a shim that finds an interpreter and forwards. Every subcommand emits exactly one compact JSON object on stdout, per Spec Kit's script convention, and a failure is one too: a refusal is `{"available": false, "error": ...}` on stdout, carrying the same keys the caller's guard reads (`REACHABLE`, `principles_source`), so a command body degrades deliberately instead of crashing. A refusal also exits non-zero, which matters only to a shell running under `set -e`; the JSON is the interface.
 
 | Subcommand           | Answers                                                                                 |
 | -------------------- | --------------------------------------------------------------------------------------- |
@@ -35,6 +41,44 @@ Nothing in `adapters/` may hold rules or component knowledge; a test enforces it
 | `workflow status`    | Where the run is, and what comes next                                                   |
 | `rfc <path>`         | The RFC, normalized: sections, open questions, whether it is UI-bearing                 |
 | `ledger`             | Prior ladder decisions                                                                  |
+
+## Capability dispatch: two axes, not one function
+
+Asking the design system splits along two independent axes, and keeping them
+apart is what stopped this being one 234-line function with five jobs in it
+(routing, two transports, three query strategies and envelope construction —
+cyclomatic complexity 63).
+
+```text
+  run_capability          routing only: which transport, then which strategy
+        │
+        ├── Transport     WHERE the bytes come from, and whether we got any
+        │                 FileTransport · ProcessTransport · McpTransport
+        │
+        └── Strategy      WHAT they answer, once we have them
+                          KeyFieldLookup · WeightedSearch · SliceOnly
+```
+
+A **transport** returns a `Fetched`, whose `status` is the three-way the
+fail-closed rule needs: reached and answered, reached and explicitly told no,
+or never reached. Only a transport can tell those apart. A **strategy** turns a
+`Fetched` into an answer; only it knows what the payload means.
+
+Adding a way of asking is a class plus one entry in `TRANSPORTS`. That is not
+theoretical: the README promised "CLI, MCP, or files" from the start, and the
+MCP transport could not be written while dispatch was one function, because
+there was no seam to add it at.
+
+`WeightedSearch` living here rather than in the dispatcher matters for the same
+reason the adapters may not model: ranking an inventory is knowledge about one
+transport's payload, not about dispatch. It sat inline in the old function,
+which meant the layer that is supposed to know nothing about any particular
+design system carried a search engine for one.
+
+Every response is built by `Answer.unavailable` or `Answer.answered`, which is
+where the rule below is enforced rather than remembered. Thirteen hand-built
+dicts had already drifted: six failure paths carried no `bytes`, the
+file-backed paths carried no `result_path_missed`.
 
 ## Capability dispatch, and one rule
 
@@ -79,6 +123,7 @@ Each principle comes back with `enforceable`: it states a MUST or SHOULD **and**
 | plan      | spec, principles, named components, tokens, breakpoints |
 | implement | plan, named components, tokens                          |
 | validate  | spec, principles, named components                      |
+| verify    | spec, principles                                        |
 
 Each response carries `bytes`, and the context carries a `sizes` block per section plus a total, so "focused" is a measured claim rather than an assumed one. Sizes are reported, never enforced: nothing is dropped from a payload on the way through. Where an answer is bulkier than it needs to be — `breakpoints` mapped onto the token command without a slice is the usual case — the context says so in `notes` and the fix belongs in the adapter, which is the only layer that knows the shape of that system's response.
 
@@ -95,10 +140,43 @@ The property to preserve when changing this: **focused, never restricted**. Two 
 | implemented         | `tasks.md` has no unticked task                         |
 | validated           | `design-system.md` has `## Validation round N` sections |
 | open findings       | unticked `- [ ] DS-F-nnn` entries                       |
+| verified            | `design-system.md` has a `## Verification` section      |
 
 So an interrupted run resumes by reading, and recorded state cannot drift from real state. The cost is a format contract with the validate command: the round heading and the finding checkbox are load-bearing, and that is stated in the command body where someone editing it will see it.
 
 The loop terminates on two conditions: a round with no findings at all ends it, and `max_validation_rounds` stops it. A round whose findings were ticked off does not count as clean — that would let the fixing pass sign off its own fixes.
+
+A clean round ends the *loop*, not the run: `next` becomes `verify`, and the run is complete only once a `## Verification` section records that the whole change was checked back against the RFC. Every phase here is derived from an artifact, so a phase with no artifact is one the run skips — which is what happened while `verify` was derived from the validate row rather than from anything it wrote.
+
+## What is mechanism, and what is judgement
+
+Worth being exact about, because "a gate that blocks" reads as a mechanical
+guarantee and only part of it is one.
+
+Mechanical, in the script, and not negotiable by an agent:
+
+- reachability. `probe_adapter` spends a real call, and an unreachable design
+  system comes back with an empty `CAPABILITIES` and `REACHABLE: false`. A
+  refusal — bad config, missing adapter, an unexpected error — carries the same
+  markers, so the guard fires on the failure nobody anticipated too.
+- principles resolution, and `principles_source: unavailable` when nothing
+  answered and the fallback is off.
+- workflow position, the round count and the bound on it.
+- the ledger: one active decision per capability, one spelling per rung.
+
+Judgement, in the command bodies, honoured because the agent is told to:
+
+- `gate.enforce` — whether a failed gate errors or warns.
+- `gate.min_candidates_considered` — how thin a search may be before a rung may
+  be rejected.
+- `ledger.enabled` — whether lookup and recording happen at all.
+- `validation.forbid_raw_values` — whether a raw value becomes a finding.
+
+These four are handed over in `CONFIG` and read by nothing in the script. That
+is the layering working as intended: judgement belongs in prose, where it can
+be argued with. It is also the reason `tests/test_config.py` pins them — a
+setting the script ignores and no command body mentions is enforced by nothing,
+while still sitting in the config file looking as though it works.
 
 ## Where Spec Kit does the work
 

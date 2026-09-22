@@ -14,12 +14,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 
 def context(design, phase, **kwargs):
-    root = Path.cwd()
-    config = design.load_config(root)
-    adapter = design.load_adapter(root, config)
-    return design.build_context(root, config, adapter, phase, **kwargs)
+    return design.build_context(design.DesignSystem.resolve(), phase, **kwargs)
 
 
 def test_implement_does_not_receive_the_whole_design_system(
@@ -78,9 +77,7 @@ def test_what_was_not_handed_over_can_still_be_retrieved(
     assert "Popover" not in json.dumps(payload)
 
     root = Path.cwd()
-    config = design.load_config(root)
-    adapter = design.load_adapter(root, config)
-    later = design.run_capability(root, config, adapter, "component", {"name": "Popover"})
+    later = design.DesignSystem.resolve().ask("component", name="Popover")
 
     assert later["found"] is True
     assert later["data"]["name"] == "Popover"
@@ -209,10 +206,10 @@ def test_a_large_answer_is_reported_but_never_trimmed(design):
     A context that silently dropped half a token set would make the agent
     confidently wrong, which is the one outcome worse than an expensive run."""
     big = {"tokens": {str(n): "x" * 64 for n in range(400)}}
-    note = design.cost_note("tokens", {"bytes": design.payload_bytes(big), "data": big})
+    note = design.Answer.cost_note("tokens", {"bytes": design.payload_bytes(big), "data": big})
 
     assert note and "bytes" in note
-    assert design.cost_note("breakpoints", {"bytes": 120}) is None
+    assert design.Answer.cost_note("breakpoints", {"bytes": 120}) is None
 
 
 def test_breakpoints_answering_with_the_token_set_is_named_as_such(
@@ -233,3 +230,72 @@ def test_breakpoints_answering_with_the_token_set_is_named_as_such(
 
     assert payload["breakpoints"] == payload["tokens"]
     assert any("same payload as tokens" in note for note in payload["notes"])
+
+
+# --- the contract has to describe the object it is attached to ----------------
+
+
+@pytest.mark.parametrize("phase", ["clarify", "specify", "plan", "implement", "validate", "verify"])
+def test_includes_names_only_keys_that_are_there(
+    design, project, write_config, inventory, defaults_installed, phase
+):
+    """`includes` listed `rfc`, `spec` and `plan` — files this command has no
+    business inlining and never did — and `named_components` for a section
+    delivered under `components`. A caller reading the contract and finding
+    nothing under the name reads it as the design system having nothing."""
+    write_config({"adapter": "static-json"})
+    payload = context(design, phase)
+    missing = [name for name in payload["includes"] if name not in payload]
+    assert missing == [], f"{phase}: advertised but absent -> {missing}"
+
+
+@pytest.mark.parametrize("phase", ["clarify", "plan", "implement"])
+def test_the_artifacts_a_phase_reads_are_named_separately(
+    design, project, write_config, inventory, defaults_installed, phase
+):
+    """Dropping them from `includes` must not lose them: the whole input to a
+    phase should still be visible in one place."""
+    write_config({"adapter": "static-json"})
+    payload = context(design, phase)
+    assert payload["read_from_artifacts"], phase
+    assert not set(payload["read_from_artifacts"]) & set(payload["includes"])
+
+
+def test_every_phase_declares_both_halves_of_its_input(design):
+    assert set(design.PHASE_ARTIFACTS) == set(design.PHASE_CONTEXT)
+
+
+def test_breakpoints_answering_with_the_token_payload_is_reported(
+    design, project, write_config, inventory, defaults_installed
+):
+    """The most common adapter shortcut: most systems have no breakpoint
+    command, so both capabilities get mapped onto the token call and never
+    narrowed. It works -- the names are in there -- and it silently doubles what
+    every phase pays. The context has to say so, because nothing at the call
+    site would show it."""
+    write_config(
+        {
+            "adapter": "static-json",
+            "capabilities": {
+                "breakpoints": {"read_file": "{source}", "result_path": "tokens"}
+            },
+        }
+    )
+    payload = context(design, "plan")
+
+    assert payload["breakpoints"] == payload["tokens"]
+    assert any(
+        "counted twice" in note for note in payload["notes"]
+    ), payload["notes"]
+
+
+def test_a_narrowed_breakpoints_mapping_is_not_reported(
+    design, project, write_config, inventory, defaults_installed
+):
+    """The other half: an adapter that does carve out the slice must not be
+    nagged about a cost it is not paying."""
+    write_config({"adapter": "static-json"})
+    payload = context(design, "plan")
+
+    assert payload["breakpoints"] != payload["tokens"]
+    assert not any("counted twice" in note for note in payload["notes"])

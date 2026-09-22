@@ -6,6 +6,124 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — from the pre-1.0 review
+
+- **A principle may apply to more than one kind.** `applies_to: [interactive,
+  layout]` raised `unhashable type: 'list'`. The gate resolves principles
+  without kinds, so it never hit the branch: it went on reporting the
+  principles as present and authoritative while the phase that writes them into
+  the spec got an error envelope carrying no `principles_source` at all. Every
+  command stops on `REACHABLE` or `principles_source`, so an envelope with
+  neither slipped past both guards. `applies_to` now takes a scalar or a list,
+  and a refusal — from `die` or from an unexpected error — is shaped for
+  whoever is about to read it, so the existing guards fire.
+
+- **One active ledger decision per capability, one spelling per rung.**
+  Following the two command bodies produced two contradicting active decisions
+  for one surface: `check.md` recorded when the gate walked it and `run.md`
+  recorded it again at verify, under a different vocabulary
+  (`compose-components` against `compose`, `decided_in` against `feature`).
+  `resolution` is now validated and normalized, the feature field has one name,
+  a second active decision is refused unless it supersedes, and the gate is the
+  only writer.
+
+- **Recall works for the phrasing the ladder insists on.** Overlap was measured
+  against the union of the token sets, so a capability phrase — the style the
+  method requires — scored 0.167 against a 0.34 threshold while the
+  component-shaped name it forbids scored 1.0. Rung 0 never fired for anyone
+  following the documentation. Overlap is now measured against the shorter
+  phrase; unrelated surfaces still score 0.
+
+- **`verify` is a phase rather than a restatement of `validate`.** It was
+  derived from the same condition, so it reported itself done the moment
+  validation passed and `next` went straight to `done` — and the run command
+  tells the agent to follow `next`. Verify now records a `## Verification`
+  section in `design-system.md` and the phase is derived from it.
+
+- **`context.includes` names only keys the response carries.** It advertised
+  `rfc`, `spec` and `plan`, which this command never inlines, and
+  `named_components` for a section delivered as `components`. The artifacts a
+  phase reads for itself are reported as `read_from_artifacts`.
+
+- **Settings that did nothing are named.** `gate.enforce`,
+  `gate.min_candidates_considered`, `ledger.enabled` and
+  `validation.forbid_raw_values` are enforced by the command bodies rather than
+  the script, which is now stated in `docs/architecture.md` instead of implied
+  by the phrase "a gate that blocks".
+
+- **One vocabulary across the artifacts.** Recall was missing from the
+  manifests and from the constitution addendum; three command bodies used gate
+  keys they never told the agent to parse; the state list dropped `empty` in one
+  of four places; the README taught a second gap-record format, titled by
+  component name under the rule against exactly that. `config-template.yml` now
+  documents the `ledger.*`, `gate.*` and `validation.*` keys the README already
+  claimed it held.
+
+- **The unreachability diagnostic points somewhere useful.** The troubleshooting
+  table sent the reader to `ds.sh query describe`, which six of the eight
+  shipped adapters do not map — including the one `adapter: auto` falls back to.
+
+### Changed — architecture
+
+- **Capability dispatch splits into transports and strategies.**
+  `run_capability` was one function with five jobs in it — routing, two
+  transports, three query strategies and envelope construction — at 234 lines
+  and cyclomatic complexity 63. It is now 38 lines of routing at complexity 7.
+  A **transport** (`FileTransport`, `ProcessTransport`, `McpTransport`) says
+  where the bytes come from and whether they arrived; a **strategy**
+  (`KeyFieldLookup`, `WeightedSearch`, `SliceOnly`) says what they answer.
+
+- **An MCP transport, which the README has promised from the start.** It could
+  not be written while dispatch was one function, because there was no seam to
+  add it at. The call is delegated to a client command the adapter names — this
+  extension ships no MCP client and should not grow one — and everything
+  downstream is identical to a CLI mapping, including the failure semantics.
+
+- **`DesignSystem` replaces the `(root, config, adapter)` tuple** that was
+  threaded through nine functions and rebuilt at the top of every subcommand.
+  It caches the probe, so a phase transition no longer pays for two identical
+  round-trips.
+
+- **`Answer.unavailable` / `Answer.answered`** replace thirteen hand-built
+  result dicts whose shape had already drifted: six failure paths carried no
+  `bytes`, the file-backed paths no `result_path_missed`.
+
+- **A `Capability` registry** replaces a name list, a positional-argument map
+  in `cmd_query`, a probe-parameter dict and a ladder map that could drift
+  apart; the last three are derived from it.
+
+- **`workflow_status` decides by an ordered rule table** rather than a nine-arm
+  `elif` chain that mixed what each phase means with which one wins.
+
+- `Answer.cost_note` moved onto the class that owns the fields it reads, and
+  the repeated tokens/breakpoints fetch in `build_context` became one helper.
+  The breakpoints-answered-with-the-token-payload report, which the cost
+  accounting depends on, had no test and now has two.
+
+- Named constants for the timeouts, result caps and truncation lengths that
+  were inline numbers, and adapter detection now reports a `package.json` it
+  could not read (`DETECTION_NOTES` in the gate) instead of silently falling
+  through to `static-json`.
+
+### Removed
+
+- **The config carry-forward for a version that was never released.**
+  `migrate_config` mapped `rules.*` and `audit.*` onto the current keys so an
+  existing project would survive an upgrade — from a "pre-0.2" that does not
+  exist at version 0.1.0, for projects that cannot exist because nothing has
+  ever been released. It also contradicted the policy this changelog states
+  three paragraphs down for the `guidelines:` rename. One rule now: a key this
+  extension does not document is a key it does not read, and a retired key is
+  left untouched rather than quietly reinterpreted.
+
+- `ledger.revalidate_when_stale` and the unused `PHASES` constant.
+
+### Added
+
+- `tests/test_docs_consistency.py`: the command bodies are a layer a model acts
+  on and nothing executes, which is where every defect above actually lived. It
+  parses the shipped prose and checks it against the script.
+
 ### Changed — BREAKING
 
 - **Guidelines are now Principles, everywhere.** A design system states

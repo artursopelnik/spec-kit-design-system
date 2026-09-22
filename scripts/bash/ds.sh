@@ -10,9 +10,12 @@
 #   ds.sh query <capability> [args...]           ask the design system anything
 #   ds.sh ledger lookup|record|list [value]      prior design decisions
 #
-# Always emits one JSON object. An unmapped or unreachable capability comes back
-# as {"available": false, "reason": "..."} rather than a non-zero exit, so
-# callers can degrade deliberately instead of crashing.
+# Always emits one JSON object, including when it refuses. An unmapped or
+# unreachable capability comes back as {"available": false, "reason": "..."} so
+# callers can degrade deliberately instead of crashing. A refusal that stops the
+# subcommand (bad config, missing adapter, an unexpected error) emits the same
+# shape plus the keys the caller's guard reads, and exits non-zero as well --
+# read stdout, not the exit code.
 #
 # The logic lives in scripts/python/design.py; this file only finds a usable
 # interpreter and forwards. Callers without bash can invoke the module directly:

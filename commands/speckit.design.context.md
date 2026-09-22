@@ -25,7 +25,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 Without bash, call the module directly; it behaves identically:
 `python3 .specify/extensions/design/scripts/python/design.py gate --json`
 
-Parse for `FEATURE_SPEC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON`, `UI_BEARING`, `PRINCIPLES_SOURCE`.
+Parse for `FEATURE_SPEC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON`, `UI_BEARING`, `PRINCIPLES_SOURCE`, `PRINCIPLES_DISABLED`, `HAS_TOKENS` and `REQUIRED_DIMENSIONS`.
 
 **If `UI_BEARING` is `false`**: report that no user-facing surface was found and stop without editing the spec.
 
@@ -141,7 +141,7 @@ Use `DS-` prefixed, testable requirement IDs in the same MUST/SHOULD style as th
 - **DS-002**: All spacing and color values MUST reference design tokens
   (`space.*`, `color.surface.*`); raw hex or px values are not acceptable.
 - **DS-003**: Every interactive element MUST handle default, hover, focus, active,
-  disabled, loading and error states.
+  disabled, loading, error and empty states where each applies.
 - **DS-004**: The layout MUST behave correctly at all project breakpoints, with the
   filter row collapsing to a stacked form below `md`.
 - **DS-005**: The control MUST be operable by keyboard alone and expose an accessible

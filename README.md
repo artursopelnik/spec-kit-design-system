@@ -19,7 +19,7 @@ That is the whole interface. You do not drive the phases, manage context, or con
 - **Reuse first, create last.** Every UI need climbs a ladder before anything new is built: Recall → Reuse → Compose → Extend → Create. A genuine gap is sent to your design system's intake, when its CLI offers one. Otherwise it stays documented in the feature.
 - **Remembers every decision.** Each ladder walk is saved in a committed ledger keyed by UI capability. The next feature that needs a date range reads the answer instead of searching again, even when it words the need differently.
 - **Lean context, nothing out of reach.** Each phase starts with only what it needs, never the whole inventory. Everything else stays one call away, so the agent can still ask for it when it does.
-- **A gate that actually blocks.** `/speckit.plan` does not start until every UI surface has a documented resolution: candidates searched, and why the chosen rung is the lowest that holds. Design rules become numbered spec requirements (`DS-001: … MUST …`) with acceptance criteria.
+- **A gate that actually blocks.** `/speckit.plan` does not start until every UI surface has a documented resolution: candidates searched, and why the chosen rung is the lowest that holds. Design rules become numbered spec requirements (`DS-001: … MUST …`) with acceptance criteria. An unreachable design system stops the gate in the script itself, so that one is not a matter of the agent's judgement; how strictly the walk is then held is, and [architecture](docs/architecture.md#what-is-mechanism-and-what-is-judgement) says which is which.
 - **Validated by your design system, not by the implementer.** After implementing, a separate pass checks the result against the spec and the ladder decisions, and runs your design system's own lint or token audit when the adapter maps one. Findings go back into implementation and are re-validated, up to 3 rounds.
 
 ### Why you need this Extension
@@ -107,26 +107,33 @@ The goal is DRY for UI: share and adapt what exists, build new only as a last re
 **Create is a legitimate outcome, as long as it is visible.** It comes with a gap record, the argued case for a new component:
 
 ```markdown
-# Gap record: DateRangePicker
+# Gap: selection of a start and end date
 
-**Surface**: selection of a start and end date
+**Feature**: 003-booking-filters · **Design system**: acme-ds · **Version**: 1.4.2
 
-## Existing alternatives searched
-| Candidate | Source | Why insufficient |
+## What is needed
+A control for choosing a start and an end date together, where the two are
+validated against each other.
+
+## What was searched
+| Candidate | Rung | Why it is insufficient |
 |---|---|---|
-| DatePicker | component | Single date only; no range semantics |
-| Calendar | component | Display-only; no input affordance |
-| Select | component | Wrong interaction model; enumerable options only |
-| Popover | component | Container primitive; solves placement, not the control |
+| DatePicker | reuse | Single date only; no range semantics |
+| Calendar | reuse | Display-only; no input affordance |
+| Select | reuse | Wrong interaction model; enumerable options only |
+| Calendar + Popover + two DatePickers | compose | Range validation has to live above both fields, which the composition cannot express without reaching into DatePicker internals |
 
-## Composition attempted
-Calendar in Popover with two DatePickers, rejected because range validation
-has to live above both fields, which the composition cannot express without
-reaching into DatePicker internals.
+## What we are building instead
+A DateRangeField in `src/components/`, built from the system's tokens and its
+Popover primitive.
 
-## Proposal
-**Impact**: new component
+## What the design system could do
+Give DatePicker a range mode, or ship the paired control as a pattern.
 ```
+
+Note the title: the gap is named by the capability, not by the component that
+will close it. Naming it `DateRangePicker` would pre-decide the very question
+the record exists to argue.
 
 This separates a real gap the design system should close from a search that was not thorough enough.
 
@@ -143,7 +150,7 @@ Clarify      what the RFC does not say
  ↓
 Specify      a spec naming your design system's real components and tokens
  ↓
-Plan         Reuse → Compose → Extend → Create, decided against the real system
+Plan         Recall → Reuse → Compose → Extend → Create, against the real system
  ↓
 Tasks        the plan broken into steps
  ↓
@@ -198,7 +205,7 @@ You need the first one. The rest are what it drives, and they also fire as Spec 
 
 ## Your design system
 
-The extension asks yours through a thin adapter that maps capabilities (`search`, `component`, `tokens`, `principles`, ...) onto a CLI call or a file read.
+The extension asks yours through a thin adapter that maps capabilities (`search`, `component`, `tokens`, `principles`, ...) onto a CLI call, a file read, or an MCP tool. One adapter can mix all three.
 
 | Adapter | For |
 |---|---|
@@ -286,7 +293,7 @@ Or wire it to one of the real systems the benchmarks use, with the RFC and the c
 
 | Symptom | Cause and fix |
 |---|---|
-| "design system could not be reached" | The gate probes for real: CLI missing, wrong binary, or inventory not where `source` says. Check with `ds.sh query describe --json`. |
+| "design system could not be reached" | The gate probes for real: CLI missing, wrong binary, or inventory not where `source` says. `UNREACHABLE_REASON` in `ds.sh gate --json` names which, and `MAPPED_CAPABILITIES` beside an empty `CAPABILITIES` confirms the adapter is fine and the system is not. Where the adapter maps `describe` (`shadcn`, `example`), `ds.sh query describe --json` also asks the CLI to state its own command surface. |
 | Principles say `principles_source: default` | Your system supplied none. Map the `principles` capability in your adapter or set `principles.source`. |
 | Principles say `principles_source: unavailable` | Nothing answered and `principles.default` is `false`, so nothing is in force. Intended while adopting; a gate that requires principles fails closed here rather than passing on an empty set. |
 | A principle is listed under `unenforceable` | It states no MUST/SHOULD, or carries no `verify` step, so nothing can be checked against it. It is still returned and still worth reading — add a `verify` step at the source to make it citable. |
