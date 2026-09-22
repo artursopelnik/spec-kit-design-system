@@ -146,7 +146,7 @@ So an interrupted run resumes by reading, and recorded state cannot drift from r
 
 The loop terminates on two conditions: a round with no findings at all ends it, and `max_validation_rounds` stops it. A round whose findings were ticked off does not count as clean — that would let the fixing pass sign off its own fixes.
 
-A clean round ends the *loop*, not the run: `next` becomes `verify`, and the run is complete only once a `## Verification` section records that the whole change was checked back against the RFC. Every phase here is derived from an artifact, so a phase with no artifact is one the run skips — which is what happened while `verify` was derived from the validate row rather than from anything it wrote.
+A clean round ends the _loop_, not the run: `next` becomes `verify`, and the run is complete only once a `## Verification` section records that the whole change was checked back against the RFC. Every phase here is derived from an artifact, so a phase with no artifact is one the run skips — which is what happened while `verify` was derived from the validate row rather than from anything it wrote.
 
 ## What is mechanism, and what is judgement
 

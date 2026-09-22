@@ -85,7 +85,7 @@ search:
   mcp:
     server: "design-system"
     tool: "search_components"
-    client: "npx @acme/mcp-call"   # or set `mcp.client` once at adapter level
+    client: "npx @acme/mcp-call" # or set `mcp.client` once at adapter level
   args: ["--query", "{query}"]
   result_path: "results"
 ```
