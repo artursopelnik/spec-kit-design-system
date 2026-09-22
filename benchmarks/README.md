@@ -305,11 +305,14 @@ python benchmarks/harness/runner.py \
   --repeat 5 --score
 ```
 
-Scoring: Feature 2 either recalls the decision from Feature 1's ledger (rung 0,
-cheaper, fewer tokens) or re-derives it (rungs 1–5, more expensive). The
-`metric_recall` checks whether the ladder walk included a successful ledger
-lookup rather than full re-derivation. The cost delta between features shows
-what the ledger saved.
+Every arm runs both features back to back in one workspace; only the extension
+arm has a ledger to carry the first answer into the second. Scoring is the same
+five arm-neutral metrics over both features' surfaces: each has to land on what
+the system offers, and the second on the same composition as the first. What the
+ledger should change is the price of getting there, so the runner records usage
+per feature (`sequence` in `benchmark.json`) and in total, and the total is what
+the report prints beside the score. Whether the second feature cited a ledger
+decision is observed as `decisions_cited`, never scored: only one arm could.
 
 The case is `period-filter-sequence`: Feature 1 filters bookings by date range,
 Feature 2 filters invoices by billing period. Both need "selecting a start and
