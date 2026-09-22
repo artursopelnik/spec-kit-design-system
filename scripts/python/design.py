@@ -80,9 +80,49 @@ STOPWORDS = {
 
 def die(message: str, code: int = 1) -> None:
     print(f"[design] {message}", file=sys.stderr)
-    # Callers parse stdout, so a refusal is JSON there too, not just stderr text.
-    emit({"available": False, "error": message})
+    # Callers parse stdout, so a refusal is JSON there too, not just stderr text,
+    # and it carries the same fail-closed markers an unexpected error would.
+    emit(failure_envelope(ACTIVE_COMMAND, message))
     raise SystemExit(code)
+
+
+# Which subcommand is running. `die` can be reached from deep inside config or
+# adapter loading, long before the caller sees a result, and the shape of a
+# refusal depends on who is about to read it.
+ACTIVE_COMMAND: str | None = None
+
+# The keys each subcommand is read through when it fails. A command body decides
+# to stop on `REACHABLE`/`principles_source`, so an envelope that carries neither
+# is not a refusal it can act on — it reads as a malformed response and the guard
+# never fires. Failing closed has to survive the failure being an unexpected one.
+FAILURE_MARKERS: dict[str, dict[str, Any]] = {
+    "gate": {
+        "REACHABLE": False,
+        "CAPABILITIES": [],
+        "PRINCIPLES_SOURCE": "unavailable",
+        "REQUIRED_DIMENSIONS": [],
+        "HAS_TOKENS": False,
+        "DOD_ITEMS": [],
+    },
+    "principles": {"principles_source": "unavailable", "principles": [], "principle_count": 0},
+    "context": {"reachable": False, "principles": {"principles_source": "unavailable"}},
+    "workflow": {"next": "stop", "complete": False},
+}
+
+
+def failure_envelope(command: str | None, message: str) -> dict:
+    """A refusal shaped like the answer its caller is about to read.
+
+    Every command body guards on the same two things — the design system was not
+    reachable, or no principles are in force — and stops. An error that arrives
+    without those keys slips past both guards, which is how a crash turns into a
+    run that proceeds on no principles at all.
+    """
+    envelope: dict[str, Any] = {"available": False, "error": message}
+    envelope.update(FAILURE_MARKERS.get(command or "", {}))
+    if command in ("gate", "context", "principles"):
+        envelope["UNREACHABLE_REASON"] = message
+    return envelope
 
 
 def emit(obj: Any) -> None:
@@ -816,6 +856,27 @@ def normalize_principles(payload: Any) -> dict:
     return {"prose": str(payload), "rules": [], "version": None, "extra": {}}
 
 
+def applies_to_kinds(rule: dict) -> set[str]:
+    """The surface kinds one principle claims, as a set.
+
+    A principle that genuinely bears on two kinds has only one natural way to
+    say so — `applies_to: [interactive, layout]` — and a design system writing
+    its own principles will reach for it. Reading that as a scalar used to raise
+    `unhashable type: 'list'` from the membership test below, which surfaced as
+    an internal-error envelope with no `principles_source` at all: the gate went
+    on reporting the principles as present and authoritative while the phase
+    that writes them into the spec got nothing. Accepting both shapes is the
+    same promise `normalize_principles` already makes about the document.
+    """
+    applies = rule.get("applies_to", "any")
+    if applies in (None, ""):
+        return {"any"}
+    if isinstance(applies, (list, tuple, set)):
+        kinds = {str(kind).strip() for kind in applies if str(kind).strip()}
+        return kinds or {"any"}
+    return {str(applies).strip() or "any"}
+
+
 def select_principles(rules: list[dict], kinds: list[str] | None, disabled: set[str]) -> tuple:
     """Filter to what this feature actually involves. Anything without an
     `applies_to` is unconditional, because a design system writing free-form
@@ -825,8 +886,8 @@ def select_principles(rules: list[dict], kinds: list[str] | None, disabled: set[
     for rule in rules:
         if str(rule.get("id", "")) in disabled:
             continue
-        applies = rule.get("applies_to", "any")
-        if wanted and applies != "any" and applies not in wanted:
+        applies = applies_to_kinds(rule)
+        if wanted and "any" not in applies and not (applies & wanted):
             skipped += 1
             continue
         selected.append(rule)
@@ -1823,12 +1884,14 @@ def main() -> None:
     ledger.set_defaults(func=cmd_ledger)
 
     args = parser.parse_args()
+    global ACTIVE_COMMAND
+    ACTIVE_COMMAND = args.command
     try:
         args.func(args)
     except SystemExit:
         raise
     except Exception as exc:  # noqa: BLE001 - commands degrade on JSON, never a traceback
-        emit({"available": False, "error": f"internal error: {type(exc).__name__}: {exc}"})
+        emit(failure_envelope(ACTIVE_COMMAND, f"internal error: {type(exc).__name__}: {exc}"))
 
 
 if __name__ == "__main__":
