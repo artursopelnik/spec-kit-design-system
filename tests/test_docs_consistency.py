@@ -71,3 +71,117 @@ def test_only_one_command_writes_to_the_ledger():
     surface, two entries, and the drift the ladder exists to prevent."""
     writers = [p.name for p in COMMANDS if ledger_payloads(body(p))]
     assert writers == ["speckit.design.check.md"], writers
+
+
+# --- the gate's keys ----------------------------------------------------------
+
+
+def gate_keys() -> set[str]:
+    """Every key `cmd_gate` emits, read off the source."""
+    source = (REPO / "scripts" / "python" / "design.py").read_text(encoding="utf-8")
+    return set(re.findall(r'"([A-Z][A-Z_0-9]+)":', source[source.index("def cmd_gate"):]))
+
+
+@pytest.mark.parametrize("path", COMMANDS, ids=lambda p: p.name)
+def test_a_command_declares_every_gate_key_it_goes_on_to_use(path):
+    """A body says "Parse the JSON for ..." and then reads whatever it needs.
+    Three of the four reached for keys that list never mentioned, so an agent
+    that parsed exactly what it was told to parse had nothing to answer with
+    when the body later asked for `REQUIRED_DIMENSIONS`."""
+    text = body(path)
+    declared = set()
+    for line in re.findall(r"^Parse .*", text, re.MULTILINE):
+        declared |= set(re.findall(r"`([A-Z][A-Z_0-9]+)`", line))
+    used = set(re.findall(r"`([A-Z][A-Z_0-9]+)`", text)) & gate_keys()
+    assert not (used - declared), f"{path.name}: used but never declared -> {sorted(used - declared)}"
+
+
+@pytest.mark.parametrize("path", COMMANDS, ids=lambda p: p.name)
+def test_a_command_does_not_ask_for_a_key_the_gate_never_emits(path):
+    """The other direction: a body telling an agent to parse `PRINCIPLES_KIND`
+    sends it looking for something that was renamed or never existed."""
+    text = body(path)
+    declared = set()
+    for line in re.findall(r"^Parse .*", text, re.MULTILINE):
+        declared |= set(re.findall(r"`([A-Z][A-Z_0-9]+)`", line))
+    unknown = declared - gate_keys() - {"JSON"}
+    assert not unknown, f"{path.name}: no such gate key -> {sorted(unknown)}"
+
+
+# --- one vocabulary -----------------------------------------------------------
+
+
+# The anchor is the head of the list, not the whole of it: a drifting list
+# drops or rewords its tail, so anchoring on the tail matches nothing and the
+# guard passes by finding no list at all.
+STATES_HEAD = "default, hover, focus, active"
+STATES_TAIL = ["disabled", "loading", "error", "empty"]
+
+
+@pytest.mark.parametrize("path", PROSE, ids=lambda p: p.name)
+def test_the_state_list_does_not_drift(path):
+    """Four places name the states every instance must handle, and one of them
+    used to stop at `error` while the others went on to `empty`. A checker and a
+    spec disagreeing by one state is a state nobody implements.
+
+    Matched on whitespace-collapsed text, because the list is wrapped across
+    lines in most of these files — which is exactly why the drift survived.
+    """
+    text = re.sub(r"\s+", " ", body(path))
+    for match in re.finditer(re.escape(STATES_HEAD) + r"(.{0,80})", text):
+        tail = match.group(1)
+        missing = [state for state in STATES_TAIL if state not in tail]
+        assert not missing, (
+            f"{path.name}: the state list is missing {missing} -> ...{tail!r}"
+        )
+
+
+def test_the_ladder_is_spelled_the_same_way_everywhere():
+    """Recall is rung 0 and the reason the ledger exists. It was missing from
+    the manifests and from the constitution addendum — the artifact that lands
+    in the customer's own repository as a non-negotiable principle."""
+    offenders = []
+    for path in [REPO / "extension.yml", REPO / "preset" / "preset.yml", *PROSE]:
+        for match in re.finditer(r"(\w+)([ ]*(?:->|→)[ ]*Compose[ ]*(?:->|→)[ ]*Extend)", body(path)):
+            if match.group(1) != "Reuse":
+                continue
+            # The ledger stores outcomes, and Recall is not one of them: it is
+            # the rung that *reads* the ledger. "a ledger of Reuse -> ... ->
+            # Create decisions" is correct and stays.
+            tail = body(path)[match.end():match.end() + 30]
+            if re.match(r"\s*(?:->|→)\s*Create decisions\b", tail):
+                continue
+            start = max(0, match.start() - 12)
+            if "Recall" not in body(path)[start:match.start()]:
+                offenders.append(f"{path.name}: {match.group(0)}")
+    assert not offenders, offenders
+
+
+# --- one gap-record format ----------------------------------------------------
+
+
+GAP_HEADINGS = ["## What is needed", "## What was searched", "## What we are building instead"]
+
+
+def test_the_readme_and_the_command_teach_one_gap_record():
+    """The README taught `# Gap record: <Component>` with its own four headings;
+    the command and the benchmark sample use `# Gap: <capability>` with four
+    different ones. Two formats for the artifact that has to travel to the
+    design system's owners."""
+    readme = body(REPO / "README.md")
+    check = body(REPO / "commands" / "speckit.design.check.md")
+    for heading in GAP_HEADINGS:
+        assert heading in check, f"the command stopped teaching {heading!r}"
+        assert heading in readme, f"the README does not match the command: {heading!r}"
+    assert "# Gap record:" not in readme, "the retired gap-record heading is back"
+
+
+def test_the_gap_record_is_named_by_capability_not_by_component():
+    """The README's own example titled the record `# Gap record: DateRangePicker`,
+    two paragraphs under the rule that naming the component pre-decides the
+    ladder."""
+    for path in (REPO / "README.md", REPO / "commands" / "speckit.design.check.md"):
+        for title in re.findall(r"^# Gap:? ?(.*)$", body(path), re.MULTILINE):
+            assert not re.fullmatch(r"[A-Z][a-zA-Z]+", title.strip()), (
+                f"{path.name}: gap titled with a component name -> {title!r}"
+            )

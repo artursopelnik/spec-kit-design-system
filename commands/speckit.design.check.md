@@ -1,5 +1,5 @@
 ---
-description: "Walk the Reuse -> Compose -> Extend -> Create ladder against the design system and gate planning on the outcome"
+description: "Walk the Recall -> Reuse -> Compose -> Extend -> Create ladder against the design system and gate planning on the outcome"
 ---
 
 # Design System Check
@@ -25,7 +25,7 @@ Run:
 Where bash is unavailable, call the module directly. It behaves identically:
 `python3 .specify/extensions/design/scripts/python/design.py gate --json`
 
-Parse the JSON for `FEATURE_DIR`, `FEATURE_SPEC`, `DESIGN_DOC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON` and `UI_BEARING`.
+Parse the JSON for `FEATURE_DIR`, `FEATURE_SPEC`, `DESIGN_DOC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON`, `UI_BEARING` and `REQUIRED_DIMENSIONS`.
 
 `CAPABILITIES` is what the adapter maps **and** the design system was just reached for: the script spends one real call before reporting any of it, so a CLI that is not installed comes back with nothing rather than with a full contract. An empty list therefore means the source of truth is unavailable. One call is proof of reach, not of every mapping — an individual capability can still answer `available: false` with a `reason`, and that is a failure to ask, never the design system saying it has nothing.
 

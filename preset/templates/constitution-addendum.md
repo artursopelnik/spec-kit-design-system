@@ -10,20 +10,24 @@
   enforceable at analysis time, not just at the plan gate.
 -->
 
-### N. Reuse → Compose → Extend → Create (NON-NEGOTIABLE)
+### N. Recall → Reuse → Compose → Extend → Create (NON-NEGOTIABLE)
 
 The design system is the source of truth for user interface, and it is consulted before
 anything is built, not after. Every user-facing surface MUST be resolved at the lowest
 rung of this ladder that holds:
 
+0. **Recall**: another feature already resolved this surface, and its decision stands.
 1. **Reuse**: an existing component covers the surface.
 2. **Compose (pattern)**: an existing pattern covers the arrangement.
 3. **Compose (components)**: existing components combine to cover it.
 4. **Extend**: an existing component extends through a sanctioned mechanism.
 5. **Create**: a new component, only when rungs 1 through 4 are documented as insufficient.
 
-A rung MUST NOT be rejected without a written record of the candidates searched and a
-concrete reason each is insufficient; "doesn't fit" is not a reason. A surface MUST be
+A surface MUST be looked up among the decisions already taken before the design system is
+queried, and a prior decision MUST be adopted, or superseded in writing, rather than
+quietly re-argued: two live answers to one question is the drift this ladder exists to
+prevent. A rung MUST NOT be rejected without a written record of the candidates searched
+and a concrete reason each is insufficient; "doesn't fit" is not a reason. A surface MUST be
 described by capability rather than by the component the author has in mind, because
 naming the component pre-decides the ladder. New components MUST be accompanied by a gap
 record routed to the design system's owners; a new component that is built without one is

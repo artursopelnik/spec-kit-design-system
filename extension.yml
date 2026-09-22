@@ -36,7 +36,7 @@ provides:
 
     - name: speckit.design.check
       file: commands/speckit.design.check.md
-      description: "Run the Reuse -> Compose -> Extend -> Create ladder and gate the plan on its outcome"
+      description: "Run the Recall -> Reuse -> Compose -> Extend -> Create ladder and gate the plan on its outcome"
 
     - name: speckit.design.validate
       file: commands/speckit.design.validate.md
@@ -62,7 +62,7 @@ hooks:
     command: speckit.design.check
     optional: false
     priority: 5
-    description: "Enforce Reuse -> Compose -> Extend -> Create before planning"
+    description: "Enforce Recall -> Reuse -> Compose -> Extend -> Create before planning"
 
   # Independent validation closes the loop, and its findings drive the fix pass.
   after_implement:

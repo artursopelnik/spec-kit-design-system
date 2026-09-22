@@ -23,7 +23,7 @@ You **MUST** consider the user input before proceeding (if not empty). Arguments
 .specify/extensions/design/scripts/bash/ds.sh workflow status --json
 ```
 
-Parse the gate for `FEATURE_DIR`, `DESIGN_DOC`, `IMPL_PLAN`, `CONFIG`, `CAPABILITIES`, `PRINCIPLES_SOURCE`, `PRINCIPLES_DISABLED`, `PRINCIPLES_UNENFORCEABLE`, `DOD_ITEMS`, `DOD_ERROR`; the status for `validation_rounds_used`, `max_validation_rounds` and `may_validate_again`.
+Parse the gate for `FEATURE_DIR`, `DESIGN_DOC`, `IMPL_PLAN`, `CONFIG`, `CAPABILITIES`, `HAS_TOKENS`, `REQUIRED_DIMENSIONS`, `PRINCIPLES_SOURCE`, `PRINCIPLES_DISABLED`, `PRINCIPLES_UNENFORCEABLE`, `DOD_ITEMS`, `DOD_ERROR`; the status for `validation_rounds_used`, `max_validation_rounds` and `may_validate_again`.
 
 **If `DESIGN_DOC` does not exist**: the gate never ran for this feature. Report that validation has no contract to check against and recommend `/speckit.design.check`. Do not improvise a contract now. A check against a contract invented after the fact tells you nothing.
 

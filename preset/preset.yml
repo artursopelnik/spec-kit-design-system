@@ -33,7 +33,7 @@ provides:
     - type: "template"
       name: "constitution-template"
       file: "templates/constitution-addendum.md"
-      description: "Add the Reuse -> Compose -> Extend -> Create principle to the constitution"
+      description: "Add the Recall -> Reuse -> Compose -> Extend -> Create principle to the constitution"
       strategy: "append"
 
 tags:

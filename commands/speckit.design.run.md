@@ -34,7 +34,7 @@ Where the RFC came from is not your concern. A file, a GitHub issue, a Jira tick
 
 Without bash: `python3 .specify/extensions/design/scripts/python/design.py gate --json`. Identical behaviour. Every command below has the same fallback, so it is not repeated.
 
-Parse `REACHABLE`, `UNREACHABLE_REASON`, `ADAPTER`, `PRINCIPLES_SOURCE`, `DOD_ITEMS`, `FEATURE_DIR`, `CONFIG`.
+Parse `REACHABLE`, `UNREACHABLE_REASON`, `ADAPTER`, `PRINCIPLES_SOURCE`, `DOD_ITEMS`, `FEATURE_DIR`, `DESIGN_DOC`, `CONFIG`.
 
 **If `REACHABLE` is `false`**: report `UNREACHABLE_REASON` and stop. Do not proceed from a remembered component inventory. A run that invents the design system is worse than no run, because everything downstream will look properly sourced.
 
@@ -82,7 +82,7 @@ When the spec comes back carrying `[NEEDS CLARIFICATION]` markers, resolve them:
 
 ### 3. Plan
 
-`/speckit.plan`. The `before_plan` hook fires `/speckit.design.check`, which walks Reuse → Compose → Extend → Create for every surface and blocks planning if a surface is unaccounted for.
+`/speckit.plan`. The `before_plan` hook fires `/speckit.design.check`, which walks Recall → Reuse → Compose → Extend → Create for every surface and blocks planning if a surface is unaccounted for.
 
 If the gate fails, fix the cause and re-run it. Do not disable it and do not route around it.
 

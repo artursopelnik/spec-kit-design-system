@@ -107,26 +107,33 @@ The goal is DRY for UI: share and adapt what exists, build new only as a last re
 **Create is a legitimate outcome, as long as it is visible.** It comes with a gap record, the argued case for a new component:
 
 ```markdown
-# Gap record: DateRangePicker
+# Gap: selection of a start and end date
 
-**Surface**: selection of a start and end date
+**Feature**: 003-booking-filters · **Design system**: acme-ds · **Version**: 1.4.2
 
-## Existing alternatives searched
-| Candidate | Source | Why insufficient |
+## What is needed
+A control for choosing a start and an end date together, where the two are
+validated against each other.
+
+## What was searched
+| Candidate | Rung | Why it is insufficient |
 |---|---|---|
-| DatePicker | component | Single date only; no range semantics |
-| Calendar | component | Display-only; no input affordance |
-| Select | component | Wrong interaction model; enumerable options only |
-| Popover | component | Container primitive; solves placement, not the control |
+| DatePicker | reuse | Single date only; no range semantics |
+| Calendar | reuse | Display-only; no input affordance |
+| Select | reuse | Wrong interaction model; enumerable options only |
+| Calendar + Popover + two DatePickers | compose | Range validation has to live above both fields, which the composition cannot express without reaching into DatePicker internals |
 
-## Composition attempted
-Calendar in Popover with two DatePickers, rejected because range validation
-has to live above both fields, which the composition cannot express without
-reaching into DatePicker internals.
+## What we are building instead
+A DateRangeField in `src/components/`, built from the system's tokens and its
+Popover primitive.
 
-## Proposal
-**Impact**: new component
+## What the design system could do
+Give DatePicker a range mode, or ship the paired control as a pattern.
 ```
+
+Note the title: the gap is named by the capability, not by the component that
+will close it. Naming it `DateRangePicker` would pre-decide the very question
+the record exists to argue.
 
 This separates a real gap the design system should close from a search that was not thorough enough.
 
@@ -143,7 +150,7 @@ Clarify      what the RFC does not say
  ↓
 Specify      a spec naming your design system's real components and tokens
  ↓
-Plan         Reuse → Compose → Extend → Create, decided against the real system
+Plan         Recall → Reuse → Compose → Extend → Create, against the real system
  ↓
 Tasks        the plan broken into steps
  ↓
