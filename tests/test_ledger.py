@@ -22,7 +22,7 @@ def record(design, payload=None):
 
 
 def lookup(design, query, version=None, threshold=0.34):
-    return design.ledger_lookup(Path.cwd(), query, threshold, {}, version)
+    return design.ledger_lookup(Path.cwd(), query, threshold, version)
 
 
 def test_record_assigns_sequential_ids(design, project):
@@ -168,7 +168,7 @@ def test_a_superseded_decision_does_not_block_the_next_one(design, project):
         design, capability="a toast", resolution="create",
         decision="Snackbar", supersedes=first,
     )
-    lookup = design.ledger_lookup(Path.cwd(), "a toast", 0.3, {}, None)
+    lookup = design.ledger_lookup(Path.cwd(), "a toast", 0.3, None)
     assert lookup["match_count"] == 1, "a retired decision is still being surfaced"
 
 

@@ -21,7 +21,7 @@ REPO = Path(__file__).resolve().parents[1]
 def dod(design, project):
     def _dod():
         root = Path.cwd()
-        return design.resolve_dod(root, design.load_config(root))
+        return design.resolve_dod(design.DesignSystem.resolve())
 
     return _dod
 
@@ -193,5 +193,5 @@ def test_the_dod_does_not_live_in_memory(design, project, write_dod):
     write_dod("- Changelog entry\n")
     root = Path.cwd()
     assert design.ledger_path(root).parent.name == "memory"
-    source = Path(design.resolve_dod(root, design.load_config(root))["source"])
+    source = Path(design.resolve_dod(design.DesignSystem.resolve())["source"])
     assert "memory" not in source.relative_to(root).parts

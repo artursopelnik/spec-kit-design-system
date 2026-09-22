@@ -53,7 +53,7 @@ An unmapped capability is reported `available: false` and the commands degrade. 
 
 `ds.sh gate --json` reports `LADDER_SUPPORT`: per rung of the reuse ladder, what backs it and whether the design system can actually be asked. `extend` and `report_gap` are the two most CLIs do not have, so rungs 4 and 5 commonly come back `automated: false`. That is a supported degradation — rung 4 is walked against the component's documented extension points, and the rung 5 gap record is written and gated either way — but it is worth seeing at gate time rather than inferring from a thin ladder walk. Map them to whatever accepts the job: an eject or swizzle command for `extend`, an issue CLI or a webhook script for `report_gap`.
 
-## Two kinds of mapping
+## Three kinds of mapping
 
 **A command**, for a CLI:
 
@@ -77,6 +77,25 @@ component:
 ```
 
 JSON or YAML, resolved against `cwd` if you set one. This is how the `static-json` adapter works, and it is often the fastest way in: most teams can generate an inventory from Storybook, a token pipeline or their component registry in a few lines of build script.
+
+**An MCP tool**, for a design system already exposed over MCP:
+
+```yaml
+search:
+  mcp:
+    server: "design-system"
+    tool: "search_components"
+    client: "npx @acme/mcp-call"   # or set `mcp.client` once at adapter level
+  args: ["--query", "{query}"]
+  result_path: "results"
+```
+
+The call is handed to a client command you name, because this extension ships no MCP client and should not grow one: stdio framing, session handling and auth belong to whatever your project already uses to talk to its servers. The client is invoked as `<client> --server <server> --tool <tool> <args...>` and is expected to print the tool's result as JSON on stdout.
+
+Everything downstream is identical to a CLI mapping — `result_path`, `pick`, `key_field`, the error semantics below — because the MCP transport reuses the CLI transport's failure handling rather than restating it. An MCP server that cannot be reached is exactly as `available: false` as a CLI that is not installed, and must never read as a design system with nothing in it.
+
+> [!NOTE]
+> An adapter uses **one** of these three per capability, and they can be mixed within one adapter: read tokens from a generated file, ask an MCP server for components, shell out to `gh` to file a gap.
 
 ## One command, two questions
 

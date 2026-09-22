@@ -205,7 +205,7 @@ You need the first one. The rest are what it drives, and they also fire as Spec 
 
 ## Your design system
 
-The extension asks yours through a thin adapter that maps capabilities (`search`, `component`, `tokens`, `principles`, ...) onto a CLI call or a file read.
+The extension asks yours through a thin adapter that maps capabilities (`search`, `component`, `tokens`, `principles`, ...) onto a CLI call, a file read, or an MCP tool. One adapter can mix all three.
 
 | Adapter | For |
 |---|---|

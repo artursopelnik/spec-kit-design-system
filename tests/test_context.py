@@ -18,10 +18,7 @@ import pytest
 
 
 def context(design, phase, **kwargs):
-    root = Path.cwd()
-    config = design.load_config(root)
-    adapter = design.load_adapter(root, config)
-    return design.build_context(root, config, adapter, phase, **kwargs)
+    return design.build_context(design.DesignSystem.resolve(), phase, **kwargs)
 
 
 def test_implement_does_not_receive_the_whole_design_system(
@@ -80,9 +77,7 @@ def test_what_was_not_handed_over_can_still_be_retrieved(
     assert "Popover" not in json.dumps(payload)
 
     root = Path.cwd()
-    config = design.load_config(root)
-    adapter = design.load_adapter(root, config)
-    later = design.run_capability(root, config, adapter, "component", {"name": "Popover"})
+    later = design.DesignSystem.resolve().ask("component", name="Popover")
 
     assert later["found"] is True
     assert later["data"]["name"] == "Popover"

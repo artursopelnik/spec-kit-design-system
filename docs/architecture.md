@@ -14,6 +14,12 @@ The public model is one sentence: give it an RFC, it runs the Spec Kit workflow 
   adapters/        declarative YAML        "how to ask your design system"
 ```
 
+Inside the script, one object carries the resolved project: `DesignSystem` holds
+`root`, `config` and `adapter`, and caches the probe. That tuple used to be
+threaded through nine functions and rebuilt at the top of every subcommand,
+which is why `gate` and each `context` call each paid for their own probe —
+four round-trips per phase transition where two would do.
+
 The separation earns its keep by kind of change:
 
 - A change to **judgement** — when a rung may be rejected, what counts as a finding, how hard to push back — is a prose edit in `commands/`. No code, no release of anything else.
@@ -35,6 +41,44 @@ Nothing in `adapters/` may hold rules or component knowledge; a test enforces it
 | `workflow status`    | Where the run is, and what comes next                                                   |
 | `rfc <path>`         | The RFC, normalized: sections, open questions, whether it is UI-bearing                 |
 | `ledger`             | Prior ladder decisions                                                                  |
+
+## Capability dispatch: two axes, not one function
+
+Asking the design system splits along two independent axes, and keeping them
+apart is what stopped this being one 234-line function with five jobs in it
+(routing, two transports, three query strategies and envelope construction —
+cyclomatic complexity 63).
+
+```text
+  run_capability          routing only: which transport, then which strategy
+        │
+        ├── Transport     WHERE the bytes come from, and whether we got any
+        │                 FileTransport · ProcessTransport · McpTransport
+        │
+        └── Strategy      WHAT they answer, once we have them
+                          KeyFieldLookup · WeightedSearch · SliceOnly
+```
+
+A **transport** returns a `Fetched`, whose `status` is the three-way the
+fail-closed rule needs: reached and answered, reached and explicitly told no,
+or never reached. Only a transport can tell those apart. A **strategy** turns a
+`Fetched` into an answer; only it knows what the payload means.
+
+Adding a way of asking is a class plus one entry in `TRANSPORTS`. That is not
+theoretical: the README promised "CLI, MCP, or files" from the start, and the
+MCP transport could not be written while dispatch was one function, because
+there was no seam to add it at.
+
+`WeightedSearch` living here rather than in the dispatcher matters for the same
+reason the adapters may not model: ranking an inventory is knowledge about one
+transport's payload, not about dispatch. It sat inline in the old function,
+which meant the layer that is supposed to know nothing about any particular
+design system carried a search engine for one.
+
+Every response is built by `Answer.unavailable` or `Answer.answered`, which is
+where the rule below is enforced rather than remembered. Thirteen hand-built
+dicts had already drifted: six failure paths carried no `bytes`, the
+file-backed paths carried no `result_path_missed`.
 
 ## Capability dispatch, and one rule
 

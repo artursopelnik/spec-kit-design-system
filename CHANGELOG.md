@@ -63,6 +63,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   table sent the reader to `ds.sh query describe`, which six of the eight
   shipped adapters do not map — including the one `adapter: auto` falls back to.
 
+### Changed — architecture
+
+- **Capability dispatch splits into transports and strategies.**
+  `run_capability` was one function with five jobs in it — routing, two
+  transports, three query strategies and envelope construction — at 234 lines
+  and cyclomatic complexity 63. It is now 38 lines of routing at complexity 7.
+  A **transport** (`FileTransport`, `ProcessTransport`, `McpTransport`) says
+  where the bytes come from and whether they arrived; a **strategy**
+  (`KeyFieldLookup`, `WeightedSearch`, `SliceOnly`) says what they answer.
+
+- **An MCP transport, which the README has promised from the start.** It could
+  not be written while dispatch was one function, because there was no seam to
+  add it at. The call is delegated to a client command the adapter names — this
+  extension ships no MCP client and should not grow one — and everything
+  downstream is identical to a CLI mapping, including the failure semantics.
+
+- **`DesignSystem` replaces the `(root, config, adapter)` tuple** that was
+  threaded through nine functions and rebuilt at the top of every subcommand.
+  It caches the probe, so a phase transition no longer pays for two identical
+  round-trips.
+
+- **`Answer.unavailable` / `Answer.answered`** replace thirteen hand-built
+  result dicts whose shape had already drifted: six failure paths carried no
+  `bytes`, the file-backed paths no `result_path_missed`.
+
+- **A `Capability` registry** replaces a name list, a positional-argument map
+  in `cmd_query`, a probe-parameter dict and a ladder map that could drift
+  apart; the last three are derived from it.
+
+- **`workflow_status` decides by an ordered rule table** rather than a nine-arm
+  `elif` chain that mixed what each phase means with which one wins.
+
+- Named constants for the timeouts, result caps and truncation lengths that
+  were inline numbers, and adapter detection now reports a `package.json` it
+  could not read (`DETECTION_NOTES` in the gate) instead of silently falling
+  through to `static-json`.
+
 ### Removed
 
 - **The config carry-forward for a version that was never released.**

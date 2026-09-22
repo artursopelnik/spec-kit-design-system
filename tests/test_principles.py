@@ -23,10 +23,7 @@ KINDS = {"interactive", "layout", "text", "media", "motion", "any"}
 
 
 def resolve(design, kinds=None):
-    root = Path.cwd()
-    config = design.load_config(root)
-    adapter = design.load_adapter(root, config)
-    return design.resolve_principles(root, config, adapter, kinds)
+    return design.resolve_principles(design.DesignSystem.resolve(), kinds)
 
 
 # --- the shipped default set --------------------------------------------------
@@ -447,7 +444,8 @@ def test_a_list_valued_principle_survives_the_whole_resolution(design, tmp_path,
     )
     monkeypatch.chdir(tmp_path)
     config = {"principles": {"source": str(source)}}
-    result = design.resolve_principles(tmp_path, config, {"capabilities": {}}, ["interactive"])
+    ds = design.DesignSystem(tmp_path, config, {"capabilities": {}})
+    result = design.resolve_principles(ds, ["interactive"])
 
     assert result["principles_source"] == "docs"
     assert [p["id"] for p in result["principles"]] == ["ACME-BOTH"]

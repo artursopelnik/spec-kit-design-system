@@ -19,8 +19,7 @@ REPO = Path(__file__).resolve().parents[1]
 @pytest.fixture
 def status(design, project):
     def _status():
-        root = Path.cwd()
-        return design.workflow_status(root, design.load_config(root))
+        return design.workflow_status(design.DesignSystem.resolve())
 
     return _status
 
@@ -195,7 +194,7 @@ def test_progress_survives_an_interrupted_run(status, feature, design):
     validation_round(feature, 1, ["DS-F-001 **violation** · raw padding"])
 
     first = status()
-    second = design.workflow_status(Path.cwd(), design.load_config(Path.cwd()))
+    second = design.workflow_status(design.DesignSystem.resolve())
     assert first == second
 
 
@@ -227,7 +226,7 @@ def test_a_clean_round_asks_for_verification_before_done(design, project, featur
         "## Validation round 1\n\nNo findings.\n", encoding="utf-8"
     )
 
-    status = design.workflow_status(project, design.load_config(project))
+    status = design.workflow_status(design.DesignSystem.resolve())
     assert status["next"] == "verify", status["reason"]
     assert status["complete"] is False
     assert status["verified"] is False
@@ -245,7 +244,7 @@ def test_a_recorded_verification_completes_the_run(design, project, feature):
         encoding="utf-8",
     )
 
-    status = design.workflow_status(project, design.load_config(project))
+    status = design.workflow_status(design.DesignSystem.resolve())
     assert status["next"] == "done"
     assert status["complete"] is True
     assert status["verified"] is True
@@ -263,7 +262,7 @@ def test_verification_does_not_skip_an_open_finding(design, project, feature):
         encoding="utf-8",
     )
 
-    status = design.workflow_status(project, design.load_config(project))
+    status = design.workflow_status(design.DesignSystem.resolve())
     assert status["next"] == "fix", status["reason"]
     assert status["complete"] is False
 
@@ -275,3 +274,103 @@ def test_the_run_command_states_the_verification_format():
     body = (REPO / "commands" / "speckit.design.run.md").read_text(encoding="utf-8")
     assert "## Verification" in body
     assert "design-system.md" in body
+
+
+# --- the format contract, against what a model actually writes ----------------
+#
+# Position is derived by regex from a markdown file that a language model
+# writes. The existing tests feed it the exact shape the command body teaches,
+# which proves the parser reads its own examples. The risk is the other case: a
+# model that formats reasonably but not identically, where a missed heading
+# does not error -- it silently stops the fix loop terminating.
+
+
+REALISTIC_ROUND_HEADINGS = [
+    "## Validation round 1 — 2026-05-14",      # as taught
+    "## Validation round 1 - 2026-05-14",      # hyphen, not em dash
+    "## Validation round 1",                   # no date
+    "## Validation Round 1",                   # title case
+    "### Validation round 1",                  # nested a level deeper
+    "##  Validation round 1  ",                # loose whitespace
+    "## Validation round 10 — 2026-05-14",     # two digits
+]
+
+
+@pytest.mark.parametrize("heading", REALISTIC_ROUND_HEADINGS)
+def test_a_round_heading_is_recognised(design, heading):
+    found = design.VALIDATION_ROUND.findall(heading)
+    assert found, f"not recognised as a round: {heading!r}"
+    assert found[0].isdigit()
+
+
+REALISTIC_FINDING_LINES = [
+    "- [ ] DS-F-001 **violation** · Date range · bespoke input",
+    "- [ ] DS-F-001 violation: bespoke input",
+    "  - [ ] DS-F-012 nested under a surface heading",
+    "-   [ ] DS-F-003 extra spaces after the dash",
+]
+
+
+@pytest.mark.parametrize("line", REALISTIC_FINDING_LINES)
+def test_an_open_finding_is_recognised(design, line):
+    assert design.FINDING_OPEN.findall(line), f"open finding missed: {line!r}"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "- [x] DS-F-001 fixed by using the system's focus token",
+        "- [X] DS-F-002 fixed",
+        "  - [x] DS-F-003 fixed",
+    ],
+)
+def test_a_closed_finding_is_recognised(design, line):
+    assert design.FINDING_CLOSED.findall(line), f"closed finding missed: {line!r}"
+    assert not design.FINDING_OPEN.findall(line), "a fixed finding still reads as open"
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "## Verification — 2026-05-14",
+        "## Verification",
+        "### Verification of the whole change",
+        "## verification",
+    ],
+)
+def test_a_verification_heading_is_recognised(design, heading):
+    assert design.VERIFICATION.search(heading), f"verification missed: {heading!r}"
+
+
+def test_a_finding_inside_prose_does_not_count_as_open(design):
+    """`DS-F-001` mentioned in a sentence is a reference, not a finding. Only a
+    checkbox at the start of a list item opens one."""
+    prose = "Round 2 confirmed that DS-F-001 no longer reproduces.\n"
+    assert not design.FINDING_OPEN.findall(prose)
+
+
+def test_the_loop_terminates_on_a_realistically_formatted_document(
+    design, project, feature
+):
+    """End to end on markdown written the way a model writes it rather than the
+    way the example does: hyphen instead of em dash, a surface heading between
+    the rounds, findings indented under it."""
+    (feature / "plan.md").write_text("# Plan", encoding="utf-8")
+    (feature / "tasks.md").write_text("- [x] T001\n", encoding="utf-8")
+    (feature / "design-system.md").write_text(
+        "# Design System\n\n"
+        "## Surface: a control for picking a date range\n\n"
+        "**Resolution**: Compose (components)\n\n"
+        "### Validation round 1 - 2026-05-14\n\n"
+        "  - [x] DS-F-001 raw padding, fixed with space.3\n\n"
+        "### Validation round 2 - 2026-05-15\n\n"
+        "No findings.\n\n"
+        "## Verification\n\nRFC criteria: 3 of 3 met.\n",
+        encoding="utf-8",
+    )
+
+    status = design.workflow_status(design.DesignSystem.resolve())
+    assert status["validation_rounds_used"] == 2
+    assert status["closed_findings"] == ["DS-F-001"]
+    assert status["open_findings"] == []
+    assert status["next"] == "done", status["reason"]
