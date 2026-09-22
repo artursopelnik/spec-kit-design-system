@@ -8,6 +8,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+REPO = Path(__file__).resolve().parents[1]
+
 
 def test_defaults_come_from_the_extension_manifest(design, project):
     config = design.load_config(Path.cwd())
@@ -142,3 +146,64 @@ def test_auto_adapter_detects_component_libraries(design, project):
         )
         assert design.load_adapter(root, config)["id"] == expected, dependency
 
+
+
+# Settings the *script* never reads, because the layer that enforces them is the
+# command body: the script hands them over in `CONFIG` and the agent acting on
+# the prose honours them. That is a real architectural choice — judgement lives
+# in `commands/`, mechanism in the script — and it is worth naming, because
+# "the gate blocks" reads as a mechanical guarantee and for these four it is
+# not. Each one must be named by a command body, or nothing enforces it at all.
+ENFORCED_BY_THE_COMMANDS = {
+    "gate.enforce": "check.md decides whether a failed gate errors or warns",
+    "gate.min_candidates_considered": "check.md rejects a rung walked on fewer candidates",
+    "ledger.enabled": "check.md and context.md skip lookup and recording when false",
+    "validation.forbid_raw_values": "validate.md raises a finding for a raw value",
+}
+
+
+def config_defaults() -> list[str]:
+    import yaml
+
+    manifest = yaml.safe_load((REPO / "extension.yml").read_text(encoding="utf-8"))
+
+    def leaves(node, prefix=""):
+        for key, value in (node or {}).items():
+            path = f"{prefix}{key}"
+            if isinstance(value, dict):
+                yield from leaves(value, f"{path}.")
+            else:
+                yield path
+
+    return sorted(leaves(manifest["config"]["defaults"]))
+
+
+def test_every_shipped_default_is_read_by_something():
+    """A default with a comment explaining why it matters, and no reader
+    anywhere, is a promise to whoever configures it that nothing keeps.
+    `ledger.revalidate_when_stale` sat in the manifest with a three-line
+    justification while staleness was reported unconditionally and the key was
+    never loaded by anything."""
+    source = (REPO / "scripts" / "python" / "design.py").read_text(encoding="utf-8")
+    unread = [
+        path
+        for path in config_defaults()
+        if path.rsplit(".", 1)[-1] not in source
+        and path not in ENFORCED_BY_THE_COMMANDS
+    ]
+    assert unread == [], f"declared as a default, read by nothing: {unread}"
+
+
+@pytest.mark.parametrize("setting", sorted(ENFORCED_BY_THE_COMMANDS))
+def test_a_setting_the_script_ignores_is_named_by_a_command(setting):
+    """These four are honoured only because a command body says so. If the body
+    stops mentioning one, the setting silently stops doing anything while still
+    appearing in the config as though it worked."""
+    bodies = "\n".join(
+        path.read_text(encoding="utf-8") for path in (REPO / "commands").glob("*.md")
+    )
+    leaf = setting.rsplit(".", 1)[-1]
+    assert setting in bodies or leaf in bodies, (
+        f"{setting} is enforced by nothing: the script does not read it and no "
+        f"command body mentions it ({ENFORCED_BY_THE_COMMANDS[setting]})"
+    )

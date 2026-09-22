@@ -65,10 +65,6 @@ CAPABILITIES = [
     "report_gap",
 ]
 
-# Phases of the autonomous workflow, in order. `clarify` and `verify` bracket
-# the spec-kit lifecycle; the rest map onto spec-kit's own commands.
-PHASES = ["clarify", "specify", "plan", "implement", "validate", "verify"]
-
 # A hit on the name is worth more than a hit buried in prose.
 FIELD_WEIGHTS = {"name": 3.0, "usage": 1.5, "description": 1.0}
 

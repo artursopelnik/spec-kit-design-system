@@ -102,12 +102,10 @@ config:
       # record each new one. Without this, every feature re-litigates settled
       # questions against an empty context.
       enabled: true
-      # Minimum token-overlap score for a prior decision to be surfaced.
+      # How much of the shorter phrase must overlap for a prior decision to be
+      # surfaced. Lookups report the score of every match, which is how it is
+      # tuned.
       match_threshold: 0.34
-      # Re-validate a prior decision when the design system has moved on since
-      # it was taken. A cached decision against a stale inventory is worse than
-      # no decision, because it looks authoritative.
-      revalidate_when_stale: true
 
     gate:
       # Block planning when the ladder was not walked or its rungs are unjustified.

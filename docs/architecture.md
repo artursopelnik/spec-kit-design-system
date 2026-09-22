@@ -104,6 +104,36 @@ The loop terminates on two conditions: a round with no findings at all ends it, 
 
 A clean round ends the *loop*, not the run: `next` becomes `verify`, and the run is complete only once a `## Verification` section records that the whole change was checked back against the RFC. Every phase here is derived from an artifact, so a phase with no artifact is one the run skips — which is what happened while `verify` was derived from the validate row rather than from anything it wrote.
 
+## What is mechanism, and what is judgement
+
+Worth being exact about, because "a gate that blocks" reads as a mechanical
+guarantee and only part of it is one.
+
+Mechanical, in the script, and not negotiable by an agent:
+
+- reachability. `probe_adapter` spends a real call, and an unreachable design
+  system comes back with an empty `CAPABILITIES` and `REACHABLE: false`. A
+  refusal — bad config, missing adapter, an unexpected error — carries the same
+  markers, so the guard fires on the failure nobody anticipated too.
+- principles resolution, and `principles_source: unavailable` when nothing
+  answered and the fallback is off.
+- workflow position, the round count and the bound on it.
+- the ledger: one active decision per capability, one spelling per rung.
+
+Judgement, in the command bodies, honoured because the agent is told to:
+
+- `gate.enforce` — whether a failed gate errors or warns.
+- `gate.min_candidates_considered` — how thin a search may be before a rung may
+  be rejected.
+- `ledger.enabled` — whether lookup and recording happen at all.
+- `validation.forbid_raw_values` — whether a raw value becomes a finding.
+
+These four are handed over in `CONFIG` and read by nothing in the script. That
+is the layering working as intended: judgement belongs in prose, where it can
+be argued with. It is also the reason `tests/test_config.py` pins them — a
+setting the script ignores and no command body mentions is enforced by nothing,
+while still sitting in the config file looking as though it works.
+
 ## Where Spec Kit does the work
 
 The phases are wired as Spec Kit hooks in `extension.yml`, not inside the run command:
