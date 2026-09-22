@@ -6,6 +6,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — from the pre-1.0 review
+
+- **A principle may apply to more than one kind.** `applies_to: [interactive,
+  layout]` raised `unhashable type: 'list'`. The gate resolves principles
+  without kinds, so it never hit the branch: it went on reporting the
+  principles as present and authoritative while the phase that writes them into
+  the spec got an error envelope carrying no `principles_source` at all. Every
+  command stops on `REACHABLE` or `principles_source`, so an envelope with
+  neither slipped past both guards. `applies_to` now takes a scalar or a list,
+  and a refusal — from `die` or from an unexpected error — is shaped for
+  whoever is about to read it, so the existing guards fire.
+
+- **One active ledger decision per capability, one spelling per rung.**
+  Following the two command bodies produced two contradicting active decisions
+  for one surface: `check.md` recorded when the gate walked it and `run.md`
+  recorded it again at verify, under a different vocabulary
+  (`compose-components` against `compose`, `decided_in` against `feature`).
+  `resolution` is now validated and normalized, the feature field has one name,
+  a second active decision is refused unless it supersedes, and the gate is the
+  only writer.
+
+- **Recall works for the phrasing the ladder insists on.** Overlap was measured
+  against the union of the token sets, so a capability phrase — the style the
+  method requires — scored 0.167 against a 0.34 threshold while the
+  component-shaped name it forbids scored 1.0. Rung 0 never fired for anyone
+  following the documentation. Overlap is now measured against the shorter
+  phrase; unrelated surfaces still score 0.
+
+- **`verify` is a phase rather than a restatement of `validate`.** It was
+  derived from the same condition, so it reported itself done the moment
+  validation passed and `next` went straight to `done` — and the run command
+  tells the agent to follow `next`. Verify now records a `## Verification`
+  section in `design-system.md` and the phase is derived from it.
+
+- **`context.includes` names only keys the response carries.** It advertised
+  `rfc`, `spec` and `plan`, which this command never inlines, and
+  `named_components` for a section delivered as `components`. The artifacts a
+  phase reads for itself are reported as `read_from_artifacts`.
+
+- **Settings that did nothing are gone or named.** `ledger.revalidate_when_stale`
+  had a justifying comment and no reader. `gate.enforce`,
+  `gate.min_candidates_considered`, `ledger.enabled` and
+  `validation.forbid_raw_values` are enforced by the command bodies rather than
+  the script, which is now stated in `docs/architecture.md` instead of implied
+  by the phrase "a gate that blocks".
+
+- **One vocabulary across the artifacts.** Recall was missing from the
+  manifests and from the constitution addendum; three command bodies used gate
+  keys they never told the agent to parse; the state list dropped `empty` in one
+  of four places; the README taught a second gap-record format, titled by
+  component name under the rule against exactly that. `config-template.yml` now
+  documents the `ledger.*`, `gate.*` and `validation.*` keys the README already
+  claimed it held.
+
+- **The unreachability diagnostic points somewhere useful.** The troubleshooting
+  table sent the reader to `ds.sh query describe`, which six of the eight
+  shipped adapters do not map — including the one `adapter: auto` falls back to.
+
+### Added
+
+- `tests/test_docs_consistency.py`: the command bodies are a layer a model acts
+  on and nothing executes, which is where every defect above actually lived. It
+  parses the shipped prose and checks it against the script.
+
 ### Changed — BREAKING
 
 - **Guidelines are now Principles, everywhere.** A design system states
