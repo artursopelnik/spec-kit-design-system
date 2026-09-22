@@ -23,7 +23,7 @@ You **MUST** consider the user input before proceeding (if not empty). Arguments
 .specify/extensions/design/scripts/bash/ds.sh workflow status --json
 ```
 
-Parse the gate for `FEATURE_DIR`, `DESIGN_DOC`, `IMPL_PLAN`, `CONFIG`, `CAPABILITIES`, `PRINCIPLES_SOURCE`, `PRINCIPLES_DISABLED`, `PRINCIPLES_UNENFORCEABLE`; the status for `validation_rounds_used`, `max_validation_rounds` and `may_validate_again`.
+Parse the gate for `FEATURE_DIR`, `DESIGN_DOC`, `IMPL_PLAN`, `CONFIG`, `CAPABILITIES`, `PRINCIPLES_SOURCE`, `PRINCIPLES_DISABLED`, `PRINCIPLES_UNENFORCEABLE`, `DOD_ITEMS`, `DOD_ERROR`; the status for `validation_rounds_used`, `max_validation_rounds` and `may_validate_again`.
 
 **If `DESIGN_DOC` does not exist**: the gate never ran for this feature. Report that validation has no contract to check against and recommend `/speckit.design.check`. Do not improvise a contract now. A check against a contract invented after the fact tells you nothing.
 
@@ -93,7 +93,19 @@ Where the adapter maps `validate`, the design system can check its own work. Run
 
 Run the project's existing test command. A failing test is a finding like any other, and one you did not have to argue for.
 
-### 6. Write the round
+### 6. Check the Definition of Done
+
+`DOD_ITEMS` from the gate is the team's own Definition of Done. **If it is empty, skip this step entirely** and say nothing about it: most projects keep no DoD, and a checker that reports on its absence is nagging about a feature they chose not to use.
+
+Where there are items, check each one against the change, the same way as everything above: against what the code and the repository actually show, not against what the plan intended. These are plain sentences rather than structured rules, so read each one for what it asks and find the evidence that settles it. An item you cannot check — nothing in the repository could show it either way, such as a sign-off that happens in another system — is reported as unchecked with the reason, never as met.
+
+An unmet item is a **violation**: the team set this bar for themselves, so falling short of it is a contradiction of a stated requirement, not a suggestion. Number it into the same `DS-F-nnn` sequence as everything else, which is what puts it in the fix loop and keeps the feature from being done until it is resolved or argued.
+
+Quote the item as written when reporting it. Do not rephrase it into your own words, and do not split one item into several findings: the team wrote that line, and they should recognise it in the finding.
+
+If `DOD_ERROR` is non-empty, a DoD file was configured and could not be read. Report it prominently and treat this step as unchecked rather than passed. Someone believes their rules are being enforced; silence would leave them believing it.
+
+### 7. Write the round
 
 Append a validation round to `DESIGN_DOC`. The heading and the checkbox format are load-bearing: `workflow status` counts rounds from the heading and reads open findings from the unticked boxes, which is what makes the fix loop terminate.
 
@@ -126,7 +138,7 @@ Do not pad the round. A checker that always finds something teaches people to ig
 No findings. All round 1 findings verified fixed.
 ```
 
-### 7. Hand back
+### 8. Hand back
 
 Findings are fixed by the implementation pass, not here, with two exceptions: where a fix is small, local and unambiguous (a raw value with an obvious token, a missing `aria-label`), apply it, tick the box and say so in the round. Where a fix means reversing an implementation decision, leave it open. Silently rewriting a built feature from inside the checker collapses the separation this command exists to provide.
 
@@ -145,5 +157,6 @@ Number of violations, warnings and notes; the violations themselves; which round
 - [ ] The design system's own prose guidance was read and checked against, not just the checkable rules
 - [ ] Every required dimension was checked against the spec's `DS-` requirements
 - [ ] The project's tests were run and their result recorded in the round
+- [ ] Where the project keeps a Definition of Done, every item was checked and unmet ones raised as findings
 - [ ] Findings are appended to `DESIGN_DOC` as `## Validation round N` with `- [ ] DS-F-nnn` entries
 - [ ] The verdict is stated explicitly

@@ -56,6 +56,26 @@ cwd: ""
 #   # silently. Run `ds.sh principles` to see the ids currently in force.
 #   disabled: []
 
+# Your team's Definition of Done, if you keep one. Nothing to configure for it:
+# write the list in `definition-of-done.md` next to this file and validation
+# checks it. No file means no DoD, which is the normal case and costs nothing.
+#
+# Nothing is shipped as a default here, and nothing ever will be. A DoD is what
+# your team agreed among themselves; a set that arrived with an extension would
+# raise findings against rules nobody at your place ever accepted.
+#
+# It sits here rather than in `.specify/memory/` on purpose. The decision ledger
+# there is derived and can be rebuilt from the design system, so clearing it is
+# a reasonable thing to do. Your DoD cannot be rebuilt from anything.
+#
+# Set `source` only to read it from somewhere else — a shared file in a monorepo,
+# or one your design system package ships. Resolved next to this config, then
+# from the repo root, like `principles.source`. A path that does not resolve is
+# reported rather than treated as "no DoD".
+#
+# dod:
+#   source: "docs/definition-of-done.md"
+
 # The design system version in use. Prior decisions taken against a different
 # one are flagged stale rather than reused silently. Leave empty and staleness
 # simply is not checked, which lookups report rather than implying freshness.

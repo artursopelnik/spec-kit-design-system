@@ -234,6 +234,27 @@ principles:
 
 See [principles/example.yml](principles/example.yml) for the shape.
 
+### Definition of Done
+
+Principles are your design system's rules. A Definition of Done is your team's, and this extension treats them as different things: the DoD is never asked of the design system, and **nothing is shipped as a default**. If you keep one, write it in `.specify/extensions/design/definition-of-done.md` as a plain list:
+
+```markdown
+# Definition of Done
+
+Agreed in the design system guild, revisit each quarter.
+
+- Unit tests for every new component
+- A Storybook story per variant
+- Changelog entry
+- Design review signed off by someone who did not build it
+```
+
+No schema, no ids, no `verify` field. Headings and prose around the list are ignored; the bullets are the DoD. Validation checks each item against what was actually built and raises unmet ones as ordinary `DS-F-nnn` findings, so they go through the same fix loop as everything else and the feature is not done until they are resolved or argued in writing.
+
+The list above is an example to copy and edit, not a starting set. A DoD that arrived with an extension would raise findings against rules nobody at your place agreed to, which is why the file is empty until you write it. No file means no DoD: nothing is checked, nothing is reported, nothing nags.
+
+It sits next to the config rather than in `.specify/memory/` because it is authored, not derived. The decision ledger in `memory/` can be rebuilt from the design system, so clearing it is reasonable; your DoD cannot be rebuilt from anything. To keep it elsewhere — a shared file in a monorepo, or one your design system package ships — point `dod.source` at it.
+
 ## Configuration
 
 For most projects the whole file (`.specify/extensions/design/design-config.yml`) is one line:
@@ -242,7 +263,7 @@ For most projects the whole file (`.specify/extensions/design/design-config.yml`
 adapter: shadcn   # or auto (default), mui, antd, chakra, radix, ark-ui, static-json, your own
 ```
 
-Everything else is optional and documented in [config-template.yml](config-template.yml): a `bin` override, a `cwd` for monorepos, a principles `source`, per-capability overrides, `workflow.max_validation_rounds`, and `gate.enforce: false` while adopting. `SPECKIT_DESIGN_*` environment variables and a gitignored `design-config.local.yml` override the committed config.
+Everything else is optional and documented in [config-template.yml](config-template.yml): a `bin` override, a `cwd` for monorepos, a principles `source`, a `dod.source`, per-capability overrides, `workflow.max_validation_rounds`, and `gate.enforce: false` while adopting. `SPECKIT_DESIGN_*` environment variables and a gitignored `design-config.local.yml` override the committed config.
 
 ## Try it without a design system
 
