@@ -88,3 +88,118 @@ def test_hand_edited_empty_decisions_key_does_not_crash(design, project):
 def test_ledger_lives_in_specify_memory(design, project):
     """Deliberate: `memory-loader` loads this directory into agent context."""
     assert design.ledger_path(Path.cwd()).parent.name == "memory"
+
+
+# --- one capability, one active decision --------------------------------------
+#
+# The ledger is the Recall rung's only data source. Two active decisions for one
+# capability is exactly the drift the ladder exists to prevent, and it arrives by
+# accident rather than by argument: the gate records a surface when it walks it,
+# and a later phase records the same surface again from its own notes.
+
+
+def write(design, **payload):
+    """Record one decision from keyword fields, for the shape-level tests below."""
+    return design.ledger_record(Path.cwd(), payload)
+
+
+def test_a_second_decision_for_one_capability_is_refused(design, project):
+    write(
+        design,
+        capability="selection of a date range",
+        resolution="compose-components",
+        decision="Calendar inside Popover",
+    )
+    with pytest.raises(SystemExit):
+        write(
+            design,
+            capability="Selection of a Date Range",  # same phrase, different case
+            resolution="compose",
+            decision="Popover + Calendar",
+        )
+    assert len(design.load_ledger(Path.cwd())["decisions"]) == 1
+
+
+def test_superseding_is_how_a_decision_is_replaced(design, project):
+    first = write(
+        design,
+        capability="selection of a date range",
+        resolution="compose-components",
+        decision="Calendar inside Popover",
+    )["recorded"]
+    second = write(
+        design,
+        capability="selection of a date range",
+        resolution="extend",
+        decision="DateField with a range prop",
+        supersedes=first,
+    )
+    assert second["supersedes"] == first
+
+    decisions = {d["id"]: d for d in design.load_ledger(Path.cwd())["decisions"]}
+    assert decisions[first]["status"] == "superseded"
+    assert decisions[first]["superseded_by"] == second["recorded"]
+    assert decisions[second["recorded"]]["status"] == "active"
+
+    # A superseded decision does not clash, so the capability is writable again.
+    write(
+        design,
+        capability="selection of a date range",
+        resolution="create",
+        decision="DateRangePicker",
+        supersedes=second["recorded"],
+    )
+
+
+def test_a_superseded_decision_does_not_block_the_next_one(design, project):
+    first = write(
+        design, capability="a toast", resolution="reuse", decision="Toast",
+    )["recorded"]
+    write(
+        design, capability="a toast", resolution="create",
+        decision="Snackbar", supersedes=first,
+    )
+    lookup = design.ledger_lookup(Path.cwd(), "a toast", 0.3, {}, None)
+    assert lookup["match_count"] == 1, "a retired decision is still being surfaced"
+
+
+# --- one spelling per rung ----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "written, stored",
+    [
+        ("reuse", "reuse"),
+        ("compose", "compose-components"),
+        ("Compose (components)", "compose-components"),
+        ("compose_components", "compose-components"),
+        ("Compose (pattern)", "compose-pattern"),
+        ("pattern", "compose-pattern"),
+        ("  EXTEND  ", "extend"),
+        ("create", "create"),
+    ],
+)
+def test_a_rung_is_stored_under_one_name(design, project, written, stored):
+    """A ledger is read back by string match years after the reasoning is gone.
+    `compose` and `compose-components` side by side is two answers to one
+    question, and the commands' own examples used to disagree."""
+    write(design, capability=f"surface {written}", resolution=written, decision="X")
+    entry = design.load_ledger(Path.cwd())["decisions"][-1]
+    assert entry["resolution"] == stored
+
+
+def test_an_unknown_rung_is_refused(design, project):
+    with pytest.raises(SystemExit):
+        write(design, capability="x", resolution="vibes", decision="y")
+    assert design.load_ledger(Path.cwd())["decisions"] == []
+
+
+@pytest.mark.parametrize("alias", ["feature", "decided_in_feature"])
+def test_the_feature_field_has_one_name(design, project, alias):
+    write(
+        design, capability="a surface", resolution="reuse",
+        decision="X", **{alias: "001-booking-filters"},
+    )
+    entry = design.load_ledger(Path.cwd())["decisions"][-1]
+    assert entry["decided_in"] == "001-booking-filters"
+    assert alias not in entry or alias == "decided_in"

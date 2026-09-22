@@ -164,12 +164,20 @@ When `ledger.enabled` is true, record each newly-walked surface so the next feat
 JSON
 ```
 
-Two fields decide whether this ledger is worth having:
+`resolution` is one of `reuse`, `compose-pattern`, `compose-components`, `extend`,
+`create` — the rung, in the ledger's own spelling. Anything else is refused rather
+than stored, because a ledger is read back by string match long after the reasoning
+is gone, and two spellings of one rung are two answers to one question.
+
+Three fields decide whether this ledger is worth having:
 
 - **`aliases`**: record every wording you actually searched with, including the ones that missed. These are what make a future lookup hit when the next author phrases the same need differently. A decision with no aliases is a decision that will be re-derived.
 - **`design_system_version`**: so a later lookup can tell that the system has moved on. Get it from the CLI (`ds.sh query describe`) where available; otherwise from the design system package's version.
+- **`decided_in`**: the feature that took the decision, so a later reader can go and see the argument rather than just the verdict. This is the only name for it; `feature` is folded into it.
 
 Do not record a surface that was adopted unchanged from a prior decision, because it is already there. When re-walking produced a *different* answer, add `"supersedes": "<id>"` so the old decision is retired rather than left to contradict the new one.
+
+This is the **only** place a decision is written. A second active decision for the same capability is refused, and the refusal names the id to supersede. If you meant to replace the earlier answer, say so with `supersedes`; if you did not, the earlier answer already stands and there is nothing to write.
 
 Skip this step entirely when the gate fails. A decision that was never allowed to pass should not become the precedent the next feature inherits.
 

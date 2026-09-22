@@ -1546,14 +1546,85 @@ def ledger_lookup(
     }
 
 
+# The rungs, as the ledger stores them. One spelling, because a ledger is read
+# back by string match years after it was written: `compose` and
+# `compose-components` sitting side by side is two answers to one question.
+# Rung 0 (Recall) is not among them — adopting a prior decision records nothing,
+# it reuses the entry that is already there.
+RESOLUTIONS = ("reuse", "compose-pattern", "compose-components", "extend", "create")
+
+# What the prose, the design document and an author in a hurry actually write.
+# Normalized rather than rejected: the point is one spelling in the file, not a
+# spelling test at the point of writing.
+RESOLUTION_ALIASES = {
+    "compose": "compose-components",
+    "compose (components)": "compose-components",
+    "compose components": "compose-components",
+    "compose_components": "compose-components",
+    "compose (pattern)": "compose-pattern",
+    "compose pattern": "compose-pattern",
+    "compose_pattern": "compose-pattern",
+    "pattern": "compose-pattern",
+    "reused": "reuse",
+    "extended": "extend",
+    "created": "create",
+    "new": "create",
+}
+
+# Two names for "which feature decided this" were in circulation. `decided_in`
+# wins because it says when as well as where; `feature` is folded into it.
+FEATURE_FIELD_ALIASES = ("feature", "decided_in_feature")
+
+
+def canonical_resolution(value: Any) -> str | None:
+    text = str(value or "").strip().lower()
+    text = RESOLUTION_ALIASES.get(text, text)
+    return text if text in RESOLUTIONS else None
+
+
 def ledger_record(root: Path, payload: dict) -> dict:
     required = {"capability", "resolution", "decision"}
     missing = required - set(payload)
     if missing:
         die(f"decision is missing required field(s): {', '.join(sorted(missing))}")
 
+    resolution = canonical_resolution(payload["resolution"])
+    if resolution is None:
+        die(
+            f"unknown resolution {payload['resolution']!r}. "
+            f"One of: {', '.join(RESOLUTIONS)}"
+        )
+    payload["resolution"] = resolution
+
+    for alias in FEATURE_FIELD_ALIASES:
+        if alias in payload and not payload.get("decided_in"):
+            payload["decided_in"] = payload.pop(alias)
+        else:
+            payload.pop(alias, None)
+
     ledger = load_ledger(root)
     decisions = ledger["decisions"]
+
+    # One capability, one active decision. Recording a second without retiring
+    # the first is the drift the ladder exists to prevent, and it arrives by
+    # accident: the gate records a surface when it walks it, and a later phase
+    # records the same surface again from its own notes.
+    phrase = str(payload["capability"]).strip().lower()
+    clash = next(
+        (
+            entry
+            for entry in decisions
+            if entry.get("status") != "superseded"
+            and str(entry.get("capability", "")).strip().lower() == phrase
+        ),
+        None,
+    )
+    if clash and not payload.get("supersedes"):
+        die(
+            f"'{payload['capability']}' already has an active decision "
+            f"({clash.get('id')}: {clash.get('resolution')}). Adopt it, or supersede it "
+            f'explicitly with "supersedes": "{clash.get("id")}".'
+        )
 
     numbers = [
         int(match.group(1))

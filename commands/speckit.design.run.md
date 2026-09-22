@@ -142,16 +142,22 @@ Last pass, over the whole change rather than per finding:
 - The tests the project already has still pass. Run them.
 - `workflow status` returns `complete: true`.
 
-Record each new ladder decision so the next feature does not re-derive it:
+The ladder decisions are already recorded: `/speckit.design.check` writes each
+surface it walks, at the moment it walks it, which is the only point where the
+candidates and the reasoning are still in hand. **Do not record them again here.**
+A second write for the same capability is refused, and rightly — two active
+decisions for one surface is the drift the ladder exists to prevent.
+
+Confirm instead that the walk landed:
 
 ```
-.specify/extensions/design/scripts/bash/ds.sh ledger record - --json <<'JSON'
-{"capability":"selection of a date range","resolution":"compose",
- "decision":"Popover + Calendar + two DateField inputs",
- "aliases":["date range picker","period filter"],
- "feature":"001-booking-filters","design_system_version":"2.1.0"}
-JSON
+.specify/extensions/design/scripts/bash/ds.sh ledger list --json
 ```
+
+Every surface resolved in `DESIGN_DOC` should appear, except those adopted
+unchanged from a prior decision, which were already there. A surface that is
+missing means the gate passed without committing its reasoning to memory: record
+it now, with the aliases actually searched, before the run closes.
 
 ## Completion Report
 
@@ -172,4 +178,4 @@ Short. The user asked for a change, not a narrative:
 - [ ] The implementation uses the system's own components and tokens, with no invented names
 - [ ] Validation ran as an independent pass and its findings were fixed or argued
 - [ ] The final validation round is clean, or the run stopped and said why
-- [ ] New ladder decisions are in the ledger
+- [ ] Every newly-walked surface is in the ledger, recorded once, by the gate
