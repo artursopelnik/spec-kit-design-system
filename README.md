@@ -4,50 +4,112 @@
 [![Version](https://img.shields.io/badge/version-0.1.0-green)](https://github.com/artursopelnik/spec-kit-design-system/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Make your design system an active constraint and source of knowledge throughout spec-driven development.
-Give it an RFC. It autonomously runs the [Spec Kit](https://github.com/github/spec-kit) workflow and implements the change using your design system. It does not model your design system, it asks yours.
+<p align="center">
+  <b>You write the RFC. Your design system picks the components.</b><br>
+  One command runs the whole <a href="https://github.com/github/spec-kit">Spec Kit</a> workflow, and every UI decision in it<br>
+  is answered by <i>your</i> design system instead of guessed by the agent.
+</p>
+
+---
+
+## What it does
+
+You hand it an RFC:
 
 ```text
 /speckit.design.run docs/rfcs/newsletter-footer.md
 ```
 
-That is the whole interface. You do not drive the phases, manage context, or configure the workflow.
+That is the whole interface. You do not drive the phases, manage context or
+configure the workflow.
 
-## Features
+From that one line it asks what the RFC leaves open, writes a spec naming your
+real components and tokens, plans, implements, and then checks the result. Every
+answer about components, patterns, tokens and rules comes from your design
+system, through a short adapter. This repo holds no component knowledge of its
+own. It asks yours.
 
-- **Works with any design system.** A short YAML adapter maps a small capability contract onto whatever your system exposes. Ships with `shadcn`, `mui`, `antd`, `chakra`, `radix`, `ark-ui`, `static-json` and an `example` template. `adapter: auto` detects the right one.
-- **Reuse first, create last.** Every UI need climbs a ladder before anything new is built: Recall → Reuse → Compose → Extend → Create. A genuine gap is sent to your design system's intake, when its CLI offers one. Otherwise it stays documented in the feature.
-- **Remembers every decision.** Each ladder walk is saved in a committed ledger keyed by UI capability. The next feature that needs a date range reads the answer instead of searching again, even when it words the need differently.
-- **Lean context, nothing out of reach.** Each phase starts with only what it needs, never the whole inventory. Everything else stays one call away, so the agent can still ask for it when it does.
-- **A gate that actually blocks.** `/speckit.plan` does not start until every UI surface has a documented resolution: candidates searched, and why the chosen rung is the lowest that holds. Design rules become numbered spec requirements (`DS-001: … MUST …`) with acceptance criteria. An unreachable design system stops the gate in the script itself, so that one is not a matter of the agent's judgement; how strictly the walk is then held is, and [architecture](docs/architecture.md#what-is-mechanism-and-what-is-judgement) says which is which.
-- **Validated by your design system, not by the implementer.** After implementing, a separate pass checks the result against the spec and the ladder decisions, and runs your design system's own lint or token audit when the adapter maps one. Findings go back into implementation and are re-validated, up to 3 rounds.
+What that changes in practice:
 
-### Why you need this Extension
+- **It looks before it builds.** Every UI need climbs a ladder: Recall → Reuse →
+  Compose → Extend → Create. Something new gets built only after the earlier
+  rungs are documented as insufficient.
+- **It remembers.** Each decision lands in a committed ledger, keyed by UI
+  capability. The next feature that needs a date range reads the answer instead
+  of searching again, even when it words the need differently.
+- **It blocks.** `/speckit.plan` does not start until every UI surface has a
+  documented resolution, and your design system's rules land in the spec as
+  numbered requirements (`DS-001: ... MUST ...`) with acceptance criteria. If
+  the design system cannot be reached, planning stops. It never continues as if
+  your system had nothing to say.
+- **It keeps the context lean.** Each phase starts with only what it needs,
+  never the whole inventory. Everything else stays one call away, so the agent
+  can still ask when it turns out to need it.
+- **It checks its own work.** A separate pass validates the implementation
+  against the spec and the ladder decisions, and runs your design system's lint
+  or token audit when the adapter maps one. Findings go back into
+  implementation, up to 3 rounds.
+- **It fits any design system.** A short YAML adapter maps a small capability
+  contract onto whatever your system exposes: a CLI, files, or an MCP tool.
 
-Spec Kit's hooks (`before_plan`, `after_implement`, …) give you the *when*. You still have to build the *what*:
+Spec Kit's hooks give you the *when*. This is the *what*, already built and
+tested.
 
-- **Asking your design system**, not guessing, through an adapter (CLI, MCP, or files) that works with any design system.
-- **A gate that fails closed.** If the design system can't be reached, planning stops. It never silently continues as if the design system had nothing to say.
-- **Validation that converges**: findings are tracked as checkboxes and re-checked in bounded rounds, instead of one prompt that says "review against the design system".
-- **A ledger** of Reuse → Compose → Extend → Create decisions, so the same call isn't re-argued in every feature.
+## Quick start
 
-If you only need a reminder before planning, a hook of your own is enough. If you want the design system to be a real constraint, this is that hook set, already built and tested.
+**You need:** Spec Kit `>=1.0.0,<2.0.0`, and a design system an agent can read.
+A CLI, a registry, or a generated JSON file. If it only exists as a Figma
+library and tribal knowledge, there is nothing to ask.
 
-### Does it actually help?
+**1. Install it into your Spec Kit project.**
 
-[`benchmarks/`](benchmarks/) answers this with numbers instead of conviction: the same RFC run by the agent alone, with Spec Kit, and with this extension, against trimmed snapshots of shadcn/ui, Radix UI and MUI. Every arm is handed the design system in the same place, and every measure is computable from any arm's output, so none of them rewards the extension for merely having run.
+```bash
+git clone https://github.com/artursopelnik/spec-kit-design-system
 
-The scores also read as pass or fail, so a result can be stated plainly — *"used the component the system already had in 9 of 10 runs, against 4 of 10 without it"* — beside what each arm cost in tokens and money, because scoring higher at three times the cost is a trade, not a win.
+specify extension add --dev /path/to/spec-kit-design-system
+specify preset add --dev /path/to/spec-kit-design-system/preset
+```
 
-**No results are published yet.** The suite ships the harness, the cases and the scorer; the numbers need an agent, many runs and a stated model. [benchmarks/README.md](benchmarks/README.md) says what to publish alongside one.
+**2. Run it on an RFC.** The adapter is detected, so there is nothing to
+configure:
 
-## What is an RFC?
+```text
+/speckit.design.run docs/rfcs/newsletter-footer.md
+```
 
-An RFC (request for comments) is a short document that says **what should change and why**, before anyone builds it. It is the only input this extension takes. It is not a spec: no component names, no implementation, no design decisions. Those come out of the workflow.
+That's it. ✅
 
-Where it lives does not matter: a markdown file, a GitHub or GitLab issue, a Jira ticket, text an MCP server handed you. The extension takes the text and ignores provenance. None of those integrations live here; compose an extension such as [spec-kit-jira](https://github.com/mbachorik/spec-kit-jira) instead.
+> [!NOTE]
+> No release archive is published yet, so a clone is the only install path. The
+> preset installs separately because extensions can only *replace* templates,
+> which would fork your `spec-template`. Presets can *append*, so the design
+> sections compose in without forking anything.
 
-### What one looks like
+### Want to see it first?
+
+```bash
+./examples/setup-demo.sh /tmp/design-demo
+cd /tmp/design-demo
+```
+
+That builds a throwaway project wired to a fixture design system: ten
+components, two patterns, tokens, breakpoints, principles. Walk it with
+[examples/README.md](examples/README.md).
+
+Or point the demo at one of the real systems the benchmarks use, with the RFC
+and the code a benchmark case is about:
+
+```bash
+./examples/setup-demo.sh /tmp/shadcn-demo --system shadcn --case date-range-filter
+./examples/setup-demo.sh /tmp/radix-demo  --system radix  --case destructive-confirm
+./examples/setup-demo.sh /tmp/mui-demo    --system mui    --case toolbar-mobile
+```
+
+## The RFC you write
+
+An RFC says **what should change and why**, before anyone builds it. It is the
+only input this extension takes. It is not a spec: no component names, no
+implementation, no design decisions. Those come out of the workflow.
 
 ```markdown
 # RFC: Newsletter signup in the footer
@@ -71,11 +133,16 @@ Managing or cancelling subscriptions.
 - Double opt-in by email?
 ```
 
-The RFC never states its type. This one is a UI feature, and the extension works that out from the text. More on that [below](#types).
+Start from [templates/rfc-template.md](templates/rfc-template.md).
 
-### Types
+Where the RFC lives does not matter: a markdown file, a GitHub or GitLab issue,
+a Jira ticket, text an MCP server handed you. The extension takes the text and
+ignores where it came from. None of those integrations live here; compose an
+extension such as [spec-kit-jira](https://github.com/mbachorik/spec-kit-jira)
+instead.
 
-There is no fixed set of RFC types and nothing to declare. Write what fits:
+And you never declare a type. The RFC above is a UI feature, and the extension
+works that out from the text:
 
 | Kind | Example | What happens |
 |---|---|---|
@@ -83,11 +150,44 @@ There is no fixed set of RFC types and nothing to declare. Write what fits:
 | UI change | "Make the toolbar usable on mobile" | Same, held to rules such as reflow and touch targets |
 | UI bug | "The error message on the login form is unreadable" | Same, checked against your tokens and states instead of a one-off fix |
 
-Start from [templates/rfc-template.md](templates/rfc-template.md).
+## What happens after you hit enter
+
+```text
+RFC
+ ↓
+Clarify      what the RFC does not say
+ ↓
+Specify      a spec naming your design system's real components and tokens
+ ↓
+Plan         Recall → Reuse → Compose → Extend → Create, against the real system
+ ↓
+Tasks        the plan broken into steps
+ ↓
+Implement    against the components' real props, states and tokens
+ ↓
+Validate     an independent pass, not the implementer signing off its own work
+ ↓
+Fix          findings feed back in, then validate again
+ ↓
+Verify       RFC criteria, spec requirements and principles checked over the whole change
+ ↓
+Done
+```
+
+You only need the first command below. The rest are what it drives, and they
+also fire as Spec Kit hooks, so they hold for anyone working phase by phase.
+
+| Command | Hook | Purpose |
+|---|---|---|
+| `/speckit.design.run <rfc>` | | The whole workflow. The one to remember. |
+| `/speckit.design.context` | `after_specify` | Resolves principles and design system context into the spec |
+| `/speckit.design.check` | `before_plan` | Walks the reuse ladder and gates planning on it (blocking) |
+| `/speckit.design.validate` | `after_implement` | The independent checker |
 
 ## The ladder
 
-The central rule: **Recall → Reuse → Compose → Extend → Create**. Before a new component is proposed or built, each rung is tried in order.
+The central rule: **Recall → Reuse → Compose → Extend → Create**. Before a new
+component is proposed or built, each rung is tried in order.
 
 | Rung | Question |
 |---|---|
@@ -98,13 +198,18 @@ The central rule: **Recall → Reuse → Compose → Extend → Create**. Before
 | 4. Extend | Can a component be extended through a sanctioned mechanism? |
 | 5. Create | Only when 1 through 4 are documented as insufficient. |
 
-The goal is DRY for UI: share and adapt what exists, build new only as a last resort.
+It is DRY for UI: share and adapt what exists, build new as a last resort. Three
+rules keep it honest.
 
-**A rung is never rejected on a hunch.** Rejecting one means naming the candidates searched and why each is insufficient. "Doesn't fit" is not a reason.
+**A rung is never rejected on a hunch.** Rejecting one means naming the
+candidates searched and why each is insufficient. "Doesn't fit" is not a reason.
 
-**Describe capabilities, not components.** Write "a control for picking a start and end date", never "a DateRangePicker". Naming the component pre-decides the ladder.
+**Describe capabilities, not components.** Write "a control for picking a start
+and end date", never "a DateRangePicker". Naming the component pre-decides the
+ladder.
 
-**Create is a legitimate outcome, as long as it is visible.** It comes with a gap record, the argued case for a new component:
+**Create is fine, as long as it is visible.** It comes with a gap record, the
+argued case for a new component:
 
 ```markdown
 # Gap: selection of a start and end date
@@ -131,81 +236,20 @@ Popover primitive.
 Give DatePicker a range mode, or ship the paired control as a pattern.
 ```
 
-Note the title: the gap is named by the capability, not by the component that
-will close it. Naming it `DateRangePicker` would pre-decide the very question
-the record exists to argue.
+Note the title. The gap is named by the capability, not by the component that
+will close it. Calling it `DateRangePicker` would pre-decide the very question
+the record exists to argue. That is what separates a real gap your design system
+should close from a search that was not thorough enough.
 
-This separates a real gap the design system should close from a search that was not thorough enough.
-
-Every outcome is written to the committed ledger, keyed by UI capability. That is what Recall (rung 0) reads.
-
-The ladder is what runs in the **Plan** step below, and what the gate checks before planning may start.
-
-## How it works
-
-```text
-RFC
- ↓
-Clarify      what the RFC does not say
- ↓
-Specify      a spec naming your design system's real components and tokens
- ↓
-Plan         Recall → Reuse → Compose → Extend → Create, against the real system
- ↓
-Tasks        the plan broken into steps
- ↓
-Implement    against the components' real props, states and tokens
- ↓
-Validate     an independent pass, not the implementer signing off its own work
- ↓
-Fix          findings feed back in, then validate again
- ↓
-Verify       RFC criteria, spec requirements and principles checked over the whole change
- ↓
-Done
-```
-
-## Quick start
-
-**Prerequisites:** Spec Kit `>=1.0.0,<2.0.0`.
-
-1. Install from a clone, inside your Spec Kit project:
-
-   ```bash
-   git clone https://github.com/artursopelnik/spec-kit-design-system
-
-   specify extension add --dev /path/to/spec-kit-design-system
-   specify preset add --dev /path/to/spec-kit-design-system/preset
-   ```
-
-2. Run it on an RFC. The adapter is detected, so there is nothing to configure:
-
-   ```text
-   /speckit.design.run docs/rfcs/newsletter-footer.md
-   ```
-
-> [!NOTE]
-> No release archive is published yet, so a clone is the only install path. The preset installs separately because extensions can only *replace* templates, which would fork your `spec-template`, while presets can *append*, composing the design sections in without forking anything.
-
-> [!IMPORTANT]
-> Your design system must be legible to an agent: a CLI, a registry, or a generated JSON file. If it exists only as a Figma library and tribal knowledge, there is nothing to ask.
-
-Want to see it first? [Try the demo](#try-it-without-a-design-system).
-
-## Commands
-
-You need the first one. The rest are what it drives, and they also fire as Spec Kit hooks, so they hold for anyone working phase by phase.
-
-| Command | Hook | Purpose |
-|---|---|---|
-| `/speckit.design.run <rfc>` | | The whole workflow. The one to remember. |
-| `/speckit.design.context` | `after_specify` | Resolves principles and design system context into the spec |
-| `/speckit.design.check` | `before_plan` | Walks the reuse ladder and gates planning on it (blocking) |
-| `/speckit.design.validate` | `after_implement` | The independent checker |
+A genuine gap is sent to your design system's intake when its CLI offers one.
+Otherwise it stays documented in the feature. Either way the outcome goes into
+the ledger, keyed by capability, and that is what Recall reads next time.
 
 ## Your design system
 
-The extension asks yours through a thin adapter that maps capabilities (`search`, `component`, `tokens`, `principles`, ...) onto a CLI call, a file read, or an MCP tool. One adapter can mix all three.
+The extension asks yours through a thin adapter that maps capabilities
+(`search`, `component`, `tokens`, `principles`, ...) onto a CLI call, a file
+read, or an MCP tool. One adapter can mix all three.
 
 | Adapter | For |
 |---|---|
@@ -218,13 +262,19 @@ The extension asks yours through a thin adapter that maps capabilities (`search`
 | `static-json` | Any system with no CLI: point it at a generated inventory file |
 | `example` | Template to copy for your own CLI |
 
-The library adapters read an inventory file your project generates (default `.design-system/inventory.json`, shape in [adapters/static-json.yml](adapters/static-json.yml)), because those libraries have no CLI to ask. Without the file the gate stops rather than guess.
+The library adapters read an inventory file your project generates (default
+`.design-system/inventory.json`, shape in
+[adapters/static-json.yml](adapters/static-json.yml)), because those libraries
+have no CLI to ask. Without the file the gate stops rather than guess.
 
-Adapters only map. They never hold rules or component knowledge, otherwise your design system would stop being the source of truth. Writing one: [docs/adapters.md](docs/adapters.md).
+Adapters only map. They never hold rules or component knowledge, otherwise your
+design system would stop being the source of truth. Writing one:
+[docs/adapters.md](docs/adapters.md).
 
 ### Principles
 
-Principles are the rules the work is held to. They resolve from exactly one source, never merged:
+Principles are the rules the work is held to. They resolve from exactly one
+source, never merged:
 
 ```text
 1. your design system's CLI      ──┐
@@ -232,7 +282,12 @@ Principles are the rules the work is held to. They resolve from exactly one sour
 3. a small default set           ──┘
 ```
 
-The default set is a fallback of fourteen broadly applicable principles (semantic markup, keyboard operation, focus, touch targets, reflow, reduced motion, state coverage, token use). It carries no colors, breakpoints or sizes, because those belong to your system. If your system publishes principles without a CLI, name the file:
+The default set is fourteen broadly applicable principles: semantic markup,
+keyboard operation, focus, touch targets, reflow, reduced motion, state
+coverage, token use. It carries no colors, breakpoints or sizes, because those
+belong to your system.
+
+If your system publishes principles without a CLI, name the file:
 
 ```yaml
 principles:
@@ -243,7 +298,10 @@ See [principles/example.yml](principles/example.yml) for the shape.
 
 ### Definition of Done
 
-Principles are your design system's rules. A Definition of Done is your team's, and this extension treats them as different things: the DoD is never asked of the design system, and **nothing is shipped as a default**. If you keep one, write it in `.specify/extensions/design/definition-of-done.md` as a plain list:
+Principles are your design system's rules. A Definition of Done is your team's,
+so the DoD is never asked of the design system, and **nothing ships as a
+default**. If you keep one, write it in
+`.specify/extensions/design/definition-of-done.md` as a plain list:
 
 ```markdown
 # Definition of Done
@@ -256,65 +314,69 @@ Agreed in the design system guild, revisit each quarter.
 - Design review signed off by someone who did not build it
 ```
 
-No schema, no ids, no `verify` field. Headings and prose around the list are ignored; the bullets are the DoD. Validation checks each item against what was actually built and raises unmet ones as ordinary `DS-F-nnn` findings, so they go through the same fix loop as everything else and the feature is not done until they are resolved or argued in writing.
+No schema, no ids, no `verify` field. Headings and prose around the list are
+ignored; the bullets are the DoD. Validation checks each item against what was
+actually built and raises unmet ones as ordinary `DS-F-nnn` findings, so they go
+through the same fix loop as everything else, and the feature is not done until
+they are resolved or argued in writing.
 
-The list above is an example to copy and edit, not a starting set. A DoD that arrived with an extension would raise findings against rules nobody at your place agreed to, which is why the file is empty until you write it. No file means no DoD: nothing is checked, nothing is reported, nothing nags.
+That list is an example to copy and edit, not a starting set. A DoD that arrived
+with an extension would raise findings against rules nobody at your place agreed
+to, which is why the file is empty until you write it. No file means no DoD:
+nothing is checked, nothing nags. To keep it elsewhere, a shared file in a
+monorepo or one your design system package ships, point `dod.source` at it.
 
-It sits next to the config rather than in `.specify/memory/` because it is authored, not derived. The decision ledger in `memory/` can be rebuilt from the design system, so clearing it is reasonable; your DoD cannot be rebuilt from anything. To keep it elsewhere — a shared file in a monorepo, or one your design system package ships — point `dod.source` at it.
+### Configuration
 
-## Configuration
-
-For most projects the whole file (`.specify/extensions/design/design-config.yml`) is one line:
+For most projects the whole file
+(`.specify/extensions/design/design-config.yml`) is one line:
 
 ```yaml
 adapter: shadcn   # or auto (default), mui, antd, chakra, radix, ark-ui, static-json, your own
 ```
 
-Everything else is optional and documented in [config-template.yml](config-template.yml): a `bin` override, a `cwd` for monorepos, a principles `source`, a `dod.source`, per-capability overrides, `workflow.max_validation_rounds`, and `gate.enforce: false` while adopting. `SPECKIT_DESIGN_*` environment variables and a gitignored `design-config.local.yml` override the committed config.
+Everything else is optional and documented in
+[config-template.yml](config-template.yml): a `bin` override, a `cwd` for
+monorepos, a principles `source`, a `dod.source`, per-capability overrides,
+`workflow.max_validation_rounds`, and `gate.enforce: false` while adopting.
+`SPECKIT_DESIGN_*` environment variables and a gitignored
+`design-config.local.yml` override the committed config.
 
-## Try it without a design system
+## Does it actually help?
 
-```bash
-./examples/setup-demo.sh /tmp/design-demo
-cd /tmp/design-demo
-```
+[`benchmarks/`](benchmarks/) is there to answer that with numbers: the same RFC
+run by the agent alone, with Spec Kit, and with this extension, against trimmed
+snapshots of shadcn/ui, Radix UI and MUI. Every arm is handed the design system
+in the same place, and every measure is computable from any arm's output, so
+none of them rewards the extension for merely having run.
 
-Builds a throwaway project wired to a fixture design system (ten components, two patterns, tokens, breakpoints, principles). Walk it with [examples/README.md](examples/README.md).
+The scores also read as pass or fail, so a result can be stated plainly, like
+*"used the component the system already had in 9 of 10 runs, against 4 of 10
+without it"*, beside what each arm cost in tokens and money. Scoring higher at
+three times the cost is a trade, not a win.
 
-Or wire it to one of the real systems the benchmarks use, with the RFC and the code a benchmark case is about, and run the workflow on it:
+**No results are published yet.** The suite ships the harness, the cases and the
+scorer. The numbers need an agent, many runs and a stated model.
+[benchmarks/README.md](benchmarks/README.md) says what to publish alongside one.
 
-```bash
-./examples/setup-demo.sh /tmp/shadcn-demo --system shadcn --case date-range-filter
-./examples/setup-demo.sh /tmp/radix-demo  --system radix  --case destructive-confirm
-./examples/setup-demo.sh /tmp/mui-demo    --system mui    --case toolbar-mobile
-```
-
-## Troubleshooting
-
-| Symptom | Cause and fix |
-|---|---|
-| "design system could not be reached" | The gate probes for real: CLI missing, wrong binary, or inventory not where `source` says. `UNREACHABLE_REASON` in `ds.sh gate --json` names which, and `MAPPED_CAPABILITIES` beside an empty `CAPABILITIES` confirms the adapter is fine and the system is not. Where the adapter maps `describe` (`shadcn`, `example`), `ds.sh query describe --json` also asks the CLI to state its own command surface. |
-| Principles say `principles_source: default` | Your system supplied none. Map the `principles` capability in your adapter or set `principles.source`. |
-| Principles say `principles_source: unavailable` | Nothing answered and `principles.default` is `false`, so nothing is in force. Intended while adopting; a gate that requires principles fails closed here rather than passing on an empty set. |
-| A principle is listed under `unenforceable` | It states no MUST/SHOULD, or carries no `verify` step, so nothing can be checked against it. It is still returned and still worth reading — add a `verify` step at the source to make it citable. |
-| A capability returns `available: false` | Unmapped in the adapter, or the call failed. The `reason` says which. The run degrades, it does not fail. |
-| `breakpoints` returns the whole token set | Most systems have no breakpoint command, so the adapter maps both onto the token call. Carve out the slice with `result_paths` or `pick` ([adapters](docs/adapters.md#one-command-two-questions)); until then every phase that asks pays for the tokens twice, which `ds.sh context <phase>` reports in `notes`. |
-| A phase's context is expensive | Every answer reports `bytes` and every context a `sizes` block, so start by looking. Narrow the mapping first, then the call: `ds.sh query list_components --fields name,description`. |
-| "PyYAML is required" | `pip install pyyaml` into the interpreter running the scripts. |
-| `/usr/bin/env: 'bash\r': No such file or directory` | The checkout converted LF to CRLF — Git for Windows does this by default (`core.autocrlf=true`), and a script that went through it is not executable on Linux, WSL or in a container sharing that checkout. `.gitattributes` pins LF for new checkouts; an existing one is refreshed with `git rm --cached -r . && git reset --hard`. Meanwhile the shim is optional: `python3 .specify/extensions/design/scripts/python/design.py gate --json` does the same thing. |
-| The gate keeps failing | Read what it names: a surface with no resolution, a Create with no gap record, or a rung rejected on too few candidates. `gate.enforce: false` downgrades it to a warning. |
-
-## Architecture
+## How it is built
 
 Three layers, only the first is public:
 
-- **Commands** (`commands/`): agent-facing prose describing what to do, in what order, and what not to accept.
-- **One script** (`scripts/python/design.py`, with a bash shim): prerequisites, capability dispatch, principles, focused context, workflow position, RFC parsing, the ledger. Always emits JSON.
+- **Commands** (`commands/`): agent-facing prose describing what to do, in what
+  order, and what not to accept.
+- **One script** (`scripts/python/design.py`, with a bash shim): prerequisites,
+  capability dispatch, principles, focused context, workflow position, RFC
+  parsing, the ledger. Always emits JSON.
 - **Adapters** (`adapters/`): declarative YAML, no code.
 
-There is no run-state file. Workflow position is read from artifacts the work already produces (spec, plan, tasks, design document), so an interrupted run resumes by reading.
+There is no run-state file. Workflow position is read from the artifacts the
+work already produces (spec, plan, tasks, design document), so an interrupted
+run resumes by reading.
 
-More: [architecture](docs/architecture.md) · [autonomous workflow](docs/autonomous-workflow.md) · [adapters](docs/adapters.md)
+More: [architecture](docs/architecture.md) · [autonomous
+workflow](docs/autonomous-workflow.md) · [adapters](docs/adapters.md) ·
+[troubleshooting](docs/troubleshooting.md)
 
 ## Development
 
@@ -323,7 +385,8 @@ pip install pytest pyyaml
 python -m pytest
 ```
 
-CI also installs the extension into a real Spec Kit project, validates the manifests, checks that hooks register, and walks the example end to end.
+CI also installs the extension into a real Spec Kit project, validates the
+manifests, checks that hooks register, and walks the example end to end.
 
 ```text
 commands/      agent-facing command bodies
@@ -334,11 +397,10 @@ preset/        spec, plan and constitution addenda
 templates/     RFC template
 examples/      fixture design system and demo project
 benchmarks/    cases, design system snapshots, scorer and report
-docs/          architecture, adapters, workflow
+docs/          architecture, adapters, workflow, troubleshooting
 tests/         pytest suite, one file per concern
-.github/       CI: tests, shell and YAML checks, real Spec Kit install
-extension.yml  extension manifest
-config-template.yml  project config template
-CHANGELOG.md   release notes
-LICENSE        MIT
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
