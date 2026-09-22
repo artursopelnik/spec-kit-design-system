@@ -138,6 +138,9 @@ cwd: ""
 #   min_candidates_considered: 3
 
 # validation:
+#   # Where the implementation lives, for the validate pass to read. Unset, it
+#   # is inferred from the plan's `## Project Structure` section.
+#   source_globs: ["src/**/*.tsx", "src/**/*.css"]
 #   # Raise a finding for a hardcoded value where the design system has a token.
 #   # Ignored when the system has no token layer at all.
 #   forbid_raw_values: true

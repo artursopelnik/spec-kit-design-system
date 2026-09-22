@@ -175,10 +175,12 @@ Confirm instead that the walk landed:
 .specify/extensions/design/scripts/bash/ds.sh ledger list --json
 ```
 
-Every surface resolved in `DESIGN_DOC` should appear, except those adopted
-unchanged from a prior decision, which were already there. A surface that is
-missing means the gate passed without committing its reasoning to memory: record
-it now, with the aliases actually searched, before the run closes.
+Skip this when `ledger.enabled` in `CONFIG` is false: the project keeps no ledger
+and there is nothing to confirm. Otherwise every surface resolved in `DESIGN_DOC`
+should appear, except those adopted unchanged from a prior decision, which were
+already there. A surface that is missing means the gate passed without committing
+its reasoning to memory: record it now, with the aliases actually searched,
+before the run closes.
 
 ## Completion Report
 
