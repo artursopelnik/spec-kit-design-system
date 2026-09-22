@@ -242,52 +242,13 @@ def set_path(target: dict, dotted: str, value: Any) -> None:
     target[parts[-1]] = value
 
 
-def migrate_config(config: dict) -> dict:
-    """Carry pre-0.2 configuration forward.
-
-    `baseline` is gone as a public concept: what it named is now the *default*
-    principles, used only when the design system supplies none. Old keys are
-    mapped rather than ignored, so an existing project keeps working, and the
-    mapping is reported so it can be cleaned up.
-    """
-    notes: list[str] = []
-
-    rules = config.pop("rules", None)
-    if isinstance(rules, dict):
-        principles = dict(config.get("principles") or {})
-        if "baseline" in rules and "default" not in principles:
-            principles["default"] = bool(rules["baseline"])
-            notes.append("rules.baseline -> principles.default")
-        if rules.get("house_rules") and not principles.get("source"):
-            principles["source"] = rules["house_rules"]
-            notes.append("rules.house_rules -> principles.source")
-        if rules.get("disabled") and not principles.get("disabled"):
-            principles["disabled"] = rules["disabled"]
-            notes.append("rules.disabled -> principles.disabled")
-        config["principles"] = principles
-
-    audit = config.pop("audit", None)
-    if isinstance(audit, dict):
-        config["validation"] = deep_merge(audit, config.get("validation") or {})
-        notes.append("audit.* -> validation.*")
-
-    gate = config.get("gate")
-    if isinstance(gate, dict) and "require_gap_report" in gate:
-        gate.pop("require_gap_report")
-        notes.append("gate.require_gap_report dropped: a gap record is always required")
-
-    if notes:
-        config["_migrated"] = notes
-    return config
-
-
 def load_config(root: Path) -> dict:
     """Resolution order: extension defaults -> project config -> local override
     -> environment. This mirrors spec-kit's own layering, so a developer can
     point at a scratch design system without touching the committed config."""
     config = load_yaml(ext_dir(root) / "extension.yml").get("config", {}).get("defaults", {})
-    config = deep_merge(config, migrate_config(load_yaml(ext_dir(root) / CONFIG_NAME)))
-    config = deep_merge(config, migrate_config(load_yaml(ext_dir(root) / LOCAL_CONFIG_NAME)))
+    config = deep_merge(config, load_yaml(ext_dir(root) / CONFIG_NAME))
+    config = deep_merge(config, load_yaml(ext_dir(root) / LOCAL_CONFIG_NAME))
 
     for variable, (dotted, kind) in ENV_OVERRIDES.items():
         raw = os.environ.get(variable)

@@ -1,7 +1,10 @@
 """Config resolution: extension defaults -> project -> local -> environment.
 
-Plus the migration of pre-0.2 keys, which matters because the alternative is an
-existing project silently losing its principles when it upgrades.
+Plus the rule that keeps that layering honest: a key this extension does not
+document is a key it does not read, and a default it ships is one something
+actually reads. Both directions have been wrong here — a carry-forward shim for
+a version that was never released, and a setting with a justifying comment and
+no reader at all.
 """
 
 from __future__ import annotations
@@ -48,33 +51,48 @@ def test_local_override_beats_project_config(design, project, write_config):
     assert design.load_config(Path.cwd())["gate"]["enforce"] is False
 
 
-def test_pre_02_rule_keys_still_work(design, project, write_config):
-    """`baseline` is gone as a concept, not as a setting someone already wrote."""
+def test_a_retired_key_is_not_read(design, project, write_config):
+    """Nothing has been released, so nobody can hold a config written against an
+    older vocabulary. The repository already decided this once, for `guidelines:`
+    — "no alias, no carry-forward" — and then carried `rules:` and `audit:`
+    forward anyway, from a "pre-0.2" that never existed at version 0.1.0.
+
+    One policy: a key this extension does not document is a key it does not
+    read. It is left in the config untouched rather than silently reinterpreted,
+    because a setting that quietly means something else is worse than one that
+    plainly does nothing.
+    """
     write_config(
         {
-            "rules": {
-                "baseline": False,
-                "house_rules": "node_modules/@acme/design-system/rules.yml",
-                "disabled": ["BL-MOTION-REDUCED"],
-            }
+            "adapter": "static-json",
+            "rules": {"baseline": False, "house_rules": "old/rules.yml"},
+            "audit": {"forbid_raw_values": False},
         }
     )
     config = design.load_config(Path.cwd())
 
-    assert "rules" not in config
-    assert config["principles"]["default"] is False
-    assert config["principles"]["source"].endswith("rules.yml")
-    assert config["principles"]["disabled"] == ["BL-MOTION-REDUCED"]
-    assert any("rules.baseline" in note for note in config["_migrated"])
+    # Not reinterpreted into the current keys...
+    assert config["principles"]["default"] is True
+    assert "source" not in config["principles"]
+    assert config["validation"]["forbid_raw_values"] is True
+    # ...and not rewritten behind the author's back either.
+    assert config["rules"] == {"baseline": False, "house_rules": "old/rules.yml"}
+    assert "_migrated" not in config
 
 
-def test_pre_02_audit_keys_still_work(design, project, write_config):
-    write_config({"audit": {"forbid_raw_values": False, "source_globs": ["src/ui/**"]}})
+def test_the_documented_keys_are_the_ones_that_work(design, project, write_config):
+    write_config(
+        {
+            "adapter": "static-json",
+            "principles": {"default": False, "source": "docs/principles.yml"},
+            "validation": {"forbid_raw_values": False},
+        }
+    )
     config = design.load_config(Path.cwd())
 
-    assert "audit" not in config
+    assert config["principles"]["default"] is False
+    assert config["principles"]["source"] == "docs/principles.yml"
     assert config["validation"]["forbid_raw_values"] is False
-    assert config["validation"]["source_globs"] == ["src/ui/**"]
 
 
 def test_environment_beats_local_override(design, project, write_config, monkeypatch):
