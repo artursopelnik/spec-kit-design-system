@@ -1,12 +1,16 @@
-# Ledger benchmark: sequential features with shared surface resolution.
+# Two features in one workspace, the second needing a surface the first has
+# already settled.
 #
-# Feature 1 decides how to pick a date range (Calendar + Popover in shadcn).
-# Feature 2 asks for the same surface (period selection) worded differently,
-# in the same workspace with the same ledger.
+# Feature 1 has to work out how to pick a date range on shadcn (Calendar inside
+# Popover). Feature 2 asks for the same surface for invoices, worded differently.
+# Every arm runs both features back to back; only the extension arm has a ledger
+# to carry the first answer into the second.
 #
-# Measures: does the agent hit Recall (rung 0) on Feature 2 instead of re-deriving?
-# The extension's ledger is the only way Feature 2 avoids re-walking the ladder
-# for "period" selection when Feature 1 already decided "date range" selection.
+# Scored like any other case, arm-neutrally: both surfaces have to land on what
+# the system offers. What the ledger is supposed to change is the cost of getting
+# there, so the runner records usage per feature and in total, and the report
+# prints it beside the score. Whether the second feature cited a ledger decision
+# is an extension-only artifact, observed as `decisions_cited` and never scored.
 
 id: period-filter-sequence
 title: "Period selection across features (ledger benchmark)"
@@ -21,6 +25,10 @@ features:
       - id: period-selection
         capability: "choosing a start and an end date"
         expected_resolution: compose-components
+        rationale: >-
+          No component covers it, so rung 1 fails honestly. Calendar with
+          mode="range" inside a Popover does, and the registry documents that
+          composition, so rung 3 is the lowest that holds.
         satisfied_by:
           - [Calendar, Popover]
           - [Calendar, Popover, Button]
@@ -34,29 +42,51 @@ features:
     surfaces:
       - id: period-selection
         capability: "selecting a start and end date for the filter"
-        expected_resolution: reuse-from-ledger
-        rationale: "Feature 1 already recorded how to select a date range; recall should hit"
+        expected_resolution: compose-components
+        rationale: >-
+          The same need as feature 1, so the same composition is the answer.
+          Landing somewhere else is the drift the ledger exists to prevent.
         satisfied_by:
           - [Calendar, Popover]
           - [Calendar, Popover, Button]
+        forbidden:
+          - pattern: '<input[^>]*type=["'']date'
+            because: "native date inputs drop the theme"
 
-# Deterministic measures:
-# - Feature 2 ladder walk: if recall hits, the cost is lower (fewer candidates searched)
-# - Ledger lookup: Feature 2 must call ledger lookup for "date range" or similar term
-# - Token delta: Feature 2 with ledger should cost fewer tokens than Feature 1 did
-measures:
-  - metric: recall_hit
-    description: "Feature 2's period-selection surface resolved via Recall (rung 0)"
-  - metric: ledger_lookup_called
-    description: "Feature 2 invoked ledger lookup, suggesting decision retrieval"
-  - metric: token_savings
-    description: "Feature 2 total tokens vs Feature 1 (savings if ledger recall worked)"
+# A principle counts as carried when any one of its evidence patterns appears in
+# the produced work.
+principles:
+  - id: SHADCN-THEME-TOKENS
+    evidence:
+      - 'var\(--'
+      - '\b(?:bg|text|border|ring)-(?:background|foreground|muted|primary|secondary|accent|destructive|border|input|ring)'
+  - id: SHADCN-BREAKPOINT-NAMES
+    evidence:
+      - '\b(?:sm|md|lg|xl):'
+      - '\bbreakpoint'
 
-# Subject files for both features (always scored).
-# These are the files the RFCs are about and must be scored whether edited or not.
+# Both RFCs ask for these.
+criteria:
+  - text: "An end before the start is refused"
+    evidence:
+      - '(?i)end .{0,30}before .{0,30}start'
+      - '(?i)invalid (?:period|range)'
+  - text: "The chosen period survives a reload"
+    evidence:
+      - '(?i)(?:survives|persist\w*|restored).{0,40}(?:reload|refresh)'
+      - '(?i)(?:search ?param|query string|url state|localStorage)'
+  - text: "Operable from the keyboard alone"
+    evidence:
+      - '(?i)keyboard'
+      - '(?i)focus (?:order|trap|return)'
+  - text: "Usable down to a 375 pixel wide viewport"
+    evidence:
+      - '(?i)375'
+      - '(?i)(?:mobile|small screen|narrow viewport)'
+
+# The pages the two RFCs are about, always scored. Each lives in its own
+# feature's seed: a later seed is staged over the earlier run's work, so the two
+# must never share a file.
 always_score:
   - src/app/bookings/page.tsx
   - src/app/invoices/page.tsx
-
-# For sequence cases, seed structure is feature<N>/seed/
-# build_workspace() copies feature1/seed to workspace root

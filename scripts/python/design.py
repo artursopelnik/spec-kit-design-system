@@ -56,7 +56,9 @@ class Capability:
 
     `positional` names what `ds.sh query <capability> a b` means. `probe_with`
     is a call cheap enough to prove the design system is reachable, and only a
-    capability that carries one may be probed. `rung` is which step of the
+    capability that carries one may be probed: `extend`, `validate` and
+    `report_gap` may eject a component, run a build or file an issue, and a
+    reachability check must never do any of that. `rung` is which step of the
     ladder this capability backs, so an adapter author can see what a missing
     mapping costs before a run does.
     """
@@ -76,15 +78,17 @@ CAPABILITY_LIST = [
     Capability("list_components", probe_with={}),
     Capability("component", ("name",), probe_with={"name": "Button"}, rung="reuse"),
     Capability("pattern", ("name",), rung="compose"),
-    Capability("tokens", ("theme",)),
+    Capability("tokens", ("theme",), probe_with={}),
     Capability(
         "breakpoints",
         ("theme",),
+        probe_with={},
         note="Its own query because 'use our breakpoints' is unenforceable "
         "unless the agent can find out what they actually are.",
     ),
     Capability(
         "principles",
+        probe_with={},
         note="When this answers, it IS the principles for the run; nothing "
         "shipped here is merged into it.",
     ),
@@ -278,9 +282,21 @@ ENV_OVERRIDES = {
 }
 
 
+TRUE_WORDS = {"1", "true", "yes", "on"}
+FALSE_WORDS = {"0", "false", "no", "off"}
+
+
 def coerce(value: str, kind: type) -> Any:
     if kind is bool:
-        return value.strip().lower() in {"1", "true", "yes", "on"}
+        # Refused rather than read as false: `SPECKIT_DESIGN_GATE_ENFORCE=ture`
+        # would otherwise switch the gate off without a word.
+        word = value.strip().lower()
+        if word in TRUE_WORDS:
+            return True
+        if word in FALSE_WORDS:
+            return False
+        words = ", ".join(sorted(TRUE_WORDS | FALSE_WORDS))
+        die(f"could not read '{value}' as a boolean. One of: {words}")
     try:
         return kind(value)
     except ValueError:
@@ -383,8 +399,7 @@ def mapped_capabilities(adapter: dict) -> list[str]:
 
 # Probed in this order; the first mapped one is used. Only a capability that
 # declares a `probe_with` call can stand in for reachability.
-PROBE_ORDER = [c.name for c in CAPABILITY_LIST if c.probe_with is not None]
-PROBE_PARAMS = {c.name: c.probe_with for c in CAPABILITY_LIST if c.probe_with}
+PROBE_PARAMS = {c.name: c.probe_with for c in CAPABILITY_LIST if c.probe_with is not None}
 
 
 def probe_adapter(ds: DesignSystem) -> dict:
@@ -399,10 +414,20 @@ def probe_adapter(ds: DesignSystem) -> dict:
     if not mapped:
         return {"capabilities": [], "reachable": False, "reason": "adapter maps no capabilities"}
 
-    probe = next((name for name in PROBE_ORDER if name in mapped), mapped[0])
-    result = run_capability(
-        ds, probe, dict(PROBE_PARAMS.get(probe, {})), timeout=PROBE_TIMEOUT
-    )
+    probe = next((name for name in PROBE_PARAMS if name in mapped), None)
+    if probe is None:
+        # Only capabilities with side effects are mapped. Calling one to see
+        # whether it answers would file an issue or eject a component on every
+        # gate, so reachability stays unproven and the gate fails closed.
+        return {
+            "capabilities": [],
+            "reachable": False,
+            "reason": (
+                f"adapter maps only {', '.join(mapped)}, none of which is safe to probe; "
+                f"map one of {', '.join(PROBE_PARAMS)}"
+            ),
+        }
+    result = run_capability(ds, probe, dict(PROBE_PARAMS[probe]), timeout=PROBE_TIMEOUT)
 
     if not result.get("available"):
         return {
@@ -590,7 +615,6 @@ class Answer:
     def unavailable(capability: str, reason: str, **extra: Any) -> dict:
         return {"capability": capability, "available": False, "reason": reason, **extra}
 
-
     @staticmethod
     def cost_note(capability: str, result: dict) -> str | None:
         """What a bulky or unnarrowed answer costs, phrased as the fix.
@@ -707,8 +731,13 @@ class FileTransport:
             [request.spec["read_file"]],
             {**request.params, "source": request.adapter.get("source", "")},
         )
-        path = request.base / target[0] if target else None
-        if not path or not path.is_file():
+        if not target:
+            return Fetched(
+                "unreachable",
+                reason=f"'{request.spec['read_file']}' names no file; set `source` in the config",
+            )
+        path = request.base / target[0]
+        if not path.is_file():
             return Fetched("unreachable", reason=f"{path} not found")
         try:
             document = read_structured(path)
@@ -748,6 +777,22 @@ class ProcessTransport:
         if not own_binary:
             argv += list(adapter.get("global_args") or [])
 
+        # The envelope describes one CLI's response shape, so it applies to that
+        # CLI. Reading another tool's `code` field as this one's error code
+        # would turn a filed issue into a reported outage.
+        envelope = (adapter.get("envelope") or {}) if not own_binary else {}
+        return self.invoke(request, argv, envelope)
+
+    @staticmethod
+    def invoke(request: Request, argv: list[str], envelope: dict) -> Fetched:
+        """Run a finished argv and sort the outcome into the three-way.
+
+        Takes the argv as built, so a transport that delegates here (MCP) hands
+        over its arguments once: splitting or substituting them a second time
+        would break a client path with a space in it, and expand a `{...}` that
+        arrived inside a query.
+        """
+        spec = request.spec
         try:
             proc = subprocess.run(
                 argv,
@@ -767,17 +812,13 @@ class ProcessTransport:
                 "unreachable", reason=f"CLI timed out after {request.timeout}s"
             )
 
-        command = " ".join(argv)
+        command = shlex.join(argv)
         raw = proc.stdout.strip()
         try:
             parsed = json.loads(raw) if raw else None
         except json.JSONDecodeError:
             parsed = None  # CLI printed prose; hand it back verbatim
 
-        # The envelope describes one CLI's response shape, so it applies to that
-        # CLI. Reading another tool's `code` field as this one's error code
-        # would turn a filed issue into a reported outage.
-        envelope = (adapter.get("envelope") or {}) if not own_binary else {}
         error_key = envelope.get("error_code_key")
         code = parsed.get(error_key) if (isinstance(parsed, dict) and error_key) else None
 
@@ -874,16 +915,9 @@ class McpTransport:
         # Reuse the process transport's failure semantics rather than restating
         # them: an MCP server that cannot be reached is exactly as unavailable
         # as a CLI that is not installed, and must never read as an empty
-        # design system.
-        delegated = Request(
-            capability=request.capability,
-            spec={**request.spec, "bin": argv[0], "args": argv[1:], "mcp": None},
-            adapter=request.adapter,
-            base=request.base,
-            params={},
-            timeout=request.timeout,
-        )
-        return ProcessTransport().fetch(delegated)
+        # design system. The client is not the design system's CLI, so the
+        # adapter's envelope does not describe its output.
+        return ProcessTransport.invoke(request, argv, envelope={})
 
 
 # Ordered: the first transport that recognises the mapping is used.
@@ -1092,7 +1126,15 @@ def read_structured(path: Path) -> Any:
     except OSError as exc:
         raise ValueError(str(exc)) from exc
     if path.suffix.lower() in {".yml", ".yaml"}:
-        return load_yaml(path)
+        # Parsed here rather than through `load_yaml`, which exits the process:
+        # a broken inventory is one capability that cannot answer, and the
+        # callers already report a ValueError as exactly that.
+        import yaml
+
+        try:
+            return yaml.safe_load(text) or {}
+        except yaml.YAMLError as exc:
+            raise ValueError(f"{path} is not valid YAML: {exc}") from exc
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
@@ -1470,6 +1512,11 @@ def context_sizes(payload: dict) -> dict:
     return sizes
 
 
+def unasked(what: str, result: dict) -> str:
+    """The note for a question that could not be put, as opposed to answered."""
+    return f"{what}: could not ask the design system ({result.get('reason', 'unavailable')})"
+
+
 def _bulk_section(ds: DesignSystem, payload: dict, capability: str, note: bool = True) -> dict:
     """Ask for one of the big shared sections and record what it cost.
 
@@ -1479,6 +1526,10 @@ def _bulk_section(ds: DesignSystem, payload: dict, capability: str, note: bool =
     """
     result = ds.ask(capability)
     payload[capability] = result.get("data") if result.get("available") else None
+    if not result.get("available") and capability in ds.capabilities:
+        # Mapped and reached at probe time, then failed. A null section here
+        # would read as "the design system has no tokens".
+        payload["notes"].append(unasked(capability, result))
     if note and result.get("available"):
         message = Answer.cost_note(capability, result)
         if message:
@@ -1540,12 +1591,27 @@ def build_context(
 
     if "components" in wants:
         for name in components or []:
-            result = ds.ask("component", name=name)
-            if not result.get("found"):
-                result = ds.ask("pattern", name=name)
-            payload["components"][name] = result.get("data") if result.get("found") else None
-            if not result.get("found"):
+            # A component, else a pattern of that name. "Not found" is only
+            # said when every question that was put got an answer: an outage
+            # on either is a failure to ask, never an empty design system.
+            asked = [
+                ds.ask(capability, name=name)
+                for capability in ("component", "pattern")
+                if capability in probe["capabilities"]
+            ]
+            hit = next((result for result in asked if result.get("found")), None)
+            payload["components"][name] = hit.get("data") if hit else None
+            if hit:
+                continue
+            failed = next((result for result in asked if not result.get("available")), None)
+            if failed:
+                payload["notes"].append(unasked(name, failed))
+            elif asked:
                 payload["notes"].append(f"{name}: not found in the design system")
+            else:
+                payload["notes"].append(
+                    f"{name}: the adapter maps neither component nor pattern, so it was not asked"
+                )
         if not components:
             payload["notes"].append(
                 "no components named; ask for them with `query component <Name>` as the work "
@@ -1555,6 +1621,8 @@ def build_context(
     if "candidates" in wants and query:
         search = ds.ask("search", query=query)
         payload["candidates"] = search.get("data") if search.get("available") else None
+        if not search.get("available"):
+            payload["notes"].append(unasked("search", search))
 
     if "tokens" in wants:
         _bulk_section(ds, payload, "tokens")
@@ -2011,17 +2079,26 @@ def ledger_record(root: Path, payload: dict) -> dict:
     # the first is the drift the ladder exists to prevent, and it arrives by
     # accident: the gate records a surface when it walks it, and a later phase
     # records the same surface again from its own notes.
+    active = [entry for entry in decisions if entry.get("status") != "superseded"]
     phrase = str(payload["capability"]).strip().lower()
     clash = next(
         (
             entry
-            for entry in decisions
-            if entry.get("status") != "superseded"
-            and str(entry.get("capability", "")).strip().lower() == phrase
+            for entry in active
+            if str(entry.get("capability", "")).strip().lower() == phrase
         ),
         None,
     )
-    if clash and not payload.get("supersedes"):
+
+    # Superseding is explicit: a new decision does not quietly shadow an old one.
+    # And it has to retire the decision it clashes with. Naming any other id —
+    # a typo, an already-retired one, a different capability's — would pass the
+    # check above and still leave two active answers to one question.
+    superseded = payload.pop("supersedes", None)
+    target = next((entry for entry in active if entry.get("id") == superseded), None)
+    if superseded and target is None:
+        die(f"supersedes '{superseded}', but no active decision has that id")
+    if clash and clash is not target:
         die(
             f"'{payload['capability']}' already has an active decision "
             f"({clash.get('id')}: {clash.get('resolution')}). Adopt it, or supersede it "
@@ -2034,16 +2111,14 @@ def ledger_record(root: Path, payload: dict) -> dict:
         if (match := re.match(r"dd-(\d+)$", str(entry.get("id", ""))))
     ]
     payload.setdefault("id", f"dd-{max(numbers, default=0) + 1:03d}")
+    if any(entry.get("id") == payload["id"] for entry in decisions):
+        die(f"decision id '{payload['id']}' is already taken; leave `id` out to have one assigned")
     payload.setdefault("status", "active")
     payload.setdefault("decided_on", date.today().isoformat())
 
-    # Superseding is explicit: a new decision does not quietly shadow an old one.
-    superseded = payload.pop("supersedes", None)
-    if superseded:
-        for entry in decisions:
-            if entry.get("id") == superseded:
-                entry["status"] = "superseded"
-                entry["superseded_by"] = payload["id"]
+    if target is not None:
+        target["status"] = "superseded"
+        target["superseded_by"] = payload["id"]
 
     decisions.append(payload)
     dump_yaml(ledger_path(root), ledger)
@@ -2059,16 +2134,9 @@ def detect_ui_bearing(spec_path: Path | None) -> bool | None:
     'render' in passing."""
     if not spec_path or not spec_path.is_file():
         return None
-    try:
-        text = spec_path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-    return len(UI_SIGNALS.findall(text)) >= SPEC_UI_THRESHOLD
+    return len(UI_SIGNALS.findall(read_text(spec_path))) >= SPEC_UI_THRESHOLD
 
 
-# Which capabilities carry which rung of the reuse ladder. The rungs themselves
-# live in `commands/speckit.design.check.md`; this only says what is automated,
-# so an adapter author can see what a missing mapping costs before a run does.
 # Which capabilities back which rung, derived from the registry so the two
 # cannot drift. The rungs themselves live in `commands/speckit.design.check.md`;
 # this only says what is automated.
@@ -2246,7 +2314,7 @@ def cmd_ledger(args: argparse.Namespace) -> None:
             die("ledger lookup requires a capability phrase")
         threshold = args.threshold
         if threshold is None:
-            threshold = float(config.get("ledger", {}).get("match_threshold", 0.34))
+            threshold = float((config.get("ledger") or {}).get("match_threshold", 0.34))
         current_version = args.current_version or config.get("design_system_version")
         emit(ledger_lookup(root, args.value, threshold, current_version))
     elif args.action == "record":

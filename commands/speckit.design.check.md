@@ -53,10 +53,10 @@ For each surface, in order. Stop at the first rung that holds.
 
 Get `<version>` from the design system itself where the adapter maps `describe`, otherwise from its package version or `design_system_version` in config. Without it the lookup reports `"staleness_checked": false` and every `stale` flag comes back `null`, meaning unknown, which is not the same as fresh. Do not read an unchecked decision as a verified-current one.
 
-Look up each surface with **more than one wording**, the same discipline as searching the design system. A prior decision is returned with a `match_score` and a `stale` flag.
+Look up each surface with **more than one wording**, the same discipline as searching the design system. A prior decision is returned with a `match_score` and a `stale` flag. When `ledger.enabled` in `CONFIG` is false the project keeps no ledger: skip this rung and step 4, and say so once in the completion report.
 
 - **Match, not stale** → adopt the prior decision. Record it in `DESIGN_DOC` citing the decision id and the feature it came from, and move to the next surface. This is the point of the ledger: the second feature to need a date range should not re-run the search that the first one already ran.
-- **Match, but `stale`** → the design system has changed since that decision was taken. Do **not** adopt it blindly and do not discard it either. Re-walk from Rung 1, then either confirm the prior decision still holds, or record a superseding decision in step 5.
+- **Match, but `stale`** → the design system has changed since that decision was taken. Do **not** adopt it blindly and do not discard it either. Re-walk from Rung 1, then either confirm the prior decision still holds, or record a superseding decision in step 4.
 - **Match you believe is wrong** → re-walk the ladder. If you land somewhere else, supersede the old decision explicitly rather than adding a contradicting one. Two active decisions for one capability is exactly the drift this extension exists to prevent.
 - **No match** → walk the ladder normally.
 

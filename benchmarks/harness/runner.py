@@ -197,13 +197,12 @@ def build_workspace(workspace: Path, case: dict, system: dict, arm: str, specify
         principles_target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(Path(system["_dir"]) / system["principles"], principles_target)
 
-    # The starting point the RFC talks about.
+    # The starting point the RFC talks about. For a sequence, the first
+    # feature's; the rest arrive one at a time in `run_sequence`.
     if "features" in case:
-        # Sequence case: copy seed from feature1
-        features = case.get("features") or []
-        if features:
-            feature1_seed = Path(case["_dir"]) / features[0]["id"] / "seed"
-            copy_tree(feature1_seed, workspace)
+        feature = case["features"][0]
+        copy_tree(Path(case["_dir"]) / feature["id"] / "seed", workspace)
+        shutil.copy(Path(case["_dir"]) / feature["rfc"], workspace / "rfc.md")
     else:
         copy_tree(Path(case["_dir"]) / "seed", workspace)
         shutil.copy(Path(case["_dir"]) / case.get("rfc", "rfc.md"), workspace / "rfc.md")
@@ -224,10 +223,7 @@ def build_workspace(workspace: Path, case: dict, system: dict, arm: str, specify
         ),
         encoding="utf-8",
     )
-    for mirror in ("CLAUDE.md",):
-        (workspace / mirror).write_text(
-            f"See AGENTS.md.\n", encoding="utf-8"
-        )
+    (workspace / "CLAUDE.md").write_text("See AGENTS.md.\n", encoding="utf-8")
 
     return {"notes": notes}
 
@@ -250,107 +246,125 @@ def manifest_provided(workspace: Path, case: dict) -> dict[str, str]:
     return provided
 
 
-def run_sequence(workspace: Path, case: dict, system: dict, arm: str, agent_command: str | None,
-                 run_dir: Path, timeout: int) -> dict:
-    """Run a sequence case: two features in the same workspace with shared ledger.
+def run_agent(
+    agent_command: str, workspace: Path, run_dir: Path, stem: str, timeout: int, **placeholders: str
+) -> dict:
+    """Run the agent once in the workspace and record what it did and cost."""
+    command = agent_command.format(workspace=str(workspace.resolve()), **placeholders)
+    # A usage.json is the agent's accounting for the run that wrote it. Left
+    # over from an earlier feature it would be counted again for this one.
+    (workspace / "usage.json").unlink(missing_ok=True)
 
-    Returns: record with feature1 and feature2 runs and combined usage.
+    record: dict = {}
+    stdout = ""
+    started = time.monotonic()
+    try:
+        result = subprocess.run(
+            command, cwd=workspace, shell=True, capture_output=True,
+            text=True, timeout=timeout, check=False,
+        )
+        record["exit_code"] = result.returncode
+        record["timed_out"] = False
+        stdout = result.stdout or ""
+        (run_dir / f"{stem}.stdout.txt").write_text(stdout, encoding="utf-8")
+        (run_dir / f"{stem}.stderr.txt").write_text(result.stderr or "", encoding="utf-8")
+    except subprocess.TimeoutExpired:
+        record["exit_code"] = None
+        record["timed_out"] = True
+    record["duration_s"] = round(time.monotonic() - started, 1)
+    usage = extract_usage(stdout, workspace)
+    if usage:
+        record["usage"] = usage
+    return record
+
+
+USAGE_SUMS = (
+    "input_tokens", "output_tokens", "cache_creation_input_tokens",
+    "cache_read_input_tokens", "total_tokens", "cost_usd", "turns", "agent_duration_s",
+)
+
+
+def combine_usage(records: list[dict]) -> dict | None:
+    """What a sequence cost end to end, for the report to print beside its score.
+
+    None unless every feature was accounted for: a sum over the features that
+    happened to report would understate the cost, which is the one direction a
+    benchmark must never err in.
+    """
+    usages = [record.get("usage") for record in records]
+    if not usages or not all(usages):
+        return None
+    combined: dict = {"source": "+".join(sorted({usage["source"] for usage in usages}))}
+    for field in USAGE_SUMS:
+        values = [usage[field] for usage in usages if isinstance(usage.get(field), (int, float))]
+        if len(values) == len(usages):
+            combined[field] = round(sum(values), 4)
+    return combined
+
+
+def stage_feature(workspace: Path, case: dict, feature: dict, provided: dict[str, str]) -> None:
+    """Put one feature's RFC and seed in place, and count them as provided.
+
+    Hashed as they land, not before the run starts: a later feature's seed and
+    RFC are the harness's doing too, and scoring them as the agent's work would
+    credit every arm with the RFC's own words.
+    """
+    directory = Path(case["_dir"])
+    seed = directory / feature["id"] / "seed"
+    copy_tree(seed, workspace)
+    shutil.copy(directory / feature["rfc"], workspace / "rfc.md")
+
+    staged = ["rfc.md"]
+    if seed.exists():
+        staged += [path.relative_to(seed).as_posix() for path in seed.rglob("*") if path.is_file()]
+    always = set(case.get("always_score") or [])
+    for rel in staged:
+        if rel not in always:
+            provided[rel] = digest(workspace / rel)
+
+
+def run_sequence(
+    workspace: Path, case: dict, arm: str, agent_command: str, run_dir: Path, timeout: int,
+    provided: dict[str, str],
+) -> dict:
+    """Run each feature of a sequence case in turn, in one workspace and ledger.
+
+    The first feature is staged by `build_workspace`, before anything is
+    hashed. Each later one is staged just before its run, so the agent for
+    feature 1 never sees feature 2's RFC or code.
     """
     features = case.get("features") or []
     if len(features) < 2:
         raise ValueError(f"sequence case must have at least 2 features, got {len(features)}")
 
-    feature1 = features[0]
-    feature2 = features[1]
-
-    # Set up RFCs for both features
-    feature1_rfc = Path(case["_dir"]) / feature1["rfc"]
-    feature2_rfc = Path(case["_dir"]) / feature2["rfc"]
-
-    feature1_prompt_file = run_dir / "prompt_feature1.md"
-    feature2_prompt_file = run_dir / "prompt_feature2.md"
-
-    # Read base prompt
-    prompt_template = (HARNESS / "prompts" / f"{arm}.md").read_text(encoding="utf-8")
-
-    # Feature 1: copy RFC and run
-    rfc1_content = feature1_rfc.read_text(encoding="utf-8")
-    feature1_prompt_file.write_text(prompt_template, encoding="utf-8")
-
-    shutil.copy(feature1_rfc, workspace / "rfc.md")
-
-    feature1_record = {}
-    if agent_command:
-        command = agent_command.format(
-            prompt_file=str(feature1_prompt_file.resolve()),
-            prompt_file_1=str(feature1_prompt_file.resolve()),
-            prompt_file_2="",  # not used for feature1
-            workspace=str(workspace.resolve())
+    prompt = (HARNESS / "prompts" / f"{arm}.md").read_text(encoding="utf-8")
+    records = []
+    for number, feature in enumerate(features, start=1):
+        if number > 1:
+            stage_feature(workspace, case, feature, provided)
+        prompt_file = run_dir / f"prompt_feature{number}.md"
+        prompt_file.write_text(prompt, encoding="utf-8")
+        path = str(prompt_file.resolve())
+        placeholders = {"prompt_file": path}
+        placeholders.update(
+            {f"prompt_file_{index}": (path if index == number else "")
+             for index in range(1, len(features) + 1)}
         )
-        started = time.monotonic()
-        try:
-            result = subprocess.run(
-                command, cwd=workspace, shell=True, capture_output=True,
-                text=True, timeout=timeout, check=False,
-            )
-            feature1_record["exit_code"] = result.returncode
-            feature1_record["timed_out"] = False
-            (run_dir / "agent_feature1.stdout.txt").write_text(result.stdout or "", encoding="utf-8")
-            (run_dir / "agent_feature1.stderr.txt").write_text(result.stderr or "", encoding="utf-8")
-        except subprocess.TimeoutExpired:
-            feature1_record["exit_code"] = None
-            feature1_record["timed_out"] = True
-        feature1_record["duration_s"] = round(time.monotonic() - started, 1)
-        usage1 = extract_usage(
-            (run_dir / "agent_feature1.stdout.txt").read_text(encoding="utf-8")
-            if (run_dir / "agent_feature1.stdout.txt").exists()
-            else "",
-            workspace,
+        record = run_agent(
+            agent_command, workspace, run_dir, f"agent_feature{number}", timeout, **placeholders
         )
-        if usage1:
-            feature1_record["usage"] = usage1
+        records.append({"feature": feature["id"], **record})
 
-    # Feature 2: copy new RFC and run in same workspace
-    rfc2_content = feature2_rfc.read_text(encoding="utf-8")
-    feature2_prompt_file.write_text(prompt_template, encoding="utf-8")
-
-    shutil.copy(feature2_rfc, workspace / "rfc.md")
-
-    feature2_record = {}
-    if agent_command:
-        command = agent_command.format(
-            prompt_file=str(feature2_prompt_file.resolve()),
-            prompt_file_1="",  # not used for feature2
-            prompt_file_2=str(feature2_prompt_file.resolve()),
-            workspace=str(workspace.resolve())
-        )
-        started = time.monotonic()
-        try:
-            result = subprocess.run(
-                command, cwd=workspace, shell=True, capture_output=True,
-                text=True, timeout=timeout, check=False,
-            )
-            feature2_record["exit_code"] = result.returncode
-            feature2_record["timed_out"] = False
-            (run_dir / "agent_feature2.stdout.txt").write_text(result.stdout or "", encoding="utf-8")
-            (run_dir / "agent_feature2.stderr.txt").write_text(result.stderr or "", encoding="utf-8")
-        except subprocess.TimeoutExpired:
-            feature2_record["exit_code"] = None
-            feature2_record["timed_out"] = True
-        feature2_record["duration_s"] = round(time.monotonic() - started, 1)
-        usage2 = extract_usage(
-            (run_dir / "agent_feature2.stdout.txt").read_text(encoding="utf-8")
-            if (run_dir / "agent_feature2.stdout.txt").exists()
-            else "",
-            workspace,
-        )
-        if usage2:
-            feature2_record["usage"] = usage2
-
-    return {
-        "feature1": feature1_record,
-        "feature2": feature2_record,
+    summary: dict = {
+        "features": records,
+        "exit_code": next((r["exit_code"] for r in records if r["exit_code"] != 0), 0),
+        "timed_out": any(r["timed_out"] for r in records),
+        "duration_s": round(sum(r["duration_s"] for r in records), 1),
     }
+    usage = combine_usage(records)
+    if usage:
+        summary["usage"] = usage
+    return summary
 
 
 def main() -> None:
@@ -414,49 +428,27 @@ def main() -> None:
             "provided": manifest_provided(workspace, case),
         }
 
-        if is_sequence:
-            # Sequence case: run feature1, then feature2 in the same workspace
-            if args.agent and not args.no_agent:
-                sequence_result = run_sequence(
-                    workspace, case, system, args.arm, args.agent, run_dir, args.timeout
-                )
-                record["sequence"] = sequence_result
-            else:
-                record["agent_skipped"] = True
+        if not args.agent or args.no_agent:
+            record["agent_skipped"] = True
+        elif is_sequence:
+            sequence = run_sequence(
+                workspace, case, args.arm, args.agent, run_dir, args.timeout,
+                record["provided"],
+            )
+            record["sequence"] = sequence.pop("features")
+            record.update(sequence)
         else:
-            # Single case: standard single RFC execution
-            prompt = (HARNESS / "prompts" / f"{args.arm}.md").read_text(encoding="utf-8")
             prompt_file = run_dir / "prompt.md"
-            prompt_file.write_text(prompt, encoding="utf-8")
-
-            if args.agent and not args.no_agent:
-                command = args.agent.format(
-                    prompt_file=str(prompt_file.resolve()), workspace=str(workspace.resolve())
+            prompt_file.write_text(
+                (HARNESS / "prompts" / f"{args.arm}.md").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            record.update(
+                run_agent(
+                    args.agent, workspace, run_dir, "agent", args.timeout,
+                    prompt_file=str(prompt_file.resolve()),
                 )
-                started = time.monotonic()
-                try:
-                    result = subprocess.run(
-                        command, cwd=workspace, shell=True, capture_output=True,
-                        text=True, timeout=args.timeout, check=False,
-                    )
-                    record["exit_code"] = result.returncode
-                    record["timed_out"] = False
-                    (run_dir / "agent.stdout.txt").write_text(result.stdout or "", encoding="utf-8")
-                    (run_dir / "agent.stderr.txt").write_text(result.stderr or "", encoding="utf-8")
-                except subprocess.TimeoutExpired:
-                    record["exit_code"] = None
-                    record["timed_out"] = True
-                record["duration_s"] = round(time.monotonic() - started, 1)
-                usage = extract_usage(
-                    (run_dir / "agent.stdout.txt").read_text(encoding="utf-8")
-                    if (run_dir / "agent.stdout.txt").exists()
-                    else "",
-                    workspace,
-                )
-                if usage:
-                    record["usage"] = usage
-            else:
-                record["agent_skipped"] = True
+            )
 
         record["finished_at"] = datetime.now(timezone.utc).isoformat()
         (run_dir / "benchmark.json").write_text(

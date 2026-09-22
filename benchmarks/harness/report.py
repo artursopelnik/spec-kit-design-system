@@ -91,7 +91,7 @@ def summarize(runs: list[dict]) -> dict:
             {"median": round(statistics.median(values), 3), "n": len(values)} if values else None
         )
     for key in ("files_written", "validation_rounds", "gap_records", "ledger_entries",
-                "numbered_requirements", "findings_open"):
+                "decisions_cited", "numbered_requirements", "findings_open"):
         values = []
         for run in runs:
             value = run.get("observations", {}).get(key)
@@ -280,8 +280,8 @@ def markdown(grouped: dict, runs: list[dict]) -> str:
         "## What was observed, not scored",
         "",
         "| Arm | Files written | Validation rounds | Gap records | Ledger entries | "
-        "Numbered requirements |",
-        "|" + "---|" * 6,
+        "Ledger decisions cited | Numbered requirements |",
+        "|" + "---|" * 7,
     ]
     for arm in arms:
         if arm not in rollup:
@@ -290,7 +290,7 @@ def markdown(grouped: dict, runs: list[dict]) -> str:
         lines.append(
             f"| {arm} | {obs.get('files_written', 0):g} | {obs.get('validation_rounds', 0):g} | "
             f"{obs.get('gap_records', 0):g} | {obs.get('ledger_entries', 0):g} | "
-            f"{obs.get('numbered_requirements', 0):g} |"
+            f"{obs.get('decisions_cited', 0):g} | {obs.get('numbered_requirements', 0):g} |"
         )
     lines.append("")
     return "\n".join(lines)

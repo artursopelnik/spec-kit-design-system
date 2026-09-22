@@ -55,7 +55,7 @@ For each surface, look it up in the decision ledger first:
 .specify/extensions/design/scripts/bash/ds.sh ledger lookup "<capability phrase>" --json
 ```
 
-A hit means another feature already resolved this surface. Surfacing it here, while the spec is still being written, is cheaper than surfacing it at the gate, because the spec can simply state the established answer as a requirement. Note the decision id in the candidates table so the gate can adopt it rather than re-deriving it.
+Skip this step when `ledger.enabled` in `CONFIG` is false: the project keeps no ledger. A hit means another feature already resolved this surface. Surfacing it here, while the spec is still being written, is cheaper than surfacing it at the gate, because the spec can simply state the established answer as a requirement. Note the decision id in the candidates table so the gate can adopt it rather than re-deriving it.
 
 A hit does not end the search: still query the design system in step 3, because the spec's requirements should describe real component capabilities, and because a `stale` hit needs re-validation anyway.
 

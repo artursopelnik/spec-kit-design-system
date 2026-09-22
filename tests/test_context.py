@@ -299,3 +299,35 @@ def test_a_narrowed_breakpoints_mapping_is_not_reported(
 
     assert payload["breakpoints"] != payload["tokens"]
     assert not any("counted twice" in note for note in payload["notes"])
+
+
+# --- an outage is not an empty design system -----------------------------------
+
+
+def test_a_component_that_could_not_be_asked_is_not_reported_missing(
+    design, project, write_config, fake_cli
+):
+    write_config({"adapter": "fake"})
+    payload = context(design, "implement", components=["boom", "missing"])
+
+    assert payload["components"] == {"boom": None, "missing": None}
+    notes = " ".join(payload["notes"])
+    assert "boom: could not ask the design system" in notes
+    assert "missing: not found in the design system" in notes
+    assert "boom: not found" not in notes
+
+
+def test_a_section_that_failed_is_said_to_have_failed(
+    design, project, write_config, fake_cli
+):
+    import yaml
+
+    fake = project / ".specify" / "extensions" / "design" / "adapters" / "fake.yml"
+    adapter = yaml.safe_load(fake.read_text(encoding="utf-8"))
+    adapter["capabilities"]["tokens"]["args"] = ["boom"]  # the CLI exits non-zero
+    fake.write_text(yaml.safe_dump(adapter), encoding="utf-8")
+    write_config({"adapter": "fake"})
+    payload = context(design, "implement")
+
+    assert payload["tokens"] is None
+    assert any(note.startswith("tokens: could not ask") for note in payload["notes"])
