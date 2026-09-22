@@ -133,14 +133,35 @@ A finding you disagree with is not fixed by deleting it. Argue it in the design 
 
 ### 7. Verify
 
-Last pass, over the whole change rather than per finding:
+`workflow status` returns `next: "verify"` once validation is clean. This is the
+last pass, over the whole change rather than per finding:
 
 - Every acceptance criterion in the RFC is met.
 - Every `DS-` requirement in the spec is satisfied.
 - Every principle in force was honoured, or its exception is written down.
 - Every item of the team's Definition of Done is met, where `DOD_ITEMS` is non-empty.
 - The tests the project already has still pass. Run them.
-- `workflow status` returns `complete: true`.
+
+Then record that it happened, by appending a `## Verification` section to
+`design-system.md`. The heading is load-bearing in the same way the validation
+round heading is: `workflow status` reads it to derive the phase, and without it
+the run has no artifact saying this pass ever ran. Say what was checked and what
+the verdict was, not just that it was done:
+
+```markdown
+## Verification — 2026-05-14
+
+RFC acceptance criteria: 3 of 3 met.
+Spec requirements: DS-001 … DS-005 satisfied.
+Principles: `docs` (version 2025.4), all applicable honoured; ACME-DENSITY not
+enforceable (no verify step), noted rather than checked.
+Definition of Done: no file; not checked.
+Tests: 48 passed.
+
+Verdict: the change meets its design requirements.
+```
+
+Only then does `workflow status` return `complete: true`.
 
 The ladder decisions are already recorded: `/speckit.design.check` writes each
 surface it walks, at the moment it walks it, which is the only point where the
@@ -179,3 +200,4 @@ Short. The user asked for a change, not a narrative:
 - [ ] Validation ran as an independent pass and its findings were fixed or argued
 - [ ] The final validation round is clean, or the run stopped and said why
 - [ ] Every newly-walked surface is in the ledger, recorded once, by the gate
+- [ ] A `## Verification` section in `design-system.md` records what was checked and the verdict

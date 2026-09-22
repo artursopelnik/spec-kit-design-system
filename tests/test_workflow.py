@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+REPO = Path(__file__).resolve().parents[1]
+
 
 @pytest.fixture
 def status(design, project):
@@ -41,6 +43,16 @@ def validation_round(feature, number: int, findings: list[str], fixed: list[str]
         feature / "design-system.md"
     ).is_file() else "# Design System\n\n"
     (feature / "design-system.md").write_text(existing + "\n".join(lines) + "\n", encoding="utf-8")
+
+
+def verification(feature, verdict: str = "Meets its design requirements.") -> None:
+    """What the verify pass leaves behind. `workflow status` derives the phase
+    from it, so a run is not complete until it exists."""
+    doc = feature / "design-system.md"
+    existing = doc.read_text() if doc.is_file() else "# Design System\n\n"
+    doc.write_text(
+        f"{existing}\n## Verification — 2026-05-14\n\n{verdict}\n", encoding="utf-8"
+    )
 
 
 # --- progression ---------------------------------------------------------------
@@ -79,17 +91,36 @@ def test_the_phases_advance_without_being_driven_by_hand(status, feature):
     seen.append(status()["next"])
     validation_round(feature, 1, [])
     seen.append(status()["next"])
+    verification(feature)
+    seen.append(status()["next"])
 
-    assert seen == ["plan", "implement", "validate", "done"]
+    assert seen == ["plan", "implement", "validate", "verify", "done"]
 
 
-def test_a_clean_first_validation_finishes_the_run(status, feature):
+def test_a_clean_validation_is_not_the_end_of_the_run(status, feature):
+    """Validation says the implementation matches what was decided. Verify asks
+    the different question — whether the RFC actually got what it asked for —
+    so a clean round hands over to it rather than finishing."""
     plan_and_tasks(feature)
     validation_round(feature, 1, [])
     result = status()
 
     assert result["open_findings"] == []
+    assert result["phases"]["validate"] == "done"
+    assert result["phases"]["verify"] == "pending"
+    assert result["next"] == "verify"
+    assert result["complete"] is False
+
+
+def test_the_run_finishes_once_verification_is_recorded(status, feature):
+    plan_and_tasks(feature)
+    validation_round(feature, 1, [])
+    verification(feature)
+    result = status()
+
+    assert result["open_findings"] == []
     assert result["phases"]["verify"] == "done"
+    assert result["verified"] is True
     assert result["complete"] is True
 
 
@@ -120,6 +151,12 @@ def test_fixing_then_revalidating_reaches_done(status, feature):
     result = status()
     assert result["validation_rounds_used"] == 2
     assert result["closed_findings"] == ["DS-F-001"]
+    # Clean, but the whole change has not been checked against the RFC yet.
+    assert result["next"] == "verify"
+    assert result["complete"] is False
+
+    verification(feature)
+    result = status()
     assert result["next"] == "done"
     assert result["complete"] is True
 
@@ -171,3 +208,70 @@ def test_no_state_file_is_created(status, feature, project):
 
     files = {path.name for path in feature.iterdir()}
     assert files == {"spec.md", "plan.md", "tasks.md", "design-system.md"}
+
+
+# --- verify is a phase, not a restatement of the one before it ----------------
+#
+# Position is derived from artifacts, so a phase needs an artifact. `verify` was
+# derived from `last_round_clean and implemented` — the same condition as
+# `validate` — which meant it reported itself done the moment validation passed,
+# and `next` went straight from a clean round to `done`. A run following `next`,
+# as the run command tells it to, skipped the pass entirely.
+
+
+def test_a_clean_round_asks_for_verification_before_done(design, project, feature):
+    (feature / "spec.md").write_text("# Spec", encoding="utf-8")
+    (feature / "plan.md").write_text("# Plan", encoding="utf-8")
+    (feature / "tasks.md").write_text("- [x] T001\n", encoding="utf-8")
+    (feature / "design-system.md").write_text(
+        "## Validation round 1\n\nNo findings.\n", encoding="utf-8"
+    )
+
+    status = design.workflow_status(project, design.load_config(project))
+    assert status["next"] == "verify", status["reason"]
+    assert status["complete"] is False
+    assert status["verified"] is False
+    assert status["phases"]["verify"] == "pending"
+    assert status["phases"]["validate"] == "done"
+
+
+def test_a_recorded_verification_completes_the_run(design, project, feature):
+    (feature / "spec.md").write_text("# Spec", encoding="utf-8")
+    (feature / "plan.md").write_text("# Plan", encoding="utf-8")
+    (feature / "tasks.md").write_text("- [x] T001\n", encoding="utf-8")
+    (feature / "design-system.md").write_text(
+        "## Validation round 1\n\nNo findings.\n\n"
+        "## Verification — 2026-05-14\n\nRFC criteria: 3 of 3 met.\n",
+        encoding="utf-8",
+    )
+
+    status = design.workflow_status(project, design.load_config(project))
+    assert status["next"] == "done"
+    assert status["complete"] is True
+    assert status["verified"] is True
+    assert status["phases"]["verify"] == "done"
+
+
+def test_verification_does_not_skip_an_open_finding(design, project, feature):
+    """A verification heading is not a way past the fix loop."""
+    (feature / "spec.md").write_text("# Spec", encoding="utf-8")
+    (feature / "plan.md").write_text("# Plan", encoding="utf-8")
+    (feature / "tasks.md").write_text("- [x] T001\n", encoding="utf-8")
+    (feature / "design-system.md").write_text(
+        "## Validation round 1\n\n- [ ] DS-F-001 **violation** · raw px\n\n"
+        "## Verification\n\nPremature.\n",
+        encoding="utf-8",
+    )
+
+    status = design.workflow_status(project, design.load_config(project))
+    assert status["next"] == "fix", status["reason"]
+    assert status["complete"] is False
+
+
+def test_the_run_command_states_the_verification_format():
+    """The heading is a contract between the command body and `workflow_status`,
+    the same as the validation round heading. If the body stops teaching it, the
+    phase silently stops being reachable."""
+    body = (REPO / "commands" / "speckit.design.run.md").read_text(encoding="utf-8")
+    assert "## Verification" in body
+    assert "design-system.md" in body

@@ -1259,6 +1259,12 @@ def build_context(
 FINDING_OPEN = re.compile(r"^\s*-\s*\[ \]\s*(DS-F-\S+)", re.MULTILINE)
 FINDING_CLOSED = re.compile(r"^\s*-\s*\[[xX]\]\s*(DS-F-\S+)", re.MULTILINE)
 VALIDATION_ROUND = re.compile(r"^##+\s*Validation round\s+(\d+)", re.MULTILINE | re.IGNORECASE)
+# What the verify pass leaves behind. Without it there is no artifact to derive
+# the phase from, and a phase nothing can observe is one the run skips: status
+# went straight from a clean round to `done`, reporting `verify: done` for work
+# that never ran. The heading is the same kind of contract as the round heading
+# above, in the same file, and `speckit.design.run.md` states the format.
+VERIFICATION = re.compile(r"^##+\s*Verification\b", re.MULTILINE | re.IGNORECASE)
 CLARIFICATION = re.compile(r"\[NEEDS CLARIFICATION", re.IGNORECASE)
 TASK_OPEN = re.compile(r"^\s*-\s*\[ \]\s", re.MULTILINE)
 TASK_DONE = re.compile(r"^\s*-\s*\[[xX]\]\s", re.MULTILINE)
@@ -1318,6 +1324,10 @@ def workflow_status(root: Path, config: dict) -> dict:
     tasks_done = len(TASK_DONE.findall(tasks))
 
     implemented = bool(tasks) and tasks_open == 0 and tasks_done > 0
+    # Derived from its own artifact, like every other phase. Deriving it from
+    # `last_round_clean and implemented` restated the validate row and reported
+    # work as done that nothing had recorded.
+    verified = bool(VERIFICATION.search(design))
     phases = {
         "clarify": "done" if spec and not CLARIFICATION.search(spec) else
                    ("blocked" if spec else "pending"),
@@ -1325,7 +1335,7 @@ def workflow_status(root: Path, config: dict) -> dict:
         "plan": "done" if plan else "pending",
         "implement": "done" if implemented else ("in_progress" if tasks else "pending"),
         "validate": "done" if last_round_clean else ("in_progress" if rounds else "pending"),
-        "verify": "done" if last_round_clean and implemented else "pending",
+        "verify": "done" if verified else "pending",
     }
 
     rounds_used = max(rounds) if rounds else 0
@@ -1352,8 +1362,13 @@ def workflow_status(root: Path, config: dict) -> dict:
         nxt, reason = "validate", (
             f"round {rounds_used} raised findings that are now fixed; they need checking"
         )
+    elif not verified:
+        nxt, reason = "verify", (
+            "validation is clean; the whole change still needs checking against the RFC's "
+            "acceptance criteria, the spec's DS- requirements and the principles in force"
+        )
     else:
-        nxt, reason = "done", "the last validation round was clean"
+        nxt, reason = "done", "validation was clean and the change was verified against the RFC"
 
     return {
         "feature_dir": str(feature),
@@ -1363,6 +1378,7 @@ def workflow_status(root: Path, config: dict) -> dict:
         "tasks_done": tasks_done,
         "validation_rounds_used": rounds_used,
         "last_round_clean": last_round_clean,
+        "verified": verified,
         "max_validation_rounds": max_rounds,
         "may_validate_again": may_validate_again,
         "open_findings": open_findings,
