@@ -57,15 +57,24 @@ tested.
 
 ## Quick start
 
-**You need:** Spec Kit `>=1.0.0,<2.0.0`, and a design system an agent can read.
-A CLI, a registry, or a generated JSON file. If it only exists as a Figma
-library and tribal knowledge, there is nothing to ask.
+**You need:** Spec Kit `>=1.0.0,<2.0.0`, `bash`, Python `>=3.9` with PyYAML
+(`pip install pyyaml`), and a design system an agent can read: a CLI, a
+registry, or a generated JSON file. If it only exists as a Figma library and
+tribal knowledge, there is nothing to ask.
 
-**1. Install it into your Spec Kit project.**
+**1. Install it into your Spec Kit project.** The extension, then the preset
+that ships inside it:
+
+```bash
+specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.1.0.zip
+specify preset add --dev .specify/extensions/design/preset
+```
+
+Once the extension is listed in the community catalog, `specify extension
+search design` finds it too. To work from a clone instead:
 
 ```bash
 git clone https://github.com/artursopelnik/spec-kit-design-system
-
 specify extension add --dev /path/to/spec-kit-design-system
 specify preset add --dev /path/to/spec-kit-design-system/preset
 ```
@@ -80,12 +89,13 @@ configure:
 That's it. ✅
 
 > [!NOTE]
-> No release archive is published yet, so a clone is the only install path. The
-> preset installs separately because extensions can only *replace* templates,
-> which would fork your `spec-template`. Presets can *append*, so the design
-> sections compose in without forking anything.
+> The preset installs separately because extensions can only *replace*
+> templates, which would fork your `spec-template`. Presets can *append*, so
+> the design sections compose in without forking anything.
 
 ### Want to see it first?
+
+From a clone of this repository:
 
 ```bash
 ./examples/setup-demo.sh /tmp/design-demo
@@ -378,6 +388,40 @@ More: [architecture](docs/architecture.md) · [autonomous
 workflow](docs/autonomous-workflow.md) · [adapters](docs/adapters.md) ·
 [troubleshooting](docs/troubleshooting.md)
 
+## Troubleshooting
+
+The usual first stops:
+
+- **Planning stops at the gate.** The design system could not be reached, or
+  a UI surface has no documented resolution. Run
+  `.specify/extensions/design/scripts/bash/ds.sh gate --json` and read
+  `REACHABLE` and `PRINCIPLES_SOURCE`.
+- **`PyYAML is required`.** Install it into the interpreter the shim finds:
+  `python3 -m pip install pyyaml`.
+- **`bash\r: No such file or directory`.** The checkout was converted to CRLF.
+  Re-clone, or install from the release archive.
+
+More in [docs/troubleshooting.md](docs/troubleshooting.md).
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening one, run the tests below;
+CI runs the same, plus a real install into a Spec Kit project. An adapter for
+another design system is the most useful contribution, and
+[docs/adapters.md](docs/adapters.md) shows how to write one. Adapters only map,
+so a pull request that teaches an adapter a rule or a component will be asked
+to move that knowledge into the design system instead.
+
+Releases follow [docs/publishing.md](docs/publishing.md), and every change is
+recorded in [CHANGELOG.md](CHANGELOG.md).
+
+## Support
+
+Questions and bug reports go to the
+[issue tracker](https://github.com/artursopelnik/spec-kit-design-system/issues).
+Include the output of `ds.sh gate --json` and your Spec Kit version
+(`specify --version`).
+
 ## Development
 
 ```bash
@@ -397,7 +441,7 @@ preset/        spec, plan and constitution addenda
 templates/     RFC template
 examples/      fixture design system and demo project
 benchmarks/    cases, design system snapshots, scorer and report
-docs/          architecture, adapters, workflow, troubleshooting
+docs/          architecture, adapters, workflow, troubleshooting, publishing
 tests/         pytest suite, one file per concern
 ```
 

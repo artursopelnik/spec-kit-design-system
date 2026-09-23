@@ -6,6 +6,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-23
+
+First release. It carries the first cut (2026-09-20, at the end of this
+section), the review that followed it, and the packaging for the Spec Kit
+community catalog.
+
+### Packaging for the community catalog
+
+#### Added
+
+- `.extensionignore`: `specify extension add` no longer copies `tests/`,
+  `benchmarks/` and repository tooling into the consuming project. Everything
+  a run reads or executes still ships, which `tests/test_packaging.py` checks.
+- `requires.tools` in `extension.yml` names what every run executes: `python3`
+  (>=3.9, with PyYAML) and `bash`. The design system CLI is still deliberately
+  not declared.
+- A release workflow: pushing a `vX.Y.Z` tag checks that the tag, both
+  manifests and this changelog agree, runs the tests, and publishes the GitHub
+  release with this file's section as its notes.
+- `docs/publishing.md`: the release checklist and the prepared Extension
+  Submission for the Spec Kit community catalog.
+
+#### Changed
+
+- The README installs from the release archive instead of a clone, and gains
+  Troubleshooting, Contributing and Support sections.
+
 ### Fixed — from the pre-1.0 review
 
 - **A principle may apply to more than one kind.** `applies_to: [interactive,
@@ -258,11 +285,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ledger record` accepts inline JSON; `rfc` warns when a path-like argument
   does not exist.
 
-## [0.1.0] - 2026-09-20
+### First cut — 2026-09-20
 
-First release.
+What the extension does, as first written down.
 
-### Added
+#### Added
 
 - `/speckit.design.run <rfc>`: takes an RFC (a file, stdin or text) and carries
   it through clarify, specify, plan, implement, validate, fix and verify. It
@@ -308,7 +335,7 @@ First release.
   and a runnable demo (`examples/setup-demo.sh`) built on a fixture design
   system.
 
-### Behaviour worth knowing
+#### Behaviour worth knowing
 
 - **The gate fails closed.** It probes the design system rather than trusting
   the adapter file, so an unreachable CLI reports no capabilities and stops
@@ -321,7 +348,7 @@ First release.
   version to compare against, lookups report `staleness_checked: false` and
   leave `stale` null.
 
-### Deliberately not built
+#### Deliberately not built
 
 Issue import and export. The catalog already covers both directions
 (`github-issues`, `issue` and `gh-triage` inbound; core

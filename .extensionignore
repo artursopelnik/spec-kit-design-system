@@ -1,0 +1,21 @@
+# What `specify extension add` leaves out when it copies this repository into
+# a project. Everything a run reads or executes stays: commands/, scripts/,
+# adapters/, principles/, preset/, templates/, config-template.yml, docs/ and
+# examples/. What goes is what only this repository's own development needs.
+# tests/test_packaging.py checks that nothing a run needs is matched here.
+
+# Tests, benchmarks and their configuration
+tests/
+benchmarks/
+pytest.ini
+
+# Repository and editor tooling
+.github/
+.claude/
+.mcp.json
+.ignore
+.nvmrc
+.prettierrc
+.prettierignore
+.editorconfig
+CLAUDE.md
