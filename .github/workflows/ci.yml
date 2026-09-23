@@ -88,6 +88,20 @@ jobs:
           specify extension add --dev "$GITHUB_WORKSPACE/extension"
           specify preset add --dev "$GITHUB_WORKSPACE/extension/preset"
 
+      - name: The installed copy carries what runs, and nothing else
+        working-directory: proj
+        run: |
+          # .extensionignore is applied by Spec Kit at install time, so this is
+          # the only place it can be checked against the real matcher.
+          ext=.specify/extensions/design
+          for kept in extension.yml config-template.yml commands scripts adapters \
+                      principles preset templates LICENSE README.md CHANGELOG.md; do
+            test -e "$ext/$kept" || { echo "missing from the install: $kept"; exit 1; }
+          done
+          for dropped in tests benchmarks .github .claude pytest.ini CLAUDE.md; do
+            test ! -e "$ext/$dropped" || { echo "shipped but should not: $dropped"; exit 1; }
+          done
+
       - name: Manifests validate against Spec Kit's own validator
         working-directory: proj
         run: |

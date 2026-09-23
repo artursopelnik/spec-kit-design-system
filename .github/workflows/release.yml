@@ -1,0 +1,68 @@
+name: Release
+
+# Push a tag `vX.Y.Z` to publish. The archive Spec Kit installs from is the
+# one GitHub builds for the tag, so everything here checks that the tag is
+# worth pointing a catalog entry at before a release is created for it.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: pip install pytest pyyaml
+
+      - name: Tag, manifests and changelog agree
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os, re, sys, yaml
+          version = os.environ["TAG"].removeprefix("v")
+          found = {
+              "extension.yml": yaml.safe_load(open("extension.yml"))["extension"]["version"],
+              "preset/preset.yml": yaml.safe_load(open("preset/preset.yml"))["preset"]["version"],
+          }
+          wrong = {k: v for k, v in found.items() if v != version}
+          if wrong:
+              sys.exit(f"tag {version} does not match {wrong}")
+          if not re.search(rf"^## \[{re.escape(version)}\] - \d{{4}}-\d{{2}}-\d{{2}}$",
+                           open("CHANGELOG.md").read(), re.M):
+              sys.exit(f"CHANGELOG.md has no dated section for {version}")
+          print(f"{version}: manifests and changelog agree")
+          PY
+
+      - name: Run tests
+        run: python -m pytest
+
+      - name: Release notes from the changelog
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY' > "$RUNNER_TEMP/notes.md"
+          import os, re
+          version = os.environ["TAG"].removeprefix("v")
+          text = open("CHANGELOG.md").read()
+          start = re.search(rf"^## \[{re.escape(version)}\].*$", text, re.M).end()
+          end = re.search(r"^(## \[|\[[^\]]+\]: )", text[start:], re.M)
+          print(text[start:start + end.start() if end else None].strip())
+          PY
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+          echo "Archive: https://github.com/${{ github.repository }}/archive/refs/tags/$TAG.zip"
