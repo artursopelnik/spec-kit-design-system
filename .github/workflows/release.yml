@@ -63,6 +63,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+        # A release made on the Releases page creates the tag itself, and that
+        # tag push is what runs this job, so the release can already exist.
+        # Give it the changelog notes instead of failing on the duplicate.
         run: |
-          gh release create "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+          fi
           echo "Archive: https://github.com/${{ github.repository }}/archive/refs/tags/$TAG.zip"
