@@ -60,6 +60,14 @@ jobs:
       - name: Check formatting
         run: npx --yes prettier@3 --check docs adapters
 
+      - name: How to fix it
+        if: failure()
+        run: |
+          echo "::error::docs/ or adapters/ are not formatted. Run this and commit the result:"
+          echo "::error::npx --yes prettier@3 --write docs adapters"
+          npx --yes prettier@3 --write docs adapters > /dev/null
+          git --no-pager diff --stat
+
   integration:
     name: Real install against Spec Kit
     runs-on: ubuntu-latest
@@ -120,10 +128,14 @@ jobs:
           import sys, yaml
           registry = yaml.safe_load(open(".specify/extensions.yml"))
           hooks = registry.get("hooks", {})
-          for event in ("after_specify", "before_plan", "after_implement"):
+          for event in ("before_plan", "after_implement"):
               entries = hooks.get(event) or []
               assert entries, f"{event} not registered"
               assert entries[0]["extension"] == "design", entries
+          # The design system is consulted once before planning, by the gate.
+          assert not any(
+              e.get("extension") == "design" for e in hooks.get("after_specify") or []
+          ), hooks.get("after_specify")
           gate = hooks["before_plan"][0]
           # The gate is worthless if it is skippable.
           assert gate["optional"] is False, gate

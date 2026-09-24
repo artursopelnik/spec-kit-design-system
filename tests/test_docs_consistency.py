@@ -185,3 +185,72 @@ def test_the_gap_record_is_named_by_capability_not_by_component():
             assert not re.fullmatch(r"[A-Z][a-zA-Z]+", title.strip()), (
                 f"{path.name}: gap titled with a component name -> {title!r}"
             )
+
+
+# --- strict about what goes in, light on how it is used -----------------------
+
+
+def test_reuse_has_a_short_path_that_ends_the_walk():
+    """Every surface used to pay for the full walk: two searches per rung, a
+    candidate table, a quota of rejected candidates, even a Button used exactly
+    as documented. The short form is what makes Reuse cheap, and a body that
+    drops it puts every surface back on the long path."""
+    check = body(REPO / "commands" / "speckit.design.check.md")
+    assert "#### The short path: Recall, then Reuse" in check
+    assert "#### The full walk: Compose, Extend, Create" in check
+    assert "the surface is resolved as Reuse and the walk ends" in check
+
+    short = check[check.index("A surface resolved on the short path gets the short form"):]
+    short = short[: short.index("A surface that took the full walk")]
+    assert "**Resolution**: Reuse" in short
+    assert "**Searched**" not in short, "the short form grew the candidate table back"
+    assert "**Principles that apply**" in short, "validation reads this line on every surface"
+
+
+def test_the_candidate_quota_applies_only_where_new_code_enters():
+    """`min_candidates_considered` guards against building on a thin search. A
+    quota on Reuse only pads tables; on Extend and Create it is the whole point."""
+    check = body(REPO / "commands" / "speckit.design.check.md")
+    gate = check[re.search(r"^### \d+\. Gate$", check, re.M).start():check.index("## Completion Report")]
+    assert "an Extend or Create resolution rests on fewer rejected candidates" in gate
+    assert "a rung was rejected on fewer candidates" not in check
+
+
+@pytest.mark.parametrize(
+    "path", [REPO / "commands" / "speckit.design.check.md", REPO / "README.md"], ids=lambda p: p.name
+)
+def test_what_create_builds_is_a_lab_component(path):
+    """Create builds in the project, not in the design system, and says so where
+    it is defined. Graduation is the system owners' call, never this run's."""
+    text = body(path)
+    assert "lab component" in text
+    assert "not part of the design system" in text or "not in the design system" in text
+
+
+def test_the_design_system_is_consulted_once_before_planning():
+    """A context hook after specify searched every surface, and the gate searched
+    it again. The gate is now the one pass, and it owns the spec section too."""
+    import yaml
+
+    manifest = yaml.safe_load((REPO / "extension.yml").read_text(encoding="utf-8"))
+    assert "after_specify" not in manifest["hooks"]
+    assert manifest["hooks"]["before_plan"]["command"] == "speckit.design.check"
+    assert manifest["hooks"]["before_plan"]["optional"] is False
+    for command in manifest["provides"]["commands"]:
+        assert (REPO / command["file"]).is_file(), command
+
+    check = body(REPO / "commands" / "speckit.design.check.md")
+    assert "## Design System Requirements" in check
+    assert "principles_source" in check and "query tokens" in check
+    for path in PROSE:
+        assert "speckit.design.context" not in body(path), f"{path.name} still names the removed command"
+
+
+def test_the_rfc_template_and_the_readme_teach_the_design_brief():
+    """The brief is optional and free text, but it has to have a place, or teams
+    paste it under a heading the parser does not know and the gate never sees it."""
+    template = body(REPO / "templates" / "rfc-template.md")
+    readme = body(REPO / "README.md")
+    assert "## Design guidelines" in template
+    assert "## Design guidelines" in readme
+    assert "no design decisions" not in readme, "the README still forbids the brief"

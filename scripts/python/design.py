@@ -14,6 +14,9 @@ Subcommands:
     ledger lookup <phrase>   find prior decisions for a capability
     ledger record <file>     append a decision (JSON object on disk or '-')
     ledger list              all active decisions
+    scan [--path <glob>]     raw values and token names in the implementation
+    cache stats              how often the design system was actually asked
+    cache clear              drop remembered answers for the active feature
 
 Everything emits one compact JSON object on stdout.
 """
@@ -21,12 +24,14 @@ Everything emits one compact JSON object on stdout.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shlex
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -37,6 +42,9 @@ CONFIG_NAME = "design-config.yml"
 LOCAL_CONFIG_NAME = "design-config.local.yml"
 LEDGER_NAME = "design-decisions.yml"
 DESIGN_DOC_NAME = "design-system.md"
+# Where the run keeps the RFC it was given, next to the spec made from it, so
+# the gate and the scan can read the brief the spec may have summarised away.
+RFC_NAME = "rfc.md"
 # The team's own Definition of Done, next to the config because it is authored
 # rather than derived. Optional: most projects will not have one.
 DOD_NAME = "definition-of-done.md"
@@ -61,6 +69,11 @@ class Capability:
     reachability check must never do any of that. `rung` is which step of the
     ladder this capability backs, so an adapter author can see what a missing
     mapping costs before a run does.
+
+    `cacheable` says an answer may be remembered and served again. True for
+    every question about what the design system *is*; false for the three that
+    act or inspect code that is still changing, because replaying yesterday's
+    `validate` verdict, or skipping a second `report_gap`, would be a lie.
     """
 
     name: str
@@ -68,6 +81,7 @@ class Capability:
     probe_with: dict[str, str] | None = None
     rung: str | None = None
     note: str = ""
+    cacheable: bool = True
 
 
 # The contract the commands are written against. An adapter maps these to real
@@ -92,9 +106,9 @@ CAPABILITY_LIST = [
         note="When this answers, it IS the principles for the run; nothing "
         "shipped here is merged into it.",
     ),
-    Capability("extend", ("name",), rung="extend"),
-    Capability("validate", ("target",)),
-    Capability("report_gap", ("title", "body"), rung="create"),
+    Capability("extend", ("name",), rung="extend", cacheable=False),
+    Capability("validate", ("target",), cacheable=False),
+    Capability("report_gap", ("title", "body"), rung="create", cacheable=False),
 ]
 
 CAPABILITY_REGISTRY = {capability.name: capability for capability in CAPABILITY_LIST}
@@ -279,6 +293,8 @@ ENV_OVERRIDES = {
     "SPECKIT_DESIGN_LEDGER_ENABLED": ("ledger.enabled", bool),
     "SPECKIT_DESIGN_MATCH_THRESHOLD": ("ledger.match_threshold", float),
     "SPECKIT_DESIGN_FORBID_RAW_VALUES": ("validation.forbid_raw_values", bool),
+    "SPECKIT_DESIGN_CACHE_ENABLED": ("cache.enabled", bool),
+    "SPECKIT_DESIGN_CACHE_TTL_MINUTES": ("cache.ttl_minutes", int),
 }
 
 
@@ -427,7 +443,9 @@ def probe_adapter(ds: DesignSystem) -> dict:
                 f"map one of {', '.join(PROBE_PARAMS)}"
             ),
         }
-    result = run_capability(ds, probe, dict(PROBE_PARAMS[probe]), timeout=PROBE_TIMEOUT)
+    # Never served from the cache: this call is the proof of reach, and a
+    # remembered answer proves only that the system was there earlier.
+    result = ds.ask(probe, timeout=PROBE_TIMEOUT, fresh=True, **PROBE_PARAMS[probe])
 
     if not result.get("available"):
         return {
@@ -459,6 +477,7 @@ class DesignSystem:
     config: dict
     adapter: dict
     _probe: dict | None = field(default=None, repr=False)
+    _cache: AnswerCache | None = field(default=None, repr=False)
 
     @classmethod
     def resolve(cls) -> DesignSystem:
@@ -491,8 +510,209 @@ class DesignSystem:
     def reachable(self) -> bool:
         return self.probe["reachable"]
 
-    def ask(self, capability: str, timeout: int | None = None, **params: Any) -> dict:
-        return run_capability(self, capability, params, timeout=timeout)
+    @property
+    def cache(self) -> AnswerCache:
+        if self._cache is None:
+            self._cache = AnswerCache.for_project(self)
+        return self._cache
+
+    def ask(
+        self, capability: str, timeout: int | None = None, fresh: bool = False, **params: Any
+    ) -> dict:
+        """Ask one question, answered from memory where that is honest.
+
+        Caching lives here rather than in `run_capability`, which routes and
+        nothing else. `fresh` skips the lookup but still counts the call and
+        stores what came back.
+        """
+        spec = (self.adapter.get("capabilities") or {}).get(capability)
+        # A file read costs what a cache read costs, and the file may have been
+        # regenerated since, so only a process or a server round-trip is worth
+        # remembering -- and only those are what "the CLI was asked" means.
+        remote = bool(spec) and not reads_a_file(spec)
+        entry = CAPABILITY_REGISTRY.get(capability)
+        cacheable = remote and entry is not None and entry.cacheable
+        key = self.cache.key(self, capability, params) if cacheable else ""
+
+        if cacheable and not fresh:
+            hit = self.cache.get(key)
+            if hit is not None:
+                self.cache.count(capability, hit=True)
+                return hit
+
+        result = run_capability(self, capability, params, timeout=timeout)
+        if remote:
+            self.cache.count(capability, hit=False)
+        if cacheable and result.get("available"):
+            self.cache.put(key, capability, result)
+        result["cached"] = False
+        return result
+
+
+# --- answer cache ------------------------------------------------------------
+
+CACHE_DIR_NAME = ".cache"
+DEFAULT_CACHE_TTL_MINUTES = 480
+# Answers outside a feature (a query before `/speckit.specify` ran) share one scope.
+PROJECT_SCOPE = "_project"
+
+
+@dataclass
+class AnswerCache:
+    """Answers the design system already gave, and how often it was asked.
+
+    Every `ds.sh` call is its own process, so the per-process probe cache on
+    `DesignSystem` never saw a second question. A run asked the same `component
+    Popover` in the context hook, the gate, every implement task and every
+    validation round, and each was a real CLI call.
+
+    Three rules keep this from changing what an answer means:
+
+    * Only answers are remembered. A failure to ask is never stored, so an
+      outage is re-tried rather than replayed, and nothing here can turn
+      "unreachable" into a cached "found nothing".
+    * Answers are scoped to the active feature and expire after `ttl_minutes`.
+      A new feature starts from what the design system says now.
+    * The key covers the whole adapter and the configured version, so editing
+      a mapping or bumping `design_system_version` is a different question.
+
+    The counts are kept whether or not caching is on. They are what turns
+    "the CLI is called extremely often" into a number, before and after.
+    """
+
+    path: Path | None
+    enabled: bool
+    ttl_seconds: int
+    scope: str
+    data: dict = field(default_factory=dict)
+    dirty: bool = False
+
+    @classmethod
+    def for_project(cls, ds: DesignSystem) -> AnswerCache:
+        settings = ds.config.get("cache") or {}
+        feature = feature_dir(ds.root)
+        scope = feature.name if feature else PROJECT_SCOPE
+        directory = ext_dir(ds.root)
+        # No extension directory means no project to keep state in: count in
+        # memory and remember nothing, rather than creating one as a side effect.
+        path = directory / CACHE_DIR_NAME / f"{scope}.json" if directory.is_dir() else None
+        cache = cls(
+            path=path,
+            enabled=bool(settings.get("enabled", True)),
+            ttl_seconds=int(settings.get("ttl_minutes", DEFAULT_CACHE_TTL_MINUTES)) * 60,
+            scope=scope,
+        )
+        cache.data = cache._load()
+        return cache
+
+    def _load(self) -> dict:
+        empty = {"answers": {}, "calls": {}, "hits": {}}
+        if not self.path or not self.path.is_file():
+            return empty
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            # A corrupt cache is a cold cache, never an error a run stops on.
+            return empty
+        if not isinstance(data, dict):
+            return empty
+        for name in empty:
+            if not isinstance(data.get(name), dict):
+                data[name] = {}
+        return data
+
+    @staticmethod
+    def key(ds: DesignSystem, capability: str, params: dict) -> str:
+        material = {
+            "capability": capability,
+            "params": params,
+            "adapter": ds.adapter,
+            "base": str(ds.base),
+            "version": ds.config.get("design_system_version") or "",
+        }
+        encoded = json.dumps(material, sort_keys=True, default=str)
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:32]
+
+    def get(self, key: str) -> dict | None:
+        if not self.enabled:
+            return None
+        entry = self.data["answers"].get(key)
+        if not isinstance(entry, dict) or not isinstance(entry.get("answer"), dict):
+            return None
+        try:
+            age = time.time() - float(entry.get("at", 0))
+        except (TypeError, ValueError):
+            return None
+        if age < 0 or age > self.ttl_seconds:
+            return None
+        answer = dict(entry["answer"])
+        answer["cached"] = True
+        answer["cached_age_seconds"] = int(age)
+        return answer
+
+    def put(self, key: str, capability: str, answer: dict) -> None:
+        if not self.enabled:
+            return
+        stored = {k: v for k, v in answer.items() if k not in ("cached", "cached_age_seconds")}
+        self.data["answers"][key] = {"at": time.time(), "capability": capability, "answer": stored}
+        self.dirty = True
+        self.save()
+
+    def count(self, capability: str, hit: bool) -> None:
+        bucket = self.data["hits" if hit else "calls"]
+        bucket[capability] = int(bucket.get(capability, 0)) + 1
+        self.dirty = True
+        self.save()
+
+    def save(self) -> None:
+        if not self.path or not self.dirty:
+            return
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            ignore = self.path.parent / ".gitignore"
+            if not ignore.exists():
+                # Derived state: nothing in here should ever be committed.
+                ignore.write_text("*\n", encoding="utf-8")
+            scratch = self.path.with_suffix(".tmp")
+            scratch.write_text(json.dumps(self.data, default=str), encoding="utf-8")
+            os.replace(scratch, self.path)
+            self.dirty = False
+        except OSError:
+            # A read-only checkout still gets its answers, just not remembered.
+            self.path = None
+
+    def stats(self) -> dict:
+        calls = self.data["calls"]
+        hits = self.data["hits"]
+        live = sum(
+            1 for key in self.data["answers"] if self.get(key) is not None
+        )
+        return {
+            "scope": self.scope,
+            "enabled": self.enabled,
+            "ttl_minutes": self.ttl_seconds // 60,
+            "path": str(self.path) if self.path else "",
+            # Real round-trips to the design system's CLI or MCP server.
+            # File-backed capabilities are reads, not calls, and are not counted.
+            "calls": sum(int(v) for v in calls.values()),
+            # Questions answered from memory instead.
+            "hits": sum(int(v) for v in hits.values()),
+            "by_capability": {
+                name: {"calls": int(calls.get(name, 0)), "hits": int(hits.get(name, 0))}
+                for name in sorted(set(calls) | set(hits))
+            },
+            "entries": live,
+        }
+
+    def clear(self) -> dict:
+        before = self.stats()
+        self.data = {"answers": {}, "calls": {}, "hits": {}}
+        if self.path and self.path.is_file():
+            try:
+                self.path.unlink()
+            except OSError:
+                pass
+        return before
 
 
 # --- capability dispatch -----------------------------------------------------
@@ -720,11 +940,16 @@ class Transport(Protocol):
     def fetch(self, request: Request) -> Fetched: ...
 
 
+def reads_a_file(spec: dict) -> bool:
+    """Whether a mapping is answered from a file rather than by asking anything."""
+    return bool(spec.get("read_file"))
+
+
 class FileTransport:
     """A capability answered by reading a file the project already generates."""
 
     def handles(self, request: Request) -> bool:
-        return bool(request.spec.get("read_file"))
+        return reads_a_file(request.spec)
 
     def fetch(self, request: Request) -> Fetched:
         target = substitute(
@@ -1724,6 +1949,14 @@ WORKFLOW_RULES: list[tuple[Any, str, Any]] = [
     (lambda p: bool(p.open_findings), "fix",
      lambda p: f"{len(p.open_findings)} open finding(s) from validation"),
     (lambda p: not p.rounds, "validate", "the implementation has not been validated yet"),
+    # The last allowed round raised findings, and they have been fixed since.
+    # Another round is exactly what the bound refuses, and calling the fixes
+    # checked would let the fixing pass sign off its own work.
+    (lambda p: not p.last_round_clean and not p.may_validate_again, "stop",
+     lambda p: (
+         f"the fixes for round {p.rounds_used}'s findings are unchecked and all "
+         f"{p.rounds_used} validation round(s) are used. This needs a human to review them."
+     )),
     (lambda p: not p.last_round_clean, "validate",
      lambda p: f"round {p.rounds_used} raised findings that are now fixed; they need checking"),
     (lambda p: not p.verified, "verify",
@@ -1766,7 +1999,7 @@ def workflow_status(ds: DesignSystem) -> dict:
     rounds = [int(match) for match in VALIDATION_ROUND.findall(design)]
     open_findings = sorted(set(FINDING_OPEN.findall(design)))
     closed_findings = sorted(set(FINDING_CLOSED.findall(design)))
-    max_rounds = int((ds.config.get("workflow") or {}).get("max_validation_rounds", 3))
+    max_rounds = int((ds.config.get("workflow") or {}).get("max_validation_rounds", 2))
 
     # A round that raised findings does not become clean because they were
     # ticked off. Only a fresh round with nothing in it ends the loop, which is
@@ -1827,6 +2060,172 @@ def workflow_status(ds: DesignSystem) -> dict:
     }
 
 
+# --- mechanical scan ------------------------------------------------------------
+
+# What a validation round can settle without judgement. Raw values and token
+# names are string facts about files on disk; spending a model's review on them,
+# once per round, is how validation became the slowest phase. The scan states
+# them, and the review spends its attention on what only a reader can judge.
+SCAN_EXTENSIONS = {
+    ".tsx", ".ts", ".jsx", ".js", ".mjs", ".css", ".scss", ".sass", ".less",
+    ".vue", ".svelte", ".astro", ".html",
+}
+SCAN_SKIP_PARTS = {"node_modules", ".git", "dist", "build", ".next", ".specify", "coverage"}
+SCAN_REPORTED = 200
+
+RAW_VALUE_PATTERNS = (
+    ("color", re.compile(r"(?<![\w&/])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b")),
+    ("color", re.compile(r"\b(?:rgba?|hsla?|oklch|oklab|lab|lch)\([^)]*\)")),
+    # Zero is not a value anyone tokenises, and 1px is the hairline every
+    # system leaves literal; flagging either would bury the real ones.
+    ("length", re.compile(r"(?<![\w.#-])(?!0+(?:\.0+)?(?:px|rem|em)\b)(?!1px\b)\d*\.?\d+(?:px|rem|em)\b")),
+    ("font", re.compile(r"font-family\s*:\s*(?!\s*var\()(?!\s*inherit)[^;}\n]+|fontFamily\s*:\s*['\"][^'\"]+['\"]")),
+)
+COMMENT_LINE = re.compile(r"^\s*(?://|/\*|\*|<!--)")
+# A token as prose names it: `color.surface.inverse`, `space-6`, `space.*`.
+TOKEN_MENTION = re.compile(r"`([a-zA-Z][\w-]*(?:[./][\w*-]+)+|[a-zA-Z][a-zA-Z]*-[\w-]+)`")
+
+
+def token_names(payload: Any, prefix: str = "") -> set[str]:
+    """Every token's dotted name, from a nested token payload.
+
+    A leaf is a scalar, or a mapping that carries its own value (`$value`,
+    `value`), which is how DTCG and Style Dictionary files mark one.
+    """
+    names: set[str] = set()
+    if isinstance(payload, dict):
+        if prefix and any(key in payload for key in ("$value", "value")):
+            return {prefix}
+        for key, value in payload.items():
+            if str(key).startswith("$"):
+                continue
+            path = f"{prefix}.{key}" if prefix else str(key)
+            names |= token_names(value, path) or {path}
+    elif prefix:
+        names.add(prefix)
+    return names
+
+
+def token_spellings(name: str) -> set[str]:
+    """How a token may be written in code: dotted, dashed, or as a CSS variable
+    without its group (`color.surface.inverse` -> `surface-inverse`)."""
+    parts = [p for p in re.split(r"[./-]", name) if p]
+    spellings = {name, "-".join(parts), ".".join(parts), "_".join(parts)}
+    if len(parts) > 2:
+        spellings.add("-".join(parts[1:]))
+    return spellings
+
+
+def scan_sources(root: Path, patterns: list[str]) -> list[Path]:
+    files: set[Path] = set()
+    for pattern in patterns:
+        for path in root.glob(pattern):
+            if (
+                path.is_file()
+                and path.suffix in SCAN_EXTENSIONS
+                and not SCAN_SKIP_PARTS & set(path.relative_to(root).parts)
+            ):
+                files.add(path)
+    return sorted(files)
+
+
+def contract_mentions(texts: list[str], names: set[str]) -> list[str]:
+    """Token names the contract and the spec ask for, in order of first mention.
+
+    A mention counts when its first segment is one of the system's token groups
+    (`color.surface.inverse`), or when it is a real token named without its
+    group, the way a brief usually writes it (`muted-foreground` for
+    `color.muted-foreground`). Anything else, a path like `src/components` or a
+    prop like `aria-label`, is not read as a token that does not exist.
+    """
+    groups = {name.split(".")[0] for name in names}
+    ungrouped = {name.split(".", 1)[1] for name in names if "." in name}
+    seen: dict[str, None] = {}
+    for text in texts:
+        for match in TOKEN_MENTION.finditer(text):
+            name = match.group(1)
+            if re.split(r"[./-]", name)[0] in groups or token_spellings(name) & ungrouped:
+                seen.setdefault(name, None)
+    return list(seen)
+
+
+def scan_implementation(ds: DesignSystem, paths: list[str] | None = None) -> dict:
+    """Raw values and token names in the implementation, stated rather than judged."""
+    validation = ds.config.get("validation") or {}
+    patterns = list(paths or validation.get("source_globs") or [])
+    exempt = list(validation.get("theme_globs") or [])
+    feature = feature_dir(ds.root)
+    notes: list[str] = []
+
+    tokens = ds.ask("tokens")
+    has_tokens = bool(tokens.get("available") and tokens.get("data") not in (None, {}, []))
+    names = token_names(tokens.get("data")) if has_tokens else set()
+    if "tokens" in mapped_capabilities(ds.adapter) and not tokens.get("available"):
+        notes.append(unasked("tokens", tokens))
+    contract = contract_mentions(
+        [read_text(feature / name) for name in (DESIGN_DOC_NAME, "spec.md", RFC_NAME)]
+        if feature else [],
+        names,
+    )
+    ungrouped = {name.split(".", 1)[1] for name in names if "." in name}
+    unknown = [
+        name for name in contract
+        if not name.endswith("*")
+        and not token_spellings(name) & (names | ungrouped)
+    ]
+
+    if not patterns:
+        notes.append(
+            "no source files to scan: pass --path, or set validation.source_globs in the config"
+        )
+    files = scan_sources(ds.root, patterns)
+    exempted = {path for path in scan_sources(ds.root, exempt)} if exempt else set()
+
+    raw: list[dict] = []
+    corpus: list[str] = []
+    for path in files:
+        text = read_text(path)
+        corpus.append(text)
+        if path in exempted:
+            continue
+        for number, line in enumerate(text.splitlines(), start=1):
+            if COMMENT_LINE.match(line):
+                continue
+            for kind, pattern in RAW_VALUE_PATTERNS:
+                for match in pattern.finditer(line):
+                    raw.append({
+                        "file": str(path.relative_to(ds.root)),
+                        "line": number,
+                        "kind": kind,
+                        "value": match.group(0).strip()[:80],
+                    })
+    code = "\n".join(corpus)
+    not_seen = [
+        name for name in contract
+        if name not in unknown and not name.endswith("*")
+        and not any(spelling in code for spelling in token_spellings(name))
+    ]
+
+    return {
+        "sources": patterns,
+        "files_scanned": len(files),
+        "theme_files_exempt": len(exempted & set(files)),
+        "has_tokens": has_tokens,
+        "forbid_raw_values": bool(validation.get("forbid_raw_values", True)),
+        # Literal colours, lengths and font stacks outside the theme files.
+        "raw_value_count": len(raw),
+        "raw_values": raw[:SCAN_REPORTED],
+        # Token names design-system.md or the spec asks for.
+        "contract_tokens": contract,
+        # Asked for, but the design system has no token of that name.
+        "unknown_tokens": unknown,
+        # Asked for and real, but written nowhere in the scanned code under any
+        # usual spelling. A lead for the review, not yet a verdict.
+        "tokens_not_seen": not_seen if files else [],
+        "notes": notes,
+    }
+
+
 # --- RFC ----------------------------------------------------------------------
 
 HEADING = re.compile(r"^(#{1,6})\s+(.*)$", re.MULTILINE)
@@ -1836,6 +2235,11 @@ SECTION_ALIASES = {
     "surfaces": ("surfaces", "ui", "user interface", "screens", "user experience"),
     "acceptance": ("acceptance", "success", "criteria", "done when", "requirements"),
     "out_of_scope": ("out of scope", "non-goals", "non goals", "excluded"),
+    # The brief a team pastes in from its guidelines: which tokens, which
+    # variant, light or dark. Free text; the gate checks the token names in it.
+    "design": ("design guidelines", "design brief", "design", "guidelines", "vorgaben",
+               "gestaltung", "styleguide", "style guide", "visual", "look and feel",
+               "look & feel"),
     "open_questions": ("open questions", "questions", "unknowns", "risks"),
 }
 
@@ -2197,6 +2601,9 @@ def cmd_gate(args: argparse.Namespace) -> None:
             "IMPL_PLAN": str(feature / "plan.md") if feature else "",
             "TASKS": str(feature / "tasks.md") if feature else "",
             "DESIGN_DOC": str(feature / DESIGN_DOC_NAME) if feature else "",
+            # The RFC the run saved next to the spec. Empty path when no feature;
+            # the file itself may not exist when Spec Kit was driven by hand.
+            "FEATURE_RFC": str(feature / RFC_NAME) if feature else "",
             "LEDGER": str(ledger_path(root)),
             "LEDGER_COUNT": len(load_ledger(root)["decisions"]),
             # Where the principles came from: cli, adapter or default. `default`
@@ -2336,6 +2743,18 @@ def cmd_ledger(args: argparse.Namespace) -> None:
         emit(ledger_record(root, payload))
 
 
+def cmd_scan(args: argparse.Namespace) -> None:
+    emit(scan_implementation(DesignSystem.resolve(), args.path))
+
+
+def cmd_cache(args: argparse.Namespace) -> None:
+    cache = DesignSystem.resolve().cache
+    if args.action == "clear":
+        emit({"cleared": True, "before": cache.clear()})
+    else:
+        emit(cache.stats())
+
+
 def main() -> None:
     # --json is accepted on either side of the subcommand: output is always JSON,
     # but spec-kit's script convention is to pass the flag, and callers differ on
@@ -2405,6 +2824,18 @@ def main() -> None:
         ),
     )
     ledger.set_defaults(func=cmd_ledger)
+
+    scan = sub.add_parser("scan", parents=[common])
+    scan.add_argument(
+        "--path", action="append",
+        help="glob of implementation files, relative to the repo root (repeatable); "
+             "defaults to validation.source_globs",
+    )
+    scan.set_defaults(func=cmd_scan)
+
+    cache = sub.add_parser("cache", parents=[common])
+    cache.add_argument("action", choices=["stats", "clear"], nargs="?", default="stats")
+    cache.set_defaults(func=cmd_cache)
 
     args = parser.parse_args()
     global ACTIVE_COMMAND

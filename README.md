@@ -1,7 +1,7 @@
 # Design System Extension for Spec Kit
 
 [![Spec Kit](https://img.shields.io/badge/spec--kit-extension-blue?logo=github)](https://github.com/github/spec-kit)
-[![Version](https://img.shields.io/badge/version-0.1.0-green)](https://github.com/artursopelnik/spec-kit-design-system/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0-green)](https://github.com/artursopelnik/spec-kit-design-system/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 <p align="center">
@@ -32,8 +32,11 @@ own. It asks yours.
 What that changes in practice:
 
 - **It looks before it builds.** Every UI need climbs a ladder: Recall → Reuse →
-  Compose → Extend → Create. Something new gets built only after the earlier
-  rungs are documented as insufficient.
+  Compose → Extend → Create. It is strict about what goes in and light on how
+  things are used: a component that already covers the need is one search
+  away, and the full argument, with a gap record, is reserved for what would
+  be new. Something new is built as a lab component in your project, never
+  quietly added to the design system.
 - **It remembers.** Each decision lands in a committed ledger, keyed by UI
   capability. The next feature that needs a date range reads the answer instead
   of searching again, even when it words the need differently.
@@ -42,13 +45,16 @@ What that changes in practice:
   numbered requirements (`DS-001: ... MUST ...`) with acceptance criteria. If
   the design system cannot be reached, planning stops. It never continues as if
   your system had nothing to say.
-- **It keeps the context lean.** Each phase starts with only what it needs,
-  never the whole inventory. Everything else stays one call away, so the agent
-  can still ask when it turns out to need it.
-- **It checks its own work.** A separate pass validates the implementation
-  against the spec and the ladder decisions, and runs your design system's lint
-  or token audit when the adapter maps one. Findings go back into
-  implementation, up to 3 rounds.
+- **It keeps the context lean, and the calls few.** Each phase starts with
+  only what it needs, never the whole inventory. Everything else stays one
+  call away, and each answer is remembered for the feature, so your design
+  system's CLI is asked a question once, not once per phase and task.
+  `ds.sh cache stats` says how often it was actually called.
+- **It checks its own work.** A script settles what needs no judgement (raw
+  values, token names that do not exist, tokens the contract asks for that the
+  code never uses), then a separate pass reviews the implementation against
+  the spec and the ladder decisions once. Findings go back into
+  implementation, and a second round checks only the fixes.
 - **It fits any design system.** A short YAML adapter maps a small capability
   contract onto whatever your system exposes: a CLI, files, or an MCP tool.
 
@@ -66,7 +72,7 @@ tribal knowledge, there is nothing to ask.
 that ships inside it:
 
 ```bash
-specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.1.0.zip
+specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip
 specify preset add --dev .specify/extensions/design/preset
 ```
 
@@ -118,8 +124,14 @@ and the code a benchmark case is about:
 ## The RFC you write
 
 An RFC says **what should change and why**, before anyone builds it. It is the
-only input this extension takes. It is not a spec: no component names, no
-implementation, no design decisions. Those come out of the workflow.
+only input this extension takes. It is not a spec: no component names and no
+implementation. Which components to use comes out of the workflow.
+
+What it has to *look* like may already be decided, and then it belongs in the
+RFC: paste your guidelines under a design heading, as free text, naming tokens
+where you know them. The workflow checks every token name against your design
+system, carries the brief into the spec's requirements, and validation checks
+the code uses them.
 
 ```markdown
 # RFC: Newsletter signup in the footer
@@ -138,6 +150,10 @@ Managing or cancelling subscriptions.
 - [ ] A valid email can be submitted
 - [ ] An invalid email shows an error
 - [ ] The visitor sees a confirmation afterwards
+
+## Design guidelines
+Dark footer band: background `color.surface.inverse`, text `color.text.inverse`.
+Field and button sit on one row from `md` up, `space.4` apart.
 
 ## Open questions
 - Double opt-in by email?
@@ -167,19 +183,22 @@ RFC
  ↓
 Clarify      what the RFC does not say
  ↓
-Specify      a spec naming your design system's real components and tokens
+Specify      the spec, from the RFC
  ↓
-Plan         Recall → Reuse → Compose → Extend → Create, against the real system
+Plan         Recall → Reuse → Compose → Extend → Create, against the real system,
+             then the spec's design requirements, with its real components and tokens
  ↓
 Tasks        the plan broken into steps
  ↓
 Implement    against the components' real props, states and tokens
  ↓
-Validate     an independent pass, not the implementer signing off its own work
+Validate     a mechanical scan, then an independent review, not the implementer
+             signing off its own work
  ↓
-Fix          findings feed back in, then validate again
+Fix          findings feed back in; the next round checks only the fixes
  ↓
-Verify       RFC criteria, spec requirements and principles checked over the whole change
+Verify       in the clean round: RFC criteria and spec requirements checked over
+             the whole change
  ↓
 Done
 ```
@@ -190,14 +209,19 @@ also fire as Spec Kit hooks, so they hold for anyone working phase by phase.
 | Command | Hook | Purpose |
 |---|---|---|
 | `/speckit.design.run <rfc>` | | The whole workflow. The one to remember. |
-| `/speckit.design.context` | `after_specify` | Resolves principles and design system context into the spec |
-| `/speckit.design.check` | `before_plan` | Walks the reuse ladder and gates planning on it (blocking) |
+| `/speckit.design.check` | `before_plan` | Resolves principles and tokens, walks the reuse ladder, writes the design requirements into the spec, and gates planning on it (blocking) |
 | `/speckit.design.validate` | `after_implement` | The independent checker |
 
 ## The ladder
 
 The central rule: **Recall → Reuse → Compose → Extend → Create**. Before a new
 component is proposed or built, each rung is tried in order.
+
+It is strict about what goes in and light on how things are used. Most
+surfaces stop on the short path: an earlier decision is recalled, or one search
+finds a component that covers the surface, and that is the whole walk. The full
+walk, with its candidate tables and a gap record, is reserved for the surfaces
+that would bring something new into your codebase.
 
 | Rung | Question |
 |---|---|
@@ -218,8 +242,11 @@ candidates searched and why each is insufficient. "Doesn't fit" is not a reason.
 and end date", never "a DateRangePicker". Naming the component pre-decides the
 ladder.
 
-**Create is fine, as long as it is visible.** It comes with a gap record, the
-argued case for a new component:
+**Create is fine, as long as it is visible.** What gets built is a *lab
+component*: it lives in your project, is made from the system's own tokens and
+primitives, covers what this feature needs and no more, and is marked as not
+part of the design system. It comes with a gap record, the argued case for
+adding it there:
 
 ```markdown
 # Gap: selection of a start and end date
@@ -239,8 +266,8 @@ validated against each other.
 | Calendar + Popover + two DatePickers | compose | Range validation has to live above both fields, which the composition cannot express without reaching into DatePicker internals |
 
 ## What we are building instead
-A DateRangeField in `src/components/`, built from the system's tokens and its
-Popover primitive.
+A lab DateRangeField in `src/components/`, built from the system's tokens and
+its Popover primitive, and marked as not part of the design system.
 
 ## What the design system could do
 Give DatePicker a range mode, or ship the paired control as a pattern.
@@ -252,7 +279,8 @@ the record exists to argue. That is what separates a real gap your design system
 should close from a search that was not thorough enough.
 
 A genuine gap is sent to your design system's intake when its CLI offers one.
-Otherwise it stays documented in the feature. Either way the outcome goes into
+Otherwise it stays documented in the feature. Whether the lab component ever
+joins the design system is for its owners to decide, in their own process. Either way the outcome goes into
 the ledger, keyed by capability, and that is what Recall reads next time.
 
 ## Your design system
@@ -348,7 +376,8 @@ adapter: shadcn   # or auto (default), mui, antd, chakra, radix, ark-ui, static-
 Everything else is optional and documented in
 [config-template.yml](config-template.yml): a `bin` override, a `cwd` for
 monorepos, a principles `source`, a `dod.source`, per-capability overrides,
-`workflow.max_validation_rounds`, and `gate.enforce: false` while adopting.
+`workflow.max_validation_rounds`, `cache` settings, and `gate.enforce: false`
+while adopting.
 `SPECKIT_DESIGN_*` environment variables and a gitignored
 `design-config.local.yml` override the committed config.
 
@@ -398,6 +427,10 @@ The usual first stops:
   `REACHABLE` and `PRINCIPLES_SOURCE`.
 - **`PyYAML is required`.** Install it into the interpreter the shim finds:
   `python3 -m pip install pyyaml`.
+- **The design system changed mid-feature, and answers look stale.** Answers
+  are remembered per feature for `cache.ttl_minutes`. Run
+  `ds.sh cache clear` to ask again; `ds.sh cache stats` shows how often the
+  CLI was actually called.
 - **`bash\r: No such file or directory`.** The checkout was converted to CRLF.
   Re-clone, or install from the release archive.
 

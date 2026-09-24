@@ -2,7 +2,8 @@
 ## Design System Requirements *(include if the feature has a user-facing surface)*
 
 <!--
-  Populated by /speckit.design.context against the design system.
+  Populated by /speckit.design.check, the gate before planning, from the
+  decisions it records in design-system.md.
   Do not fill these from memory. A remembered component inventory is the exact
   failure this section exists to prevent. If the CLI is unreachable, leave the
   section marked unresolved rather than guessing.
@@ -61,12 +62,9 @@ counts as covered when a principle or a `DS-` requirement speaks to it.
 | Tokens | no raw hex / px / font stacks where a token exists | DS-00? |
 | Interaction | feedback, affordance, latency expectations | DS-00? |
 
-### Candidates surfaced
+### Surfaces
 
-What the design system offered for each surface. This is evidence for the reuse
-ladder in `/speckit.design.check`, not a decision. The decision is made there,
-deliberately, and recorded in `design-system.md`.
-
-| Surface | Candidates | Source |
-|---|---|---|
-| [capability phrase] | [Component, Pattern, ...] | search / component / pattern |
+Each surface's resolution (the component, pattern, composition or lab component
+it lands on, and why) lives in `design-system.md` in this feature directory,
+which is the contract the plan, the implementation and validation read. It is
+not repeated here, so there is one place to change it.

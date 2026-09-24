@@ -7,9 +7,10 @@ RFC
  ↓
 Clarify ──────────── what the RFC does not say
  ↓
-Specify ──────────── /speckit.specify, then the context hook
+Specify ──────────── /speckit.specify
  ↓
-Plan ─────────────── /speckit.plan behind the ladder gate, then /speckit.tasks
+Plan ─────────────── /speckit.plan behind the gate, which walks the ladder and
+ ↓                   writes the spec's design requirements; then /speckit.tasks
  ↓
 Implement ────────── /speckit.implement, task by task
  ↓
@@ -89,9 +90,11 @@ Numbered sequentially across the whole feature, never restarting per round, so `
 Two conditions end the loop, and one of them is subtle:
 
 - **A round with no findings ends it.** A round whose findings were _ticked off_ does not. Otherwise the fixing pass would be signing off its own fixes, and the checker separation would be decorative.
-- **`max_validation_rounds` (default 3) stops it.** The run reports what is still open, what it tried, and why it thinks the findings are not converging. Three rounds that fail the same way is information; a fourth is noise.
+- **`max_validation_rounds` (default 2) stops it.** Round 1 reviews the whole change; round 2 checks only the fixes for round 1's findings, plus whatever the scan and the tests show. If findings survive that, or round 2's own fixes are left unchecked, the run stops and reports what is still open, what it tried, and why it thinks the findings are not converging.
 
-Ending the loop is not finishing the run. A clean round sets `next` to `verify`, which asks the question validation does not: did the RFC actually get what it asked for. That pass appends a `## Verification` section to `design-system.md`, and `complete: true` follows from that section existing — the same artifact-derived rule as every other phase.
+Mechanical questions never take a round: `ds.sh scan` reports raw values, token names the contract asks for that the design system does not have, and contract tokens that appear nowhere in the code. The review starts from its output and spends its attention on what needs a reader.
+
+Ending the loop is also finishing the run. The clean round goes on to the question validation does not ask on its own, whether the RFC got what it asked for, and appends a `## Verification` section to `design-system.md` in the same pass. `complete: true` follows from that section existing, the same artifact-derived rule as every other phase; if a clean round ever omits it, `next` becomes `verify` so the gap is visible rather than skipped.
 
 Raise it if your project genuinely needs to:
 

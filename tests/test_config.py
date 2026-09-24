@@ -21,7 +21,7 @@ def test_defaults_come_from_the_extension_manifest(design, project):
     assert config["adapter"] == "auto"
     assert config["gate"]["enforce"] is True
     assert config["ledger"]["match_threshold"] == 0.34
-    assert config["workflow"]["max_validation_rounds"] == 3
+    assert config["workflow"]["max_validation_rounds"] == 2
     assert config["principles"]["default"] is True
 
 
@@ -32,7 +32,7 @@ def test_a_working_config_is_one_line(design, project, write_config):
     config = design.load_config(Path.cwd())
 
     assert config["gate"]["enforce"] is True
-    assert config["workflow"]["max_validation_rounds"] == 3
+    assert config["workflow"]["max_validation_rounds"] == 2
     assert config["validation"]["required_dimensions"]
 
 
@@ -174,8 +174,8 @@ def test_auto_adapter_detects_component_libraries(design, project):
 # not. Each one must be named by a command body, or nothing enforces it at all.
 ENFORCED_BY_THE_COMMANDS = {
     "gate.enforce": "check.md decides whether a failed gate errors or warns",
-    "gate.min_candidates_considered": "check.md rejects a rung walked on fewer candidates",
-    "ledger.enabled": "check.md and context.md skip lookup and recording when false",
+    "gate.min_candidates_considered": "check.md refuses Extend or Create on fewer rejected candidates",
+    "ledger.enabled": "check.md skips lookup and recording when false",
     "validation.forbid_raw_values": "validate.md raises a finding for a raw value",
 }
 

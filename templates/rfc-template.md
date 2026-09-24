@@ -27,6 +27,17 @@ start and end date", not "a DateRangePicker". Naming the component pre-decides
 what gets built, and the point of the design system step is to find out what
 already exists.
 
+## Design guidelines (optional)
+
+What it has to look like, if your team has already decided. Paste it straight
+from your guidelines or wiki, in whatever form it is written there; no format
+is expected. Name tokens where you know them (`color.surface.inverse`,
+`space.6`): the workflow checks every name against your design system, asks
+about any it does not have, and validation checks that the code uses them.
+
+Do not name components here either. Which component delivers this look is what
+the workflow finds out.
+
 ## Out of scope
 
 What this explicitly does not cover. This is the cheapest section to write and

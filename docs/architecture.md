@@ -90,6 +90,18 @@ The rule the whole extension rests on:
 
 A registry outage, a missing binary, a changed flag: all `available: false`. Only an error code the adapter explicitly declares as "not found" becomes `found: false`. Get this wrong and an outage reads as an empty design system, which pushes every decision toward Create — the exact failure this extension exists to prevent. `probe_adapter` spends one real call at gate time for the same reason: trusting the adapter file would report a full capability set for a CLI that is not installed.
 
+## The answer cache
+
+Every `ds.sh` call is its own process, so a run used to put the same question to the design system's CLI once per phase, per task and per validation round. `DesignSystem.ask` now remembers answers in `.specify/extensions/design/.cache/<feature>.json` (gitignored on creation), without changing what an answer means:
+
+- **Only answers are remembered.** `available: false` is never stored, so an outage is asked again rather than replayed, and a cache cannot turn "unreachable" into "found nothing".
+- **The probe is always a real call** (`fresh=True`). Reach proven from memory would prove only that the system was there earlier.
+- **Nothing that acts is replayed.** `extend`, `validate` and `report_gap` carry `cacheable=False`.
+- **File-backed capabilities are neither cached nor counted.** A file read costs what a cache read costs, and the file may be regenerated.
+- **Scoped and keyed conservatively.** One file per feature, entries expire after `cache.ttl_minutes`, and the key covers the whole adapter, the `cwd` and `design_system_version`, so changing any of them is a different question.
+
+The cache lives in `ask`, not in `run_capability`, which still routes and nothing else. It also counts every real round-trip and every hit, whether or not caching is on; `ds.sh cache stats` reports them, which is how the cost of a run becomes a number instead of an impression.
+
 ## Principles resolution
 
 ```text
@@ -144,9 +156,11 @@ The property to preserve when changing this: **focused, never restricted**. Two 
 
 So an interrupted run resumes by reading, and recorded state cannot drift from real state. The cost is a format contract with the validate command: the round heading and the finding checkbox are load-bearing, and that is stated in the command body where someone editing it will see it.
 
-The loop terminates on two conditions: a round with no findings at all ends it, and `max_validation_rounds` stops it. A round whose findings were ticked off does not count as clean — that would let the fixing pass sign off its own fixes.
+The loop terminates on two conditions: a round with no findings at all ends it, and `max_validation_rounds` (2 by default) stops it. A round whose findings were ticked off does not count as clean — that would let the fixing pass sign off its own fixes — so when the last allowed round's findings have been ticked, `next` is `stop`, not another `validate`.
 
-A clean round ends the _loop_, not the run: `next` becomes `verify`, and the run is complete only once a `## Verification` section records that the whole change was checked back against the RFC. Every phase here is derived from an artifact, so a phase with no artifact is one the run skips — which is what happened while `verify` was derived from the validate row rather than from anything it wrote.
+What a script can settle never takes a round. `ds.sh scan` reports raw values in the implementation, token names the contract or spec asks for that the design system lacks, and contract tokens written nowhere in the code. The validate pass turns them into findings; its own review runs once in full, and a fix round checks only the fixes, what they touched, the scan and the tests.
+
+The clean round also writes the `## Verification` section, recording that the whole change was checked back against the RFC; the run is complete only once it exists. If a clean round omits it, `next` becomes `verify`, so the gap is visible rather than skipped. Every phase here is derived from an artifact, so a phase with no artifact is one the run skips — which is what happened while `verify` was derived from the validate row rather than from anything it wrote.
 
 ## What is mechanism, and what is judgement
 
@@ -167,8 +181,8 @@ Mechanical, in the script, and not negotiable by an agent:
 Judgement, in the command bodies, honoured because the agent is told to:
 
 - `gate.enforce` — whether a failed gate errors or warns.
-- `gate.min_candidates_considered` — how thin a search may be before a rung may
-  be rejected.
+- `gate.min_candidates_considered` — how thin a search may be before a surface
+  may land on Extend or Create.
 - `ledger.enabled` — whether lookup and recording happen at all.
 - `validation.forbid_raw_values` — whether a raw value becomes a finding.
 
@@ -183,9 +197,10 @@ while still sitting in the config file looking as though it works.
 The phases are wired as Spec Kit hooks in `extension.yml`, not inside the run command:
 
 ```text
-after_specify   → /speckit.design.context
 before_plan     → /speckit.design.check      (blocking)
 after_implement → /speckit.design.validate
 ```
+
+There is no `after_specify` hook. The design system is consulted once before planning, by the gate: searching for a surface, deciding on it and writing its requirement into the spec happen in one pass, rather than a context pass that searched every surface and a gate that searched it again.
 
 `/speckit.design.run` drives Spec Kit's own commands and lets the hooks fire. It is the autonomous path over the same rails, not a second implementation of them, which is why working phase by phase by hand still gets every guarantee.

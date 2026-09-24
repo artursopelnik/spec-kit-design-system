@@ -6,6 +6,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-24
+
+Faster, simpler, and closer to the RFC. A run asks the design system each
+question once, stops at the first rung that holds for the everyday surfaces,
+reviews the implementation once and then checks only the fixes, and carries
+the design brief a team pastes into its RFC through to validation. The ladder
+is now strict about what goes in and light on how things are used, after the
+contribution process of Meta's
+[Astryx](https://github.com/facebook/astryx/wiki/Contributing) design system.
+
+In a simulated run (3 surfaces, 8 tasks, 3 validation rounds before, 2 after)
+the design system's CLI was called 126 times with 0.1.0 and 36 times with
+this release. That count comes from replaying the calls the command bodies
+prescribe, not from an agent run; `ds.sh cache stats` reports the real number
+for yours.
+
+**Upgrading.** `/speckit.design.context` and its `after_specify` hook are
+gone; the gate does their work. Nothing in `design-config.yml` has to change.
+`max_validation_rounds` now defaults to 2; set it back to 3 if you want the old
+bound.
+
+### Added
+
+- **Answer cache.** The design system's CLI or MCP answers are remembered per
+  feature (`.specify/extensions/design/.cache/`, gitignored), so a run asks
+  each question once instead of once per phase, task and validation round.
+  Failures are never remembered, the gate's reachability probe is always a real
+  call, and `extend`, `validate` and `report_gap` are never replayed.
+  Configured under `cache` (`enabled`, `ttl_minutes`); overridable with
+  `SPECKIT_DESIGN_CACHE_ENABLED` and `SPECKIT_DESIGN_CACHE_TTL_MINUTES`.
+- **A short path through the ladder.** A surface that an earlier decision
+  answers (Recall), or that one search and one look at a component covers
+  (Reuse), is resolved there, recorded in a short form without a candidate
+  table. The full walk, with candidate tables, a final search and a gap
+  record, is reserved for Compose, Extend and Create: strict about what goes
+  in, light on how things are used, after the contribution process of Meta's
+  [Astryx](https://github.com/facebook/astryx/wiki/Contributing).
+- **Lab components.** What Create builds is a lab component: in the project,
+  from the system's tokens and primitives, scoped to the feature, and marked
+  as not part of the design system with a pointer to its gap record. Whether
+  it joins the design system is for the system's owners to decide.
+- **`ds.sh scan`.** The mechanical half of validation: literal colours,
+  lengths and font stacks in the implementation (with file and line), token
+  names the contract or spec asks for that the design system does not have,
+  and contract tokens written nowhere in the code. Files that define the tokens
+  are exempt through the new `validation.theme_globs`. Every validation round
+  starts from it, so the review spends its attention on what needs a reader.
+- **A place for the design brief in the RFC.** An optional
+  `## Design guidelines` section in the RFC template, free text, for what a
+  team pastes from its guidelines: light or dark, which variant, which tokens.
+  `ds.sh rfc` returns it as `sections.design` under the usual headings,
+  German ones included (Design-Vorgaben, Gestaltung, Styleguide). The run
+  saves the RFC as `rfc.md` next to the spec (`FEATURE_RFC` in the gate), the
+  gate turns each instruction into a `DS-` requirement with the token that
+  delivers it, and `ds.sh scan` checks its token names too.
+- **Call count.** `ds.sh cache stats` reports how often the design system was
+  actually asked and how often memory answered instead, per capability, kept
+  whether or not caching is on. `ds.sh cache clear` starts the feature over.
+
+### Removed
+
+- **`/speckit.design.context` and its `after_specify` hook.** The design
+  system is now consulted once before planning, by the gate: it resolves the
+  principles, tokens and breakpoints, walks the ladder, and writes the spec's
+  `## Design System Requirements` in one pass. Before, the context hook
+  searched every surface and the gate searched it again. Anyone driving Spec
+  Kit by hand gets the same spec section before planning starts, one step
+  later than before. The spec addendum's candidates table is gone with it:
+  resolutions live in `design-system.md` only.
+
+### Changed
+
+- The gate checks every token name the spec or its RFC asks for against the
+  design system's token list, and marks a name it does not have as
+  `[NEEDS CLARIFICATION]` rather than substituting the nearest one.
+- **Validation is one full review and one fix round.** `max_validation_rounds`
+  defaults to 2, down from 3. Round 1 reviews the whole change; round 2 checks
+  only the fixes, what they touched, the scan and the tests. When the last
+  allowed round's findings have been ticked off, `workflow status` now says
+  `stop` rather than asking for a round the bound refuses.
+- **Verify is part of the clean round.** The round with no findings checks the
+  change against the RFC's acceptance criteria and writes `## Verification` in
+  the same pass, instead of a separate phase that re-read everything. `next:
+  verify` remains only for a clean round that omitted the section.
+- `gate.min_candidates_considered` applies only where a surface lands on
+  Extend or Create. Reuse and Compose use what exists and need no quota; the
+  quota used to pad candidate tables for components used exactly as documented.
+- For a Reuse surface, the constraints carried into the plan refer to the
+  component's own documentation instead of copying it, and spell out only what
+  the feature adds.
+
 ## [0.1.0] - 2026-09-23
 
 First release. It carries the first cut (2026-09-20, at the end of this
@@ -356,5 +447,6 @@ Issue import and export. The catalog already covers both directions
 The ledger sits in `.specify/memory/` because `memory-loader` already loads
 that directory into agent context.
 
-[Unreleased]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/artursopelnik/spec-kit-design-system/releases/tag/v0.1.0

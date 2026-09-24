@@ -22,8 +22,8 @@ every user installs.
 
 ```bash
 git checkout main && git pull
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 `.github/workflows/release.yml` runs on the tag. It refuses a tag that
@@ -37,11 +37,11 @@ an unchanged URL, so a recorded `sha256` would stop matching and anyone who
 installed the old one would get something different on reinstall.
 
 ```bash
-# delete the release first (Releases page, or: gh release delete v0.1.0 --yes)
-git push origin :refs/tags/v0.1.0
-git tag -d v0.1.0
-git tag v0.1.0 origin/main
-git push origin v0.1.0
+# delete the release first (Releases page, or: gh release delete v0.2.0 --yes)
+git push origin :refs/tags/v0.2.0
+git tag -d v0.2.0
+git tag v0.2.0 origin/main
+git push origin v0.2.0
 ```
 
 ## Checking the archive
@@ -49,7 +49,7 @@ git push origin v0.1.0
 ```bash
 specify init /tmp/check --integration claude --non-interactive --ignore-agent-tools
 cd /tmp/check
-specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.1.0.zip
+specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip
 specify preset add --dev .specify/extensions/design/preset
 specify extension info design
 ls .specify/extensions/design     # no tests/, no benchmarks/
@@ -58,7 +58,7 @@ ls .specify/extensions/design     # no tests/, no benchmarks/
 The digest for the catalog entry's optional `sha256`:
 
 ```bash
-curl -sL https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.1.0.zip | sha256sum
+curl -sL https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip | sha256sum
 ```
 
 ## Submitting
@@ -73,18 +73,18 @@ The fields, ready to paste:
 | ------------------------- | --------------------------------------------------------------------------------------------------- |
 | Extension ID              | `design`                                                                                            |
 | Extension Name            | `Spec Kit Design System`                                                                            |
-| Version                   | `0.1.0`                                                                                             |
+| Version                   | `0.2.0`                                                                                             |
 | Description               | `Give it an RFC. It runs the Spec Kit workflow and implements the change using your design system.` |
 | Author                    | `artursopelnik`                                                                                     |
 | Repository URL            | `https://github.com/artursopelnik/spec-kit-design-system`                                           |
-| Download URL              | `https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.1.0.zip`              |
+| Download URL              | `https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip`              |
 | License                   | `MIT`                                                                                               |
 | Homepage                  | `https://github.com/artursopelnik/spec-kit-design-system`                                           |
 | Documentation URL         | `https://github.com/artursopelnik/spec-kit-design-system/blob/main/README.md`                       |
 | Changelog URL             | `https://github.com/artursopelnik/spec-kit-design-system/blob/main/CHANGELOG.md`                    |
 | Required Spec Kit Version | `>=1.0.0,<2.0.0`                                                                                    |
-| Number of Commands        | `4`                                                                                                 |
-| Number of Hooks           | `3`                                                                                                 |
+| Number of Commands        | `3`                                                                                                 |
+| Number of Hooks           | `2`                                                                                                 |
 | Tags                      | `design-system, design-tokens, accessibility, autonomous, reuse`                                    |
 
 **Required Tools**
@@ -100,9 +100,10 @@ The fields, ready to paste:
 ```markdown
 - One command, `/speckit.design.run <rfc>`, carries an RFC through clarify, specify, plan, implement, validate, fix and verify
 - The project's own design system is the source of truth: components, patterns, tokens and principles are asked through a small YAML adapter (CLI, file or MCP), never guessed
-- A blocking `before_plan` gate walks Recall → Reuse → Compose → Extend → Create and fails closed when the design system cannot be reached
+- A blocking `before_plan` gate walks Recall → Reuse → Compose → Extend → Create, strict only where something new would be built, and fails closed when the design system cannot be reached
+- Answers from the design system are cached per feature, so its CLI is asked each question once
 - A committed decision ledger, keyed by UI capability, so later features reuse earlier decisions
-- Independent validation after implement, with findings fed back into a bounded fix loop (3 rounds)
+- Validation after implement: a mechanical scan for raw values and token names, one independent review, and one round that checks only the fixes
 - Adapters for shadcn/ui, MUI, Ant Design, Chakra UI, Radix UI, Ark UI and any generated JSON inventory
 - A companion preset appends design sections to the spec, plan and constitution templates instead of replacing them
 ```
@@ -113,6 +114,7 @@ The fields, ready to paste:
 **Tested on:**
 
 - Linux, specify-cli 1.0.10: installed from the release archive, preset added, gate run
+- Linux, specify-cli 1.0.11: 0.2.0 installed with `--dev`, preset added, manifests validated, hooks and preset composition checked
 - Linux (Ubuntu, GitHub Actions), latest specify-cli: on every push and weekly
 - Python 3.9 (local) and 3.11 (CI)
 
@@ -120,7 +122,7 @@ The fields, ready to paste:
 
 1. `specify extension add design --from <release archive>` and `specify preset add --dev .specify/extensions/design/preset`
 2. Manifests validated with Spec Kit's own `ExtensionManifest` and `PresetManifest`
-3. Hooks registered (`after_specify`, `before_plan` non-optional, `after_implement`), preset append-composition resolved
+3. Hooks registered (`before_plan` non-optional, `after_implement`), preset append-composition resolved
 4. Gate run against a fixture design system, and fails closed when it is unreachable
 5. Unit suite (350+ tests) covering dispatch, principles, context, workflow, ledger and the command prose
 ```
@@ -128,7 +130,7 @@ The fields, ready to paste:
 **Example Usage**
 
 ```bash
-specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.1.0.zip
+specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip
 specify preset add --dev .specify/extensions/design/preset
 
 /speckit.design.run docs/rfcs/newsletter-footer.md
@@ -143,8 +145,8 @@ specify preset add --dev .specify/extensions/design/preset
     "id": "design",
     "description": "Give it an RFC. It runs the Spec Kit workflow and implements the change using your design system.",
     "author": "artursopelnik",
-    "version": "0.1.0",
-    "download_url": "https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.1.0.zip",
+    "version": "0.2.0",
+    "download_url": "https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip",
     "repository": "https://github.com/artursopelnik/spec-kit-design-system",
     "homepage": "https://github.com/artursopelnik/spec-kit-design-system",
     "documentation": "https://github.com/artursopelnik/spec-kit-design-system/blob/main/README.md",
@@ -160,8 +162,8 @@ specify preset add --dev .specify/extensions/design/preset
       ]
     },
     "provides": {
-      "commands": 4,
-      "hooks": 3
+      "commands": 3,
+      "hooks": 2
     },
     "tags": [
       "design-system",
