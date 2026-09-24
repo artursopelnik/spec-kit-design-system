@@ -28,7 +28,9 @@ git push origin v0.2.0
 
 `.github/workflows/release.yml` runs on the tag. It refuses a tag that
 disagrees with the manifests or the changelog, runs the tests, and publishes
-the GitHub release with the changelog section as its notes.
+the GitHub release with the changelog section as its notes. A release already
+created on the Releases page (which pushes the tag and so starts the workflow)
+is kept and given those notes instead of being created a second time.
 
 ### Replacing a published tag
 
