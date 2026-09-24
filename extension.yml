@@ -115,6 +115,16 @@ config:
       # tuned.
       match_threshold: 0.34
 
+    cache:
+      # Remember the design system's answers for the active feature, so the
+      # same question is not put to its CLI again by every phase, task and
+      # validation round. Failures are never remembered, and the probe that
+      # proves reach is always a real call. `ds.sh cache stats` reports how
+      # often the CLI was actually asked; `ds.sh cache clear` starts over.
+      enabled: true
+      # How long an answer stays good. A new feature starts fresh regardless.
+      ttl_minutes: 480
+
     gate:
       # Block planning when the ladder was not walked or its rungs are unjustified.
       enforce: true

@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Answer cache.** The design system's CLI or MCP answers are remembered per
+  feature (`.specify/extensions/design/.cache/`, gitignored), so a run asks
+  each question once instead of once per phase, task and validation round.
+  Failures are never remembered, the gate's reachability probe is always a real
+  call, and `extend`, `validate` and `report_gap` are never replayed.
+  Configured under `cache` (`enabled`, `ttl_minutes`); overridable with
+  `SPECKIT_DESIGN_CACHE_ENABLED` and `SPECKIT_DESIGN_CACHE_TTL_MINUTES`.
+- **Call count.** `ds.sh cache stats` reports how often the design system was
+  actually asked and how often memory answered instead, per capability, kept
+  whether or not caching is on. `ds.sh cache clear` starts the feature over.
+
 ## [0.1.0] - 2026-09-23
 
 First release. It carries the first cut (2026-09-20, at the end of this

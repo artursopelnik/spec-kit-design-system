@@ -192,6 +192,7 @@ Short. The user asked for a change, not a narrative:
 - Validation: how many rounds, what was found, what was fixed.
 - Where the project keeps a Definition of Done, that it was checked and is met. Say nothing about it where there is none.
 - Anything left open, and why.
+- What asking the design system cost: `calls` and `hits` from `.specify/extensions/design/scripts/bash/ds.sh cache stats --json`, one line.
 
 ## Done When
 

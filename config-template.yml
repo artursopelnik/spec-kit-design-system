@@ -129,6 +129,16 @@ cwd: ""
 #   # How many validate -> fix rounds before the run stops and asks for a human.
 #   max_validation_rounds: 3
 
+# cache:
+#   # Answers from the design system's CLI are remembered per feature, so a run
+#   # asks each question once rather than once per phase, task and validation
+#   # round. Failures are never remembered, and the gate's reachability probe is
+#   # always a real call. Turn it off to measure the uncached cost; the call
+#   # count in `ds.sh cache stats` is kept either way. If the design system
+#   # changes mid-feature, `ds.sh cache clear` starts over.
+#   enabled: true
+#   ttl_minutes: 480
+
 # gate:
 #   # false lets the ladder run and record findings without blocking planning.
 #   # Useful while adopting.

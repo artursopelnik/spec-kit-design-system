@@ -348,7 +348,8 @@ adapter: shadcn   # or auto (default), mui, antd, chakra, radix, ark-ui, static-
 Everything else is optional and documented in
 [config-template.yml](config-template.yml): a `bin` override, a `cwd` for
 monorepos, a principles `source`, a `dod.source`, per-capability overrides,
-`workflow.max_validation_rounds`, and `gate.enforce: false` while adopting.
+`workflow.max_validation_rounds`, `cache` settings, and `gate.enforce: false`
+while adopting.
 `SPECKIT_DESIGN_*` environment variables and a gitignored
 `design-config.local.yml` override the committed config.
 
@@ -398,6 +399,10 @@ The usual first stops:
   `REACHABLE` and `PRINCIPLES_SOURCE`.
 - **`PyYAML is required`.** Install it into the interpreter the shim finds:
   `python3 -m pip install pyyaml`.
+- **The design system changed mid-feature, and answers look stale.** Answers
+  are remembered per feature for `cache.ttl_minutes`. Run
+  `ds.sh cache clear` to ask again; `ds.sh cache stats` shows how often the
+  CLI was actually called.
 - **`bash\r: No such file or directory`.** The checkout was converted to CRLF.
   Re-clone, or install from the release archive.
 

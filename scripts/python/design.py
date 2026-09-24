@@ -14,6 +14,8 @@ Subcommands:
     ledger lookup <phrase>   find prior decisions for a capability
     ledger record <file>     append a decision (JSON object on disk or '-')
     ledger list              all active decisions
+    cache stats              how often the design system was actually asked
+    cache clear              drop remembered answers for the active feature
 
 Everything emits one compact JSON object on stdout.
 """
@@ -21,12 +23,14 @@ Everything emits one compact JSON object on stdout.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shlex
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -61,6 +65,11 @@ class Capability:
     reachability check must never do any of that. `rung` is which step of the
     ladder this capability backs, so an adapter author can see what a missing
     mapping costs before a run does.
+
+    `cacheable` says an answer may be remembered and served again. True for
+    every question about what the design system *is*; false for the three that
+    act or inspect code that is still changing, because replaying yesterday's
+    `validate` verdict, or skipping a second `report_gap`, would be a lie.
     """
 
     name: str
@@ -68,6 +77,7 @@ class Capability:
     probe_with: dict[str, str] | None = None
     rung: str | None = None
     note: str = ""
+    cacheable: bool = True
 
 
 # The contract the commands are written against. An adapter maps these to real
@@ -92,9 +102,9 @@ CAPABILITY_LIST = [
         note="When this answers, it IS the principles for the run; nothing "
         "shipped here is merged into it.",
     ),
-    Capability("extend", ("name",), rung="extend"),
-    Capability("validate", ("target",)),
-    Capability("report_gap", ("title", "body"), rung="create"),
+    Capability("extend", ("name",), rung="extend", cacheable=False),
+    Capability("validate", ("target",), cacheable=False),
+    Capability("report_gap", ("title", "body"), rung="create", cacheable=False),
 ]
 
 CAPABILITY_REGISTRY = {capability.name: capability for capability in CAPABILITY_LIST}
@@ -279,6 +289,8 @@ ENV_OVERRIDES = {
     "SPECKIT_DESIGN_LEDGER_ENABLED": ("ledger.enabled", bool),
     "SPECKIT_DESIGN_MATCH_THRESHOLD": ("ledger.match_threshold", float),
     "SPECKIT_DESIGN_FORBID_RAW_VALUES": ("validation.forbid_raw_values", bool),
+    "SPECKIT_DESIGN_CACHE_ENABLED": ("cache.enabled", bool),
+    "SPECKIT_DESIGN_CACHE_TTL_MINUTES": ("cache.ttl_minutes", int),
 }
 
 
@@ -427,7 +439,9 @@ def probe_adapter(ds: DesignSystem) -> dict:
                 f"map one of {', '.join(PROBE_PARAMS)}"
             ),
         }
-    result = run_capability(ds, probe, dict(PROBE_PARAMS[probe]), timeout=PROBE_TIMEOUT)
+    # Never served from the cache: this call is the proof of reach, and a
+    # remembered answer proves only that the system was there earlier.
+    result = ds.ask(probe, timeout=PROBE_TIMEOUT, fresh=True, **PROBE_PARAMS[probe])
 
     if not result.get("available"):
         return {
@@ -459,6 +473,7 @@ class DesignSystem:
     config: dict
     adapter: dict
     _probe: dict | None = field(default=None, repr=False)
+    _cache: AnswerCache | None = field(default=None, repr=False)
 
     @classmethod
     def resolve(cls) -> DesignSystem:
@@ -491,8 +506,209 @@ class DesignSystem:
     def reachable(self) -> bool:
         return self.probe["reachable"]
 
-    def ask(self, capability: str, timeout: int | None = None, **params: Any) -> dict:
-        return run_capability(self, capability, params, timeout=timeout)
+    @property
+    def cache(self) -> AnswerCache:
+        if self._cache is None:
+            self._cache = AnswerCache.for_project(self)
+        return self._cache
+
+    def ask(
+        self, capability: str, timeout: int | None = None, fresh: bool = False, **params: Any
+    ) -> dict:
+        """Ask one question, answered from memory where that is honest.
+
+        Caching lives here rather than in `run_capability`, which routes and
+        nothing else. `fresh` skips the lookup but still counts the call and
+        stores what came back.
+        """
+        spec = (self.adapter.get("capabilities") or {}).get(capability)
+        # A file read costs what a cache read costs, and the file may have been
+        # regenerated since, so only a process or a server round-trip is worth
+        # remembering -- and only those are what "the CLI was asked" means.
+        remote = bool(spec) and not reads_a_file(spec)
+        entry = CAPABILITY_REGISTRY.get(capability)
+        cacheable = remote and entry is not None and entry.cacheable
+        key = self.cache.key(self, capability, params) if cacheable else ""
+
+        if cacheable and not fresh:
+            hit = self.cache.get(key)
+            if hit is not None:
+                self.cache.count(capability, hit=True)
+                return hit
+
+        result = run_capability(self, capability, params, timeout=timeout)
+        if remote:
+            self.cache.count(capability, hit=False)
+        if cacheable and result.get("available"):
+            self.cache.put(key, capability, result)
+        result["cached"] = False
+        return result
+
+
+# --- answer cache ------------------------------------------------------------
+
+CACHE_DIR_NAME = ".cache"
+DEFAULT_CACHE_TTL_MINUTES = 480
+# Answers outside a feature (a query before `/speckit.specify` ran) share one scope.
+PROJECT_SCOPE = "_project"
+
+
+@dataclass
+class AnswerCache:
+    """Answers the design system already gave, and how often it was asked.
+
+    Every `ds.sh` call is its own process, so the per-process probe cache on
+    `DesignSystem` never saw a second question. A run asked the same `component
+    Popover` in the context hook, the gate, every implement task and every
+    validation round, and each was a real CLI call.
+
+    Three rules keep this from changing what an answer means:
+
+    * Only answers are remembered. A failure to ask is never stored, so an
+      outage is re-tried rather than replayed, and nothing here can turn
+      "unreachable" into a cached "found nothing".
+    * Answers are scoped to the active feature and expire after `ttl_minutes`.
+      A new feature starts from what the design system says now.
+    * The key covers the whole adapter and the configured version, so editing
+      a mapping or bumping `design_system_version` is a different question.
+
+    The counts are kept whether or not caching is on. They are what turns
+    "the CLI is called extremely often" into a number, before and after.
+    """
+
+    path: Path | None
+    enabled: bool
+    ttl_seconds: int
+    scope: str
+    data: dict = field(default_factory=dict)
+    dirty: bool = False
+
+    @classmethod
+    def for_project(cls, ds: DesignSystem) -> AnswerCache:
+        settings = ds.config.get("cache") or {}
+        feature = feature_dir(ds.root)
+        scope = feature.name if feature else PROJECT_SCOPE
+        directory = ext_dir(ds.root)
+        # No extension directory means no project to keep state in: count in
+        # memory and remember nothing, rather than creating one as a side effect.
+        path = directory / CACHE_DIR_NAME / f"{scope}.json" if directory.is_dir() else None
+        cache = cls(
+            path=path,
+            enabled=bool(settings.get("enabled", True)),
+            ttl_seconds=int(settings.get("ttl_minutes", DEFAULT_CACHE_TTL_MINUTES)) * 60,
+            scope=scope,
+        )
+        cache.data = cache._load()
+        return cache
+
+    def _load(self) -> dict:
+        empty = {"answers": {}, "calls": {}, "hits": {}}
+        if not self.path or not self.path.is_file():
+            return empty
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            # A corrupt cache is a cold cache, never an error a run stops on.
+            return empty
+        if not isinstance(data, dict):
+            return empty
+        for name in empty:
+            if not isinstance(data.get(name), dict):
+                data[name] = {}
+        return data
+
+    @staticmethod
+    def key(ds: DesignSystem, capability: str, params: dict) -> str:
+        material = {
+            "capability": capability,
+            "params": params,
+            "adapter": ds.adapter,
+            "base": str(ds.base),
+            "version": ds.config.get("design_system_version") or "",
+        }
+        encoded = json.dumps(material, sort_keys=True, default=str)
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:32]
+
+    def get(self, key: str) -> dict | None:
+        if not self.enabled:
+            return None
+        entry = self.data["answers"].get(key)
+        if not isinstance(entry, dict) or not isinstance(entry.get("answer"), dict):
+            return None
+        try:
+            age = time.time() - float(entry.get("at", 0))
+        except (TypeError, ValueError):
+            return None
+        if age < 0 or age > self.ttl_seconds:
+            return None
+        answer = dict(entry["answer"])
+        answer["cached"] = True
+        answer["cached_age_seconds"] = int(age)
+        return answer
+
+    def put(self, key: str, capability: str, answer: dict) -> None:
+        if not self.enabled:
+            return
+        stored = {k: v for k, v in answer.items() if k not in ("cached", "cached_age_seconds")}
+        self.data["answers"][key] = {"at": time.time(), "capability": capability, "answer": stored}
+        self.dirty = True
+        self.save()
+
+    def count(self, capability: str, hit: bool) -> None:
+        bucket = self.data["hits" if hit else "calls"]
+        bucket[capability] = int(bucket.get(capability, 0)) + 1
+        self.dirty = True
+        self.save()
+
+    def save(self) -> None:
+        if not self.path or not self.dirty:
+            return
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            ignore = self.path.parent / ".gitignore"
+            if not ignore.exists():
+                # Derived state: nothing in here should ever be committed.
+                ignore.write_text("*\n", encoding="utf-8")
+            scratch = self.path.with_suffix(".tmp")
+            scratch.write_text(json.dumps(self.data, default=str), encoding="utf-8")
+            os.replace(scratch, self.path)
+            self.dirty = False
+        except OSError:
+            # A read-only checkout still gets its answers, just not remembered.
+            self.path = None
+
+    def stats(self) -> dict:
+        calls = self.data["calls"]
+        hits = self.data["hits"]
+        live = sum(
+            1 for key in self.data["answers"] if self.get(key) is not None
+        )
+        return {
+            "scope": self.scope,
+            "enabled": self.enabled,
+            "ttl_minutes": self.ttl_seconds // 60,
+            "path": str(self.path) if self.path else "",
+            # Real round-trips to the design system's CLI or MCP server.
+            # File-backed capabilities are reads, not calls, and are not counted.
+            "calls": sum(int(v) for v in calls.values()),
+            # Questions answered from memory instead.
+            "hits": sum(int(v) for v in hits.values()),
+            "by_capability": {
+                name: {"calls": int(calls.get(name, 0)), "hits": int(hits.get(name, 0))}
+                for name in sorted(set(calls) | set(hits))
+            },
+            "entries": live,
+        }
+
+    def clear(self) -> dict:
+        before = self.stats()
+        self.data = {"answers": {}, "calls": {}, "hits": {}}
+        if self.path and self.path.is_file():
+            try:
+                self.path.unlink()
+            except OSError:
+                pass
+        return before
 
 
 # --- capability dispatch -----------------------------------------------------
@@ -720,11 +936,16 @@ class Transport(Protocol):
     def fetch(self, request: Request) -> Fetched: ...
 
 
+def reads_a_file(spec: dict) -> bool:
+    """Whether a mapping is answered from a file rather than by asking anything."""
+    return bool(spec.get("read_file"))
+
+
 class FileTransport:
     """A capability answered by reading a file the project already generates."""
 
     def handles(self, request: Request) -> bool:
-        return bool(request.spec.get("read_file"))
+        return reads_a_file(request.spec)
 
     def fetch(self, request: Request) -> Fetched:
         target = substitute(
@@ -2336,6 +2557,14 @@ def cmd_ledger(args: argparse.Namespace) -> None:
         emit(ledger_record(root, payload))
 
 
+def cmd_cache(args: argparse.Namespace) -> None:
+    cache = DesignSystem.resolve().cache
+    if args.action == "clear":
+        emit({"cleared": True, "before": cache.clear()})
+    else:
+        emit(cache.stats())
+
+
 def main() -> None:
     # --json is accepted on either side of the subcommand: output is always JSON,
     # but spec-kit's script convention is to pass the flag, and callers differ on
@@ -2405,6 +2634,10 @@ def main() -> None:
         ),
     )
     ledger.set_defaults(func=cmd_ledger)
+
+    cache = sub.add_parser("cache", parents=[common])
+    cache.add_argument("action", choices=["stats", "clear"], nargs="?", default="stats")
+    cache.set_defaults(func=cmd_cache)
 
     args = parser.parse_args()
     global ACTIVE_COMMAND

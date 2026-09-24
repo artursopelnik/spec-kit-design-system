@@ -90,6 +90,18 @@ The rule the whole extension rests on:
 
 A registry outage, a missing binary, a changed flag: all `available: false`. Only an error code the adapter explicitly declares as "not found" becomes `found: false`. Get this wrong and an outage reads as an empty design system, which pushes every decision toward Create — the exact failure this extension exists to prevent. `probe_adapter` spends one real call at gate time for the same reason: trusting the adapter file would report a full capability set for a CLI that is not installed.
 
+## The answer cache
+
+Every `ds.sh` call is its own process, so a run used to put the same question to the design system's CLI once per phase, per task and per validation round. `DesignSystem.ask` now remembers answers in `.specify/extensions/design/.cache/<feature>.json` (gitignored on creation), without changing what an answer means:
+
+- **Only answers are remembered.** `available: false` is never stored, so an outage is asked again rather than replayed, and a cache cannot turn "unreachable" into "found nothing".
+- **The probe is always a real call** (`fresh=True`). Reach proven from memory would prove only that the system was there earlier.
+- **Nothing that acts is replayed.** `extend`, `validate` and `report_gap` carry `cacheable=False`.
+- **File-backed capabilities are neither cached nor counted.** A file read costs what a cache read costs, and the file may be regenerated.
+- **Scoped and keyed conservatively.** One file per feature, entries expire after `cache.ttl_minutes`, and the key covers the whole adapter, the `cwd` and `design_system_version`, so changing any of them is a different question.
+
+The cache lives in `ask`, not in `run_capability`, which still routes and nothing else. It also counts every real round-trip and every hit, whether or not caching is on; `ds.sh cache stats` reports them, which is how the cost of a run becomes a number instead of an impression.
+
 ## Principles resolution
 
 ```text
