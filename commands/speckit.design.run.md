@@ -74,17 +74,15 @@ Write the answers into the RFC understanding you carry forward. Then run `/speck
 
 ### 2. Specify
 
-`/speckit.specify` creates the feature and the spec. The `after_specify` hook fires `/speckit.design.context`, which resolves the principles in force, searches the design system for each surface, and writes the `## Design System Requirements` section.
+`/speckit.specify` creates the feature and the spec. The design system is not consulted yet: that happens once, in the gate before planning.
 
-Let the hook do that work. Do not duplicate it here.
-
-When the spec comes back carrying `[NEEDS CLARIFICATION]` markers, resolve them: from the design system where they are design questions, from the user where they are product questions. A marker left standing will be resolved by guessing later, when the guess is more expensive.
+When the spec comes back carrying `[NEEDS CLARIFICATION]` markers, resolve them from the user where they are product questions. Design questions are answered by the gate in the next step. A marker left standing will be resolved by guessing later, when the guess is more expensive.
 
 ### 3. Plan
 
-`/speckit.plan`. The `before_plan` hook fires `/speckit.design.check`, which walks Recall → Reuse → Compose → Extend → Create for every surface and blocks planning if a surface is unaccounted for. Most surfaces resolve on the short path (Recall or Reuse); the full walk is for the ones where something new would be built.
+`/speckit.plan`. The `before_plan` hook fires `/speckit.design.check`, which resolves the principles and tokens in force, walks Recall → Reuse → Compose → Extend → Create for every surface, writes `design-system.md` and the spec's `## Design System Requirements`, and blocks planning if a surface is unaccounted for. Most surfaces resolve on the short path (Recall or Reuse); the full walk is for the ones where something new would be built.
 
-If the gate fails, fix the cause and re-run it. Do not disable it and do not route around it.
+If the gate fails, fix the cause and re-run it. Do not disable it and do not route around it. Where it fails on a `[NEEDS CLARIFICATION]` it wrote, that is a design question only a person can answer: ask, record the answer in the spec, and re-run the gate.
 
 Then `/speckit.tasks`.
 

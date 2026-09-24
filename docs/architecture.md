@@ -195,9 +195,10 @@ while still sitting in the config file looking as though it works.
 The phases are wired as Spec Kit hooks in `extension.yml`, not inside the run command:
 
 ```text
-after_specify   → /speckit.design.context
 before_plan     → /speckit.design.check      (blocking)
 after_implement → /speckit.design.validate
 ```
+
+There is no `after_specify` hook. The design system is consulted once before planning, by the gate: searching for a surface, deciding on it and writing its requirement into the spec happen in one pass, rather than a context pass that searched every surface and a gate that searched it again.
 
 `/speckit.design.run` drives Spec Kit's own commands and lets the hooks fire. It is the autonomous path over the same rails, not a second implementation of them, which is why working phase by phase by hand still gets every guarantee.

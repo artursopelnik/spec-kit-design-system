@@ -167,9 +167,10 @@ RFC
  ↓
 Clarify      what the RFC does not say
  ↓
-Specify      a spec naming your design system's real components and tokens
+Specify      the spec, from the RFC
  ↓
-Plan         Recall → Reuse → Compose → Extend → Create, against the real system
+Plan         Recall → Reuse → Compose → Extend → Create, against the real system,
+             then the spec's design requirements, with its real components and tokens
  ↓
 Tasks        the plan broken into steps
  ↓
@@ -190,8 +191,7 @@ also fire as Spec Kit hooks, so they hold for anyone working phase by phase.
 | Command | Hook | Purpose |
 |---|---|---|
 | `/speckit.design.run <rfc>` | | The whole workflow. The one to remember. |
-| `/speckit.design.context` | `after_specify` | Resolves principles and design system context into the spec |
-| `/speckit.design.check` | `before_plan` | Walks the reuse ladder and gates planning on it (blocking) |
+| `/speckit.design.check` | `before_plan` | Resolves principles and tokens, walks the reuse ladder, writes the design requirements into the spec, and gates planning on it (blocking) |
 | `/speckit.design.validate` | `after_implement` | The independent checker |
 
 ## The ladder

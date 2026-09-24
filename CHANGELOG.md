@@ -30,8 +30,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   actually asked and how often memory answered instead, per capability, kept
   whether or not caching is on. `ds.sh cache clear` starts the feature over.
 
+### Removed
+
+- **`/speckit.design.context` and its `after_specify` hook.** The design
+  system is now consulted once before planning, by the gate: it resolves the
+  principles, tokens and breakpoints, walks the ladder, and writes the spec's
+  `## Design System Requirements` in one pass. Before, the context hook
+  searched every surface and the gate searched it again. Anyone driving Spec
+  Kit by hand gets the same spec section before planning starts, one step
+  later than before. The spec addendum's candidates table is gone with it:
+  resolutions live in `design-system.md` only.
+
 ### Changed
 
+- The gate checks every token name the spec or its RFC asks for against the
+  design system's token list, and marks a name it does not have as
+  `[NEEDS CLARIFICATION]` rather than substituting the nearest one.
 - `gate.min_candidates_considered` applies only where a surface lands on
   Extend or Create. Reuse and Compose use what exists and need no quota; the
   quota used to pad candidate tables for components used exactly as documented.

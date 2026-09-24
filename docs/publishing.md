@@ -120,7 +120,7 @@ The fields, ready to paste:
 
 1. `specify extension add design --from <release archive>` and `specify preset add --dev .specify/extensions/design/preset`
 2. Manifests validated with Spec Kit's own `ExtensionManifest` and `PresetManifest`
-3. Hooks registered (`after_specify`, `before_plan` non-optional, `after_implement`), preset append-composition resolved
+3. Hooks registered (`before_plan` non-optional, `after_implement`), preset append-composition resolved
 4. Gate run against a fixture design system, and fails closed when it is unreachable
 5. Unit suite (350+ tests) covering dispatch, principles, context, workflow, ledger and the command prose
 ```

@@ -7,9 +7,10 @@ RFC
  ↓
 Clarify ──────────── what the RFC does not say
  ↓
-Specify ──────────── /speckit.specify, then the context hook
+Specify ──────────── /speckit.specify
  ↓
-Plan ─────────────── /speckit.plan behind the ladder gate, then /speckit.tasks
+Plan ─────────────── /speckit.plan behind the gate, which walks the ladder and
+ ↓                   writes the spec's design requirements; then /speckit.tasks
  ↓
 Implement ────────── /speckit.implement, task by task
  ↓

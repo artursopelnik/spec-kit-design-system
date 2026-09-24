@@ -175,7 +175,7 @@ def test_auto_adapter_detects_component_libraries(design, project):
 ENFORCED_BY_THE_COMMANDS = {
     "gate.enforce": "check.md decides whether a failed gate errors or warns",
     "gate.min_candidates_considered": "check.md refuses Extend or Create on fewer rejected candidates",
-    "ledger.enabled": "check.md and context.md skip lookup and recording when false",
+    "ledger.enabled": "check.md skips lookup and recording when false",
     "validation.forbid_raw_values": "validate.md raises a finding for a raw value",
 }
 

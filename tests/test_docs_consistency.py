@@ -211,7 +211,7 @@ def test_the_candidate_quota_applies_only_where_new_code_enters():
     """`min_candidates_considered` guards against building on a thin search. A
     quota on Reuse only pads tables; on Extend and Create it is the whole point."""
     check = body(REPO / "commands" / "speckit.design.check.md")
-    gate = check[check.index("### 6. Gate"):check.index("## Completion Report")]
+    gate = check[re.search(r"^### \d+\. Gate$", check, re.M).start():check.index("## Completion Report")]
     assert "an Extend or Create resolution rests on fewer rejected candidates" in gate
     assert "a rung was rejected on fewer candidates" not in check
 
@@ -225,3 +225,22 @@ def test_what_create_builds_is_a_lab_component(path):
     text = body(path)
     assert "lab component" in text
     assert "not part of the design system" in text or "not in the design system" in text
+
+
+def test_the_design_system_is_consulted_once_before_planning():
+    """A context hook after specify searched every surface, and the gate searched
+    it again. The gate is now the one pass, and it owns the spec section too."""
+    import yaml
+
+    manifest = yaml.safe_load((REPO / "extension.yml").read_text(encoding="utf-8"))
+    assert "after_specify" not in manifest["hooks"]
+    assert manifest["hooks"]["before_plan"]["command"] == "speckit.design.check"
+    assert manifest["hooks"]["before_plan"]["optional"] is False
+    for command in manifest["provides"]["commands"]:
+        assert (REPO / command["file"]).is_file(), command
+
+    check = body(REPO / "commands" / "speckit.design.check.md")
+    assert "## Design System Requirements" in check
+    assert "principles_source" in check and "query tokens" in check
+    for path in PROSE:
+        assert "speckit.design.context" not in body(path), f"{path.name} still names the removed command"

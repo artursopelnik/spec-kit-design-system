@@ -38,13 +38,9 @@ provides:
       file: commands/speckit.design.run.md
       description: "Take an RFC and run it to done: clarify, specify, plan, implement, validate, fix, verify"
 
-    - name: speckit.design.context
-      file: commands/speckit.design.context.md
-      description: "Resolve principles and design system context into the specification"
-
     - name: speckit.design.check
       file: commands/speckit.design.check.md
-      description: "Run the Recall -> Reuse -> Compose -> Extend -> Create ladder and gate the plan on its outcome"
+      description: "Resolve what the design system offers, walk the Recall -> Reuse -> Compose -> Extend -> Create ladder, write the design requirements into the spec, and gate the plan on the outcome"
 
     - name: speckit.design.validate
       file: commands/speckit.design.validate.md
@@ -60,10 +56,11 @@ hooks:
   # The phases are wired here, not in the run command, so they also hold for
   # anyone driving spec-kit by hand. /speckit.design.run is the autonomous
   # path over the same rails, not a second implementation of them.
-  after_specify:
-    command: speckit.design.context
-    optional: false
-    description: "Resolve principles and design system context for the new specification"
+  #
+  # There is deliberately no after_specify hook. The design system is consulted
+  # once before planning, by the gate, which searches, decides and writes the
+  # spec's design requirements in one pass instead of searching every surface
+  # twice.
 
   # The gate. Planning must not begin until the reuse ladder has been walked.
   before_plan:
