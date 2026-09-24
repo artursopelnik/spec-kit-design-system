@@ -60,6 +60,14 @@ jobs:
       - name: Check formatting
         run: npx --yes prettier@3 --check docs adapters
 
+      - name: How to fix it
+        if: failure()
+        run: |
+          echo "::error::docs/ or adapters/ are not formatted. Run this and commit the result:"
+          echo "::error::npx --yes prettier@3 --write docs adapters"
+          npx --yes prettier@3 --write docs adapters > /dev/null
+          git --no-pager diff --stat
+
   integration:
     name: Real install against Spec Kit
     runs-on: ubuntu-latest

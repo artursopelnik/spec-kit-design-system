@@ -7,8 +7,11 @@ pip install pytest pyyaml          # only test deps; Python 3.11 in CI
 python -m pytest                   # all tests (pytest.ini: testpaths=tests, -q, --strict-markers)
 python -m pytest tests/test_ledger.py::test_name   # single test
 for f in scripts/bash/*.sh examples/*.sh; do bash -n "$f"; done   # shell syntax check (CI)
+npx --yes prettier@3 --write docs adapters   # format; CI runs --check on every push and PR
 examples/setup-demo.sh /tmp/demo   # builds a demo project with the example "acme" design system
 ```
+
+**Before every push, run the Prettier check** (`npx --yes prettier@3 --check docs adapters`) along with the tests, and fix what it finds with `--write`. Its scope lives in `.prettierignore`: `docs/` and `adapters/` only, never `commands/*.md`, whose formats are a contract with `workflow_status`. A pull request merged while this job was red is exactly how `main` went red before.
 
 CI (`.github/workflows/ci.yml`) also has an `integration` job that installs `specify-cli`, runs `specify extension add --dev` and `specify preset add --dev` against a throwaway project, and asserts hooks are registered (`before_plan` must be non-optional), preset append-composition works, and the gate fails closed. Manifest or hook changes should be checked against that.
 
