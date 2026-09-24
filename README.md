@@ -1,7 +1,7 @@
 # Design System Extension for Spec Kit
 
 [![Spec Kit](https://img.shields.io/badge/spec--kit-extension-blue?logo=github)](https://github.com/github/spec-kit)
-[![Version](https://img.shields.io/badge/version-0.1.0-green)](https://github.com/artursopelnik/spec-kit-design-system/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0-green)](https://github.com/artursopelnik/spec-kit-design-system/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 <p align="center">
@@ -32,8 +32,11 @@ own. It asks yours.
 What that changes in practice:
 
 - **It looks before it builds.** Every UI need climbs a ladder: Recall → Reuse →
-  Compose → Extend → Create. Something new gets built only after the earlier
-  rungs are documented as insufficient.
+  Compose → Extend → Create. It is strict about what goes in and light on how
+  things are used: a component that already covers the need is one search
+  away, and the full argument, with a gap record, is reserved for what would
+  be new. Something new is built as a lab component in your project, never
+  quietly added to the design system.
 - **It remembers.** Each decision lands in a committed ledger, keyed by UI
   capability. The next feature that needs a date range reads the answer instead
   of searching again, even when it words the need differently.
@@ -42,9 +45,11 @@ What that changes in practice:
   numbered requirements (`DS-001: ... MUST ...`) with acceptance criteria. If
   the design system cannot be reached, planning stops. It never continues as if
   your system had nothing to say.
-- **It keeps the context lean.** Each phase starts with only what it needs,
-  never the whole inventory. Everything else stays one call away, so the agent
-  can still ask when it turns out to need it.
+- **It keeps the context lean, and the calls few.** Each phase starts with
+  only what it needs, never the whole inventory. Everything else stays one
+  call away, and each answer is remembered for the feature, so your design
+  system's CLI is asked a question once, not once per phase and task.
+  `ds.sh cache stats` says how often it was actually called.
 - **It checks its own work.** A script settles what needs no judgement (raw
   values, token names that do not exist, tokens the contract asks for that the
   code never uses), then a separate pass reviews the implementation against
@@ -67,7 +72,7 @@ tribal knowledge, there is nothing to ask.
 that ships inside it:
 
 ```bash
-specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.1.0.zip
+specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip
 specify preset add --dev .specify/extensions/design/preset
 ```
 

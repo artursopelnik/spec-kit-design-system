@@ -3,7 +3,7 @@ schema_version: "1.0"
 extension:
   id: design
   name: "Spec Kit Design System"
-  version: "0.1.0"
+  version: "0.2.0"
   description: "Give it an RFC. It runs the Spec Kit workflow and implements the change using your design system."
   category: integration
   effect: read-write

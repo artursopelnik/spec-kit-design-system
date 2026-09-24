@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-24
+
+Faster, simpler, and closer to the RFC. A run asks the design system each
+question once, stops at the first rung that holds for the everyday surfaces,
+reviews the implementation once and then checks only the fixes, and carries
+the design brief a team pastes into its RFC through to validation. The ladder
+is now strict about what goes in and light on how things are used, after the
+contribution process of Meta's
+[Astryx](https://github.com/facebook/astryx/wiki/Contributing) design system.
+
+In a simulated run (3 surfaces, 8 tasks, 3 validation rounds before, 2 after)
+the design system's CLI was called 126 times with 0.1.0 and 36 times with
+this release. That count comes from replaying the calls the command bodies
+prescribe, not from an agent run; `ds.sh cache stats` reports the real number
+for yours.
+
+**Upgrading.** `/speckit.design.context` and its `after_specify` hook are
+gone; the gate does their work. Nothing in `design-config.yml` has to change.
+`max_validation_rounds` now defaults to 2; set it back to 3 if you want the old
+bound.
+
 ### Added
 
 - **Answer cache.** The design system's CLI or MCP answers are remembered per
@@ -426,5 +447,6 @@ Issue import and export. The catalog already covers both directions
 The ledger sits in `.specify/memory/` because `memory-loader` already loads
 that directory into agent context.
 
-[Unreleased]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/artursopelnik/spec-kit-design-system/releases/tag/v0.1.0
