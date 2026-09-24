@@ -128,8 +128,9 @@ config:
     gate:
       # Block planning when the ladder was not walked or its rungs are unjustified.
       enforce: true
-      # Minimum number of existing candidates that must be considered before
-      # a rung may be rejected.
+      # Minimum number of existing candidates that must be rejected before a
+      # surface may land on Extend or Create. Reuse and Compose need no quota:
+      # they use what exists, and proving that takes one search.
       min_candidates_considered: 3
 
     validation:

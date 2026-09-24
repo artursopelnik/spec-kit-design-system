@@ -51,7 +51,7 @@ For every surface in `DESIGN_DOC`, verify the code did what was decided:
 - **Reuse** → the named component is imported from the design system and actually used for that surface. A component imported and then wrapped in enough overrides to change its behaviour is not reuse; flag it.
 - **Compose** → the named components appear, arranged as described. A composition that quietly grew a bespoke replacement for one of its parts has drifted.
 - **Extend** → extension went through the sanctioned mechanism recorded in the ladder, not a copied-and-edited fork.
-- **Create** → the new component exists where the gap record said it would, is built from the system's tokens and primitives, and did not grow past the scope the record set.
+- **Create** → the lab component exists where the gap record said it would, is marked as not part of the design system with a pointer to its gap record, is built from the system's tokens and primitives, and did not grow past the scope the record set.
 
 Flag anything built bespoke that never appeared in `DESIGN_DOC` at all. This is the highest-value finding here: it is the exact failure this extension exists to catch, and it will usually look locally reasonable.
 

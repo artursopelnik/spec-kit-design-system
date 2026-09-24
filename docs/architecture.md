@@ -179,8 +179,8 @@ Mechanical, in the script, and not negotiable by an agent:
 Judgement, in the command bodies, honoured because the agent is told to:
 
 - `gate.enforce` — whether a failed gate errors or warns.
-- `gate.min_candidates_considered` — how thin a search may be before a rung may
-  be rejected.
+- `gate.min_candidates_considered` — how thin a search may be before a surface
+  may land on Extend or Create.
 - `ledger.enabled` — whether lookup and recording happen at all.
 - `validation.forbid_raw_values` — whether a raw value becomes a finding.
 

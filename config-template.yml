@@ -143,8 +143,9 @@ cwd: ""
 #   # false lets the ladder run and record findings without blocking planning.
 #   # Useful while adopting.
 #   enforce: true
-#   # How many existing candidates must be considered before a rung may be
-#   # rejected. Lower it only if your design system genuinely offers fewer.
+#   # How many existing candidates must be rejected before a surface may land
+#   # on Extend or Create. Reuse and Compose need no quota. Lower it only if
+#   # your design system genuinely offers fewer.
 #   min_candidates_considered: 3
 
 # validation:

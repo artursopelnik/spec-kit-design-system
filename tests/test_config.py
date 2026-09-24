@@ -174,7 +174,7 @@ def test_auto_adapter_detects_component_libraries(design, project):
 # not. Each one must be named by a command body, or nothing enforces it at all.
 ENFORCED_BY_THE_COMMANDS = {
     "gate.enforce": "check.md decides whether a failed gate errors or warns",
-    "gate.min_candidates_considered": "check.md rejects a rung walked on fewer candidates",
+    "gate.min_candidates_considered": "check.md refuses Extend or Create on fewer rejected candidates",
     "ledger.enabled": "check.md and context.md skip lookup and recording when false",
     "validation.forbid_raw_values": "validate.md raises a finding for a raw value",
 }

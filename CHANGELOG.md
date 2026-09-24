@@ -15,9 +15,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   call, and `extend`, `validate` and `report_gap` are never replayed.
   Configured under `cache` (`enabled`, `ttl_minutes`); overridable with
   `SPECKIT_DESIGN_CACHE_ENABLED` and `SPECKIT_DESIGN_CACHE_TTL_MINUTES`.
+- **A short path through the ladder.** A surface that an earlier decision
+  answers (Recall), or that one search and one look at a component covers
+  (Reuse), is resolved there, recorded in a short form without a candidate
+  table. The full walk, with candidate tables, a final search and a gap
+  record, is reserved for Compose, Extend and Create: strict about what goes
+  in, light on how things are used, after the contribution process of Meta's
+  [Astryx](https://github.com/facebook/astryx/wiki/Contributing).
+- **Lab components.** What Create builds is a lab component: in the project,
+  from the system's tokens and primitives, scoped to the feature, and marked
+  as not part of the design system with a pointer to its gap record. Whether
+  it joins the design system is for the system's owners to decide.
 - **Call count.** `ds.sh cache stats` reports how often the design system was
   actually asked and how often memory answered instead, per capability, kept
   whether or not caching is on. `ds.sh cache clear` starts the feature over.
+
+### Changed
+
+- `gate.min_candidates_considered` applies only where a surface lands on
+  Extend or Create. Reuse and Compose use what exists and need no quota; the
+  quota used to pad candidate tables for components used exactly as documented.
+- For a Reuse surface, the constraints carried into the plan refer to the
+  component's own documentation instead of copying it, and spell out only what
+  the feature adds.
 
 ## [0.1.0] - 2026-09-23
 

@@ -43,7 +43,11 @@ Name surfaces by **capability, not by component**: "a control for picking a star
 
 ### 2. Walk the ladder, per surface
 
-For each surface, in order. Stop at the first rung that holds.
+Be **strict about what goes in, light on how it is used.** Most surfaces are an existing component used as documented, and proving that takes one search and one look at the component. The full walk, with candidate tables and a gap record, is for the surfaces where something new would enter the codebase, because that is where a wrong answer costs the most and a thorough one pays back.
+
+So every surface starts on the short path and leaves it only when the short path does not hold.
+
+#### The short path: Recall, then Reuse
 
 **Rung 0, Recall.** Before asking the design system anything, ask whether this was already decided:
 
@@ -53,22 +57,31 @@ For each surface, in order. Stop at the first rung that holds.
 
 Get `<version>` from the design system itself where the adapter maps `describe`, otherwise from its package version or `design_system_version` in config. Without it the lookup reports `"staleness_checked": false` and every `stale` flag comes back `null`, meaning unknown, which is not the same as fresh. Do not read an unchecked decision as a verified-current one.
 
-Look up each surface with **more than one wording**, the same discipline as searching the design system. A prior decision is returned with a `match_score` and a `stale` flag. When `ledger.enabled` in `CONFIG` is false the project keeps no ledger: skip this rung and step 4, and say so once in the completion report.
+If the first wording misses, try one other before concluding there is nothing. A prior decision is returned with a `match_score` and a `stale` flag. When `ledger.enabled` in `CONFIG` is false the project keeps no ledger: skip this rung and step 4, and say so once in the completion report.
 
 - **Match, not stale** → adopt the prior decision. Record it in `DESIGN_DOC` citing the decision id and the feature it came from, and move to the next surface. This is the point of the ledger: the second feature to need a date range should not re-run the search that the first one already ran.
 - **Match, but `stale`** → the design system has changed since that decision was taken. Do **not** adopt it blindly and do not discard it either. Re-walk from Rung 1, then either confirm the prior decision still holds, or record a superseding decision in step 4.
 - **Match you believe is wrong** → re-walk the ladder. If you land somewhere else, supersede the old decision explicitly rather than adding a contradicting one. Two active decisions for one capability is exactly the drift this extension exists to prevent.
-- **No match** → walk the ladder normally.
+- **No match** → go to Reuse.
 
 A prior decision is evidence, not an instruction. If adopting it would produce something the spec clearly does not want, say so and re-walk, but say so explicitly, because silently ignoring the ledger puts it back to being decoration.
 
-**Rung 1, Reuse.** Query the design system for existing components:
+**Rung 1, Reuse.** Search once, then look at the strongest hit:
 
 ```
 .specify/extensions/design/scripts/bash/ds.sh query search "<capability phrase>"
+.specify/extensions/design/scripts/bash/ds.sh query component "<Name>"
 ```
 
-Run at least two differently-worded queries per surface, because design systems name things in ways you will not guess on the first try. Then pull detail on the promising hits with `ds.sh query component "<Name>"`. A component whose props, variants and states already cover the surface ends the walk.
+If its props, variants and states cover the surface, **the surface is resolved as Reuse and the walk ends.** Record it in the short form in step 3 and move on. No candidate table is needed to justify using the component the design system offers for exactly this.
+
+If the first search misses, search once more with different wording before leaving the short path: design systems name things in ways you will not guess on the first try, and a second wording is far cheaper than a composition nobody needed.
+
+Covering the surface includes looking the way the spec asks. Where the spec requires a particular appearance (a dark variant, a specific token), say which variant, prop or theme setting of the component delivers it. If none does, the component does not cover the surface as specified, and the walk continues.
+
+#### The full walk: Compose, Extend, Create
+
+Reached only when Reuse does not hold. From here on the reasoning is the artifact, because it is what a reviewer, and the design system's owners, will read.
 
 **Rung 2, Compose from a pattern.** Query for an existing composed pattern (`ds.sh query pattern "<phrase>"`, and search again with pattern-shaped wording). Design systems often ship the exact arrangement you are about to rebuild.
 
@@ -77,6 +90,8 @@ Run at least two differently-worded queries per surface, because design systems 
 **Rung 4, Extend.** Can an existing component be extended through the system's sanctioned mechanism (`ds.sh query extend "<Name>"`)? Extending via a supported escape hatch (a documented prop, a className override, a swizzle) is still reuse. Forking the source and editing it is not; that is Rung 5 wearing a disguise.
 
 **Rung 5, Create.** Only reachable when rungs 1 through 4 are documented as insufficient, and it always requires a gap record. Before writing one, search **once more** with wording you have not tried yet: a synonym, the user-facing term, the term a designer would use, the term the system's own docs use for a neighbouring concept. Gaps found on the fifth search are common; gaps that survive a deliberate final attempt are real. If this surfaces a viable candidate, drop back to the lower rung and say so — that is a good outcome, not a wasted step.
+
+What gets built is a **lab component**: it lives in the project, not in the design system, it is built only from the system's tokens and primitives, and it covers what this feature needs and nothing more. Mark it as such where it is defined, with one comment naming its gap record, so the next reader can tell it apart from the system's own components. Whether it ever becomes part of the design system is for the system's owners to decide, in their own process; the gap record is the case you hand them, not a promise this feature makes.
 
 Write the record to its own file, `design-system-gap-<slug>.md` in the feature directory, and link it from the surface's section in `DESIGN_DOC`. A standalone file matters because a gap record is the argued case for a new component, and it has to travel: to the design system's repo, to an issue tracker, to a review.
 
@@ -95,7 +110,7 @@ Write the record to its own file, `design-system-gap-<slug>.md` in the feature d
 | Calendar + Popover | compose | Covers display and placement, not cross-field validation |
 
 ## What we are building instead
-<scope, and where the source will live>
+<the lab component: its scope, and where its source will live>
 
 ## What the design system could do
 <the change that would make this unnecessary next time>
@@ -111,13 +126,24 @@ The gate does not pass until the record exists.
 
 ### 3. Record the walk
 
-Write `DESIGN_DOC` (`design-system.md` in the feature directory) with one section per surface:
+Write `DESIGN_DOC` (`design-system.md` in the feature directory) with one section per surface. A surface resolved on the short path gets the short form:
 
 ```markdown
 ## Surface: <capability phrase>
 
-**Resolution**: Reuse | Compose (pattern) | Compose (components) | Extend | Create
-**Decision**: <component / pattern / composition chosen>
+**Resolution**: Reuse
+**Decision**: Button, `variant="primary"`
+**Source**: recalled `dd-004` | searched "submit action"
+**Principles that apply**: PRIN-FOCUS-VISIBLE, ACME-TARGET-SIZE
+```
+
+A surface that took the full walk gets the full form, because its reasoning is the part someone will want to check:
+
+```markdown
+## Surface: <capability phrase>
+
+**Resolution**: Compose (pattern) | Compose (components) | Extend | Create
+**Decision**: <pattern or composition chosen, or the lab component and its gap record>
 
 **Searched**:
 | Candidate | Source | Verdict |
@@ -141,7 +167,7 @@ gives validation nothing to check, and listing it here would look like coverage.
 A surface with no applicable principle says `none` and why, which is a claim
 somebody can disagree with; a blank line is not.
 
-Honour `gate.min_candidates_considered` from `CONFIG`: a rung may not be rejected on fewer candidates than that. If the design system genuinely offers fewer, say so explicitly rather than padding the table.
+Honour `gate.min_candidates_considered` from `CONFIG` for **Extend and Create**: a surface may not land on either with fewer candidates rejected than that, because that is where new code enters the project on the strength of the search. If the design system genuinely offers fewer, say so explicitly rather than padding the table. Reuse and Compose use what exists, and need no quota.
 
 ### 4. Commit the decision to memory
 
@@ -193,13 +219,15 @@ For each resolved surface, record the constraints the plan must respect, pulled 
 
 Omit a dimension only when the component's own documentation makes it inapplicable, and say which.
 
+For a **Reuse** surface the component's documentation already answers most of this, so refer to it rather than copying it out: `States, accessibility: as documented for Button`. Spell out only what this feature adds on top: a state the component leaves to its caller, a breakpoint behaviour the spec asks for, the tokens the spec names. Copying a component's documentation into every feature produces a second source that drifts from the first.
+
 ### 6. Gate
 
 The gate **fails** when any of these hold:
 
 - a surface has no recorded resolution
 - a Create resolution has no gap record
-- a rung was rejected on fewer candidates than `gate.min_candidates_considered`
+- an Extend or Create resolution rests on fewer rejected candidates than `gate.min_candidates_considered`
 - a dimension in `REQUIRED_DIMENSIONS` from the gate is unanswered for a resolved surface
 
 On failure with `gate.enforce: true`: **ERROR and stop.** Name every unmet condition and what would satisfy it. Do not proceed to planning, and do not soften a Create decision into a Reuse one to get past the gate. An honest Create with a gap report is a pass, a dishonest Reuse is a defect you will pay for in review.
@@ -214,9 +242,10 @@ Report a compact table: surface, resolution, decision. Then state the gate outco
 
 - [ ] Every UI surface was looked up in the ledger before the design system was queried
 - [ ] Every UI surface in the spec appears in `DESIGN_DOC` with a resolution
-- [ ] Each resolution records the candidates searched and why the chosen rung is the lowest that holds
+- [ ] Surfaces that resolved on the short path (Recall, Reuse) stopped there, in the short form
+- [ ] Surfaces that took the full walk record the candidates searched and why the chosen rung is the lowest that holds
 - [ ] Constraints (states, responsive, accessibility, tokens, interaction) are carried forward from real component documentation
-- [ ] Every Create resolution has a gap record
+- [ ] Every Create resolution has a gap record, and what it builds is marked as a lab component
 - [ ] Newly-walked surfaces are recorded in the ledger with aliases and a design system version
 - [ ] Contradicting decisions supersede the old one rather than sitting alongside it
 - [ ] The gate outcome is stated explicitly as pass or fail

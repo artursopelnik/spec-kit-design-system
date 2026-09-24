@@ -199,6 +199,12 @@ also fire as Spec Kit hooks, so they hold for anyone working phase by phase.
 The central rule: **Recall → Reuse → Compose → Extend → Create**. Before a new
 component is proposed or built, each rung is tried in order.
 
+It is strict about what goes in and light on how things are used. Most
+surfaces stop on the short path: an earlier decision is recalled, or one search
+finds a component that covers the surface, and that is the whole walk. The full
+walk, with its candidate tables and a gap record, is reserved for the surfaces
+that would bring something new into your codebase.
+
 | Rung | Question |
 |---|---|
 | 0. Recall | Has another feature already decided this? |
@@ -218,8 +224,11 @@ candidates searched and why each is insufficient. "Doesn't fit" is not a reason.
 and end date", never "a DateRangePicker". Naming the component pre-decides the
 ladder.
 
-**Create is fine, as long as it is visible.** It comes with a gap record, the
-argued case for a new component:
+**Create is fine, as long as it is visible.** What gets built is a *lab
+component*: it lives in your project, is made from the system's own tokens and
+primitives, covers what this feature needs and no more, and is marked as not
+part of the design system. It comes with a gap record, the argued case for
+adding it there:
 
 ```markdown
 # Gap: selection of a start and end date
@@ -239,8 +248,8 @@ validated against each other.
 | Calendar + Popover + two DatePickers | compose | Range validation has to live above both fields, which the composition cannot express without reaching into DatePicker internals |
 
 ## What we are building instead
-A DateRangeField in `src/components/`, built from the system's tokens and its
-Popover primitive.
+A lab DateRangeField in `src/components/`, built from the system's tokens and
+its Popover primitive, and marked as not part of the design system.
 
 ## What the design system could do
 Give DatePicker a range mode, or ship the paired control as a pattern.
@@ -252,7 +261,8 @@ the record exists to argue. That is what separates a real gap your design system
 should close from a search that was not thorough enough.
 
 A genuine gap is sent to your design system's intake when its CLI offers one.
-Otherwise it stays documented in the feature. Either way the outcome goes into
+Otherwise it stays documented in the feature. Whether the lab component ever
+joins the design system is for its owners to decide, in their own process. Either way the outcome goes into
 the ledger, keyed by capability, and that is what Recall reads next time.
 
 ## Your design system

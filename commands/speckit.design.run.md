@@ -82,7 +82,7 @@ When the spec comes back carrying `[NEEDS CLARIFICATION]` markers, resolve them:
 
 ### 3. Plan
 
-`/speckit.plan`. The `before_plan` hook fires `/speckit.design.check`, which walks Recall → Reuse → Compose → Extend → Create for every surface and blocks planning if a surface is unaccounted for.
+`/speckit.plan`. The `before_plan` hook fires `/speckit.design.check`, which walks Recall → Reuse → Compose → Extend → Create for every surface and blocks planning if a surface is unaccounted for. Most surfaces resolve on the short path (Recall or Reuse); the full walk is for the ones where something new would be built.
 
 If the gate fails, fix the cause and re-run it. Do not disable it and do not route around it.
 
