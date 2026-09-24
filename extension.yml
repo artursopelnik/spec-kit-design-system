@@ -98,9 +98,10 @@ config:
       disabled: []
 
     workflow:
-      # Validate -> fix -> validate, bounded. When findings survive this many
-      # rounds the run stops and says so instead of looping.
-      max_validation_rounds: 3
+      # Validate -> fix -> validate, bounded. Round 1 reviews the whole change;
+      # round 2 checks only the fixes. When findings survive both, the run stops
+      # and says so instead of looping.
+      max_validation_rounds: 2
 
     ledger:
       # Consult prior ladder decisions before querying the design system, and
@@ -133,6 +134,10 @@ config:
     validation:
       # Fail validation on hardcoded values where a token exists.
       forbid_raw_values: true
+      # Files where literal values belong, because they define the tokens
+      # (a theme, a tokens file). `ds.sh scan` does not report raw values in
+      # them. Globs relative to the repo root.
+      theme_globs: []
       # Dimensions every UI feature must answer for.
       required_dimensions:
         - states

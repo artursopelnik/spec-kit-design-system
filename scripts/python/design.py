@@ -14,6 +14,7 @@ Subcommands:
     ledger lookup <phrase>   find prior decisions for a capability
     ledger record <file>     append a decision (JSON object on disk or '-')
     ledger list              all active decisions
+    scan [--path <glob>]     raw values and token names in the implementation
     cache stats              how often the design system was actually asked
     cache clear              drop remembered answers for the active feature
 
@@ -1945,6 +1946,14 @@ WORKFLOW_RULES: list[tuple[Any, str, Any]] = [
     (lambda p: bool(p.open_findings), "fix",
      lambda p: f"{len(p.open_findings)} open finding(s) from validation"),
     (lambda p: not p.rounds, "validate", "the implementation has not been validated yet"),
+    # The last allowed round raised findings, and they have been fixed since.
+    # Another round is exactly what the bound refuses, and calling the fixes
+    # checked would let the fixing pass sign off its own work.
+    (lambda p: not p.last_round_clean and not p.may_validate_again, "stop",
+     lambda p: (
+         f"the fixes for round {p.rounds_used}'s findings are unchecked and all "
+         f"{p.rounds_used} validation round(s) are used. This needs a human to review them."
+     )),
     (lambda p: not p.last_round_clean, "validate",
      lambda p: f"round {p.rounds_used} raised findings that are now fixed; they need checking"),
     (lambda p: not p.verified, "verify",
@@ -1987,7 +1996,7 @@ def workflow_status(ds: DesignSystem) -> dict:
     rounds = [int(match) for match in VALIDATION_ROUND.findall(design)]
     open_findings = sorted(set(FINDING_OPEN.findall(design)))
     closed_findings = sorted(set(FINDING_CLOSED.findall(design)))
-    max_rounds = int((ds.config.get("workflow") or {}).get("max_validation_rounds", 3))
+    max_rounds = int((ds.config.get("workflow") or {}).get("max_validation_rounds", 2))
 
     # A round that raised findings does not become clean because they were
     # ticked off. Only a fresh round with nothing in it ends the loop, which is
@@ -2045,6 +2054,171 @@ def workflow_status(ds: DesignSystem) -> dict:
         "next": nxt,
         "reason": reason,
         "complete": nxt == "done",
+    }
+
+
+# --- mechanical scan ------------------------------------------------------------
+
+# What a validation round can settle without judgement. Raw values and token
+# names are string facts about files on disk; spending a model's review on them,
+# once per round, is how validation became the slowest phase. The scan states
+# them, and the review spends its attention on what only a reader can judge.
+SCAN_EXTENSIONS = {
+    ".tsx", ".ts", ".jsx", ".js", ".mjs", ".css", ".scss", ".sass", ".less",
+    ".vue", ".svelte", ".astro", ".html",
+}
+SCAN_SKIP_PARTS = {"node_modules", ".git", "dist", "build", ".next", ".specify", "coverage"}
+SCAN_REPORTED = 200
+
+RAW_VALUE_PATTERNS = (
+    ("color", re.compile(r"(?<![\w&/])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b")),
+    ("color", re.compile(r"\b(?:rgba?|hsla?|oklch|oklab|lab|lch)\([^)]*\)")),
+    # Zero is not a value anyone tokenises, and 1px is the hairline every
+    # system leaves literal; flagging either would bury the real ones.
+    ("length", re.compile(r"(?<![\w.#-])(?!0+(?:\.0+)?(?:px|rem|em)\b)(?!1px\b)\d*\.?\d+(?:px|rem|em)\b")),
+    ("font", re.compile(r"font-family\s*:\s*(?!\s*var\()(?!\s*inherit)[^;}\n]+|fontFamily\s*:\s*['\"][^'\"]+['\"]")),
+)
+COMMENT_LINE = re.compile(r"^\s*(?://|/\*|\*|<!--)")
+# A token as prose names it: `color.surface.inverse`, `space-6`, `space.*`.
+TOKEN_MENTION = re.compile(r"`([a-zA-Z][\w-]*(?:[./][\w*-]+)+|[a-zA-Z][a-zA-Z]*-[\w-]+)`")
+
+
+def token_names(payload: Any, prefix: str = "") -> set[str]:
+    """Every token's dotted name, from a nested token payload.
+
+    A leaf is a scalar, or a mapping that carries its own value (`$value`,
+    `value`), which is how DTCG and Style Dictionary files mark one.
+    """
+    names: set[str] = set()
+    if isinstance(payload, dict):
+        if prefix and any(key in payload for key in ("$value", "value")):
+            return {prefix}
+        for key, value in payload.items():
+            if str(key).startswith("$"):
+                continue
+            path = f"{prefix}.{key}" if prefix else str(key)
+            names |= token_names(value, path) or {path}
+    elif prefix:
+        names.add(prefix)
+    return names
+
+
+def token_spellings(name: str) -> set[str]:
+    """How a token may be written in code: dotted, dashed, or as a CSS variable
+    without its group (`color.surface.inverse` -> `surface-inverse`)."""
+    parts = [p for p in re.split(r"[./-]", name) if p]
+    spellings = {name, "-".join(parts), ".".join(parts), "_".join(parts)}
+    if len(parts) > 2:
+        spellings.add("-".join(parts[1:]))
+    return spellings
+
+
+def scan_sources(root: Path, patterns: list[str]) -> list[Path]:
+    files: set[Path] = set()
+    for pattern in patterns:
+        for path in root.glob(pattern):
+            if (
+                path.is_file()
+                and path.suffix in SCAN_EXTENSIONS
+                and not SCAN_SKIP_PARTS & set(path.relative_to(root).parts)
+            ):
+                files.add(path)
+    return sorted(files)
+
+
+def contract_mentions(texts: list[str], names: set[str]) -> list[str]:
+    """Token names the contract and the spec ask for, in order of first mention.
+
+    A mention counts when its first segment is one of the system's token groups
+    (`color.surface.inverse`), or when it is a real token named without its
+    group, the way a brief usually writes it (`muted-foreground` for
+    `color.muted-foreground`). Anything else, a path like `src/components` or a
+    prop like `aria-label`, is not read as a token that does not exist.
+    """
+    groups = {name.split(".")[0] for name in names}
+    ungrouped = {name.split(".", 1)[1] for name in names if "." in name}
+    seen: dict[str, None] = {}
+    for text in texts:
+        for match in TOKEN_MENTION.finditer(text):
+            name = match.group(1)
+            if re.split(r"[./-]", name)[0] in groups or token_spellings(name) & ungrouped:
+                seen.setdefault(name, None)
+    return list(seen)
+
+
+def scan_implementation(ds: DesignSystem, paths: list[str] | None = None) -> dict:
+    """Raw values and token names in the implementation, stated rather than judged."""
+    validation = ds.config.get("validation") or {}
+    patterns = list(paths or validation.get("source_globs") or [])
+    exempt = list(validation.get("theme_globs") or [])
+    feature = feature_dir(ds.root)
+    notes: list[str] = []
+
+    tokens = ds.ask("tokens")
+    has_tokens = bool(tokens.get("available") and tokens.get("data") not in (None, {}, []))
+    names = token_names(tokens.get("data")) if has_tokens else set()
+    if "tokens" in mapped_capabilities(ds.adapter) and not tokens.get("available"):
+        notes.append(unasked("tokens", tokens))
+    contract = contract_mentions(
+        [read_text(feature / DESIGN_DOC_NAME), read_text(feature / "spec.md")] if feature else [],
+        names,
+    )
+    ungrouped = {name.split(".", 1)[1] for name in names if "." in name}
+    unknown = [
+        name for name in contract
+        if not name.endswith("*")
+        and not token_spellings(name) & (names | ungrouped)
+    ]
+
+    if not patterns:
+        notes.append(
+            "no source files to scan: pass --path, or set validation.source_globs in the config"
+        )
+    files = scan_sources(ds.root, patterns)
+    exempted = {path for path in scan_sources(ds.root, exempt)} if exempt else set()
+
+    raw: list[dict] = []
+    corpus: list[str] = []
+    for path in files:
+        text = read_text(path)
+        corpus.append(text)
+        if path in exempted:
+            continue
+        for number, line in enumerate(text.splitlines(), start=1):
+            if COMMENT_LINE.match(line):
+                continue
+            for kind, pattern in RAW_VALUE_PATTERNS:
+                for match in pattern.finditer(line):
+                    raw.append({
+                        "file": str(path.relative_to(ds.root)),
+                        "line": number,
+                        "kind": kind,
+                        "value": match.group(0).strip()[:80],
+                    })
+    code = "\n".join(corpus)
+    not_seen = [
+        name for name in contract
+        if name not in unknown and not name.endswith("*")
+        and not any(spelling in code for spelling in token_spellings(name))
+    ]
+
+    return {
+        "sources": patterns,
+        "files_scanned": len(files),
+        "theme_files_exempt": len(exempted & set(files)),
+        "has_tokens": has_tokens,
+        "forbid_raw_values": bool(validation.get("forbid_raw_values", True)),
+        # Literal colours, lengths and font stacks outside the theme files.
+        "raw_value_count": len(raw),
+        "raw_values": raw[:SCAN_REPORTED],
+        # Token names design-system.md or the spec asks for.
+        "contract_tokens": contract,
+        # Asked for, but the design system has no token of that name.
+        "unknown_tokens": unknown,
+        # Asked for and real, but written nowhere in the scanned code under any
+        # usual spelling. A lead for the review, not yet a verdict.
+        "tokens_not_seen": not_seen if files else [],
+        "notes": notes,
     }
 
 
@@ -2557,6 +2731,10 @@ def cmd_ledger(args: argparse.Namespace) -> None:
         emit(ledger_record(root, payload))
 
 
+def cmd_scan(args: argparse.Namespace) -> None:
+    emit(scan_implementation(DesignSystem.resolve(), args.path))
+
+
 def cmd_cache(args: argparse.Namespace) -> None:
     cache = DesignSystem.resolve().cache
     if args.action == "clear":
@@ -2634,6 +2812,14 @@ def main() -> None:
         ),
     )
     ledger.set_defaults(func=cmd_ledger)
+
+    scan = sub.add_parser("scan", parents=[common])
+    scan.add_argument(
+        "--path", action="append",
+        help="glob of implementation files, relative to the repo root (repeatable); "
+             "defaults to validation.source_globs",
+    )
+    scan.set_defaults(func=cmd_scan)
 
     cache = sub.add_parser("cache", parents=[common])
     cache.add_argument("action", choices=["stats", "clear"], nargs="?", default="stats")

@@ -105,16 +105,16 @@ Where `DOD_ITEMS` from the gate is non-empty, the team keeps a Definition of Don
 
 The `after_implement` hook fires `/speckit.design.validate`. That command is the checker, and it is deliberately a separate pass with its own prerequisites: the agent that wrote the code is not the one that gets to declare it correct.
 
-Run it as a genuine review, not a confirmation. Its output is a numbered list of findings appended to `design-system.md` as a validation round.
+Run it as a genuine review, not a confirmation. It starts with `ds.sh scan`, which settles raw values and token names mechanically, runs the tests, and then reviews the whole change once. Its output is a numbered list of findings appended to `design-system.md` as a validation round.
 
-### 6. Fix, then validate again
+### 6. Fix, then validate the fixes
 
 ```text
-Validate → findings? ── no ──→ Verify → Done
+Validate → findings? ── no ──→ Verification (same pass) → Done
               │
              yes
               ↓
-             Fix → Validate
+             Fix → Validate the fixes
 ```
 
 For each open finding, make the smallest change that resolves it, then tick it off in `design-system.md`:
@@ -123,43 +123,17 @@ For each open finding, make the smallest change that resolves it, then tick it o
 - [x] DS-F-003 Filter row lost its focus indicator — restored via the system's focus token
 ```
 
-Then re-run `/speckit.design.validate`. It appends the next round.
+Then re-run `/speckit.design.validate`. The second round checks the fixes, what they touched, the scan and the tests; it does not review the whole change again.
 
-`workflow status` returns `may_validate_again: false` once `max_validation_rounds` is used up. When that happens, **stop**. Report the surviving findings, what you tried, and why you think they are not converging. Three rounds that fail the same way is information; a fourth is noise.
+`workflow status` returns `next: "stop"` once `max_validation_rounds` (2 by default) is used up with work still unchecked. When that happens, **stop**. Report the surviving findings, what you tried, and why you think they are not converging. Findings that survive a full review and a round of targeted fixes are information; another round is noise.
 
 A finding you disagree with is not fixed by deleting it. Argue it in the design document, mark it `[x]` with the reasoning, and let the next validation round judge.
 
-### 7. Verify
+### 7. Close
 
-`workflow status` returns `next: "verify"` once validation is clean. This is the
-last pass, over the whole change rather than per finding:
+A clean validation round verifies the whole change against the RFC in the same pass and appends a `## Verification` section to `design-system.md`; the format is in `/speckit.design.validate`. Only then does `workflow status` return `complete: true`.
 
-- Every acceptance criterion in the RFC is met.
-- Every `DS-` requirement in the spec is satisfied.
-- Every principle in force was honoured, or its exception is written down.
-- Every item of the team's Definition of Done is met, where `DOD_ITEMS` is non-empty.
-- The tests the project already has still pass. Run them.
-
-Then record that it happened, by appending a `## Verification` section to
-`design-system.md`. The heading is load-bearing in the same way the validation
-round heading is: `workflow status` reads it to derive the phase, and without it
-the run has no artifact saying this pass ever ran. Say what was checked and what
-the verdict was, not just that it was done:
-
-```markdown
-## Verification — 2026-05-14
-
-RFC acceptance criteria: 3 of 3 met.
-Spec requirements: DS-001 … DS-005 satisfied.
-Principles: `docs` (version 2025.4), all applicable honoured; ACME-DENSITY not
-enforceable (no verify step), noted rather than checked.
-Definition of Done: no file; not checked.
-Tests: 48 passed.
-
-Verdict: the change meets its design requirements.
-```
-
-Only then does `workflow status` return `complete: true`.
+If `workflow status` returns `next: "verify"`, a clean round was written without its `## Verification` section. Add it now, as that command describes, rather than running another round.
 
 The ladder decisions are already recorded: `/speckit.design.check` writes each
 surface it walks, at the moment it walks it, which is the only point where the

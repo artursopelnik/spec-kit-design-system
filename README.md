@@ -45,10 +45,11 @@ What that changes in practice:
 - **It keeps the context lean.** Each phase starts with only what it needs,
   never the whole inventory. Everything else stays one call away, so the agent
   can still ask when it turns out to need it.
-- **It checks its own work.** A separate pass validates the implementation
-  against the spec and the ladder decisions, and runs your design system's lint
-  or token audit when the adapter maps one. Findings go back into
-  implementation, up to 3 rounds.
+- **It checks its own work.** A script settles what needs no judgement (raw
+  values, token names that do not exist, tokens the contract asks for that the
+  code never uses), then a separate pass reviews the implementation against
+  the spec and the ladder decisions once. Findings go back into
+  implementation, and a second round checks only the fixes.
 - **It fits any design system.** A short YAML adapter maps a small capability
   contract onto whatever your system exposes: a CLI, files, or an MCP tool.
 
@@ -176,11 +177,13 @@ Tasks        the plan broken into steps
  ↓
 Implement    against the components' real props, states and tokens
  ↓
-Validate     an independent pass, not the implementer signing off its own work
+Validate     a mechanical scan, then an independent review, not the implementer
+             signing off its own work
  ↓
-Fix          findings feed back in, then validate again
+Fix          findings feed back in; the next round checks only the fixes
  ↓
-Verify       RFC criteria, spec requirements and principles checked over the whole change
+Verify       in the clean round: RFC criteria and spec requirements checked over
+             the whole change
  ↓
 Done
 ```

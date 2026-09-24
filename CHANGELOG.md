@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from the system's tokens and primitives, scoped to the feature, and marked
   as not part of the design system with a pointer to its gap record. Whether
   it joins the design system is for the system's owners to decide.
+- **`ds.sh scan`.** The mechanical half of validation: literal colours,
+  lengths and font stacks in the implementation (with file and line), token
+  names the contract or spec asks for that the design system does not have,
+  and contract tokens written nowhere in the code. Files that define the tokens
+  are exempt through the new `validation.theme_globs`. Every validation round
+  starts from it, so the review spends its attention on what needs a reader.
 - **Call count.** `ds.sh cache stats` reports how often the design system was
   actually asked and how often memory answered instead, per capability, kept
   whether or not caching is on. `ds.sh cache clear` starts the feature over.
@@ -46,6 +52,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The gate checks every token name the spec or its RFC asks for against the
   design system's token list, and marks a name it does not have as
   `[NEEDS CLARIFICATION]` rather than substituting the nearest one.
+- **Validation is one full review and one fix round.** `max_validation_rounds`
+  defaults to 2, down from 3. Round 1 reviews the whole change; round 2 checks
+  only the fixes, what they touched, the scan and the tests. When the last
+  allowed round's findings have been ticked off, `workflow status` now says
+  `stop` rather than asking for a round the bound refuses.
+- **Verify is part of the clean round.** The round with no findings checks the
+  change against the RFC's acceptance criteria and writes `## Verification` in
+  the same pass, instead of a separate phase that re-read everything. `next:
+  verify` remains only for a clean round that omitted the section.
 - `gate.min_candidates_considered` applies only where a surface lands on
   Extend or Create. Reuse and Compose use what exists and need no quota; the
   quota used to pad candidate tables for components used exactly as documented.

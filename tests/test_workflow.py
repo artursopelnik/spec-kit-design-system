@@ -161,14 +161,14 @@ def test_fixing_then_revalidating_reaches_done(status, feature):
 
 
 def test_the_loop_is_bounded(status, feature):
-    """Three rounds that fail the same way is information; a fourth is noise.
-    The run must stop and hand back rather than iterate forever."""
+    """A full review and a round of targeted fixes that still leave findings is
+    information; another round is noise. The run stops and hands back."""
     plan_and_tasks(feature)
-    for round_number in range(1, 4):
+    for round_number in range(1, 3):
         validation_round(feature, round_number, [f"DS-F-00{round_number} **violation** · still wrong"])
 
     result = status()
-    assert result["validation_rounds_used"] == 3
+    assert result["validation_rounds_used"] == 2
     assert result["may_validate_again"] is False
     assert result["next"] == "stop"
     assert "human" in result["reason"]
@@ -267,13 +267,46 @@ def test_verification_does_not_skip_an_open_finding(design, project, feature):
     assert status["complete"] is False
 
 
-def test_the_run_command_states_the_verification_format():
+def test_the_commands_state_the_verification_format():
     """The heading is a contract between the command body and `workflow_status`,
     the same as the validation round heading. If the body stops teaching it, the
-    phase silently stops being reachable."""
-    body = (REPO / "commands" / "speckit.design.run.md").read_text(encoding="utf-8")
-    assert "## Verification" in body
-    assert "design-system.md" in body
+    phase silently stops being reachable. The clean round writes it, so the
+    validate command carries the format; the run command points at it."""
+    validate = (REPO / "commands" / "speckit.design.validate.md").read_text(encoding="utf-8")
+    assert "## Verification — " in validate
+    assert "A clean round closes the run" in validate
+    run = (REPO / "commands" / "speckit.design.run.md").read_text(encoding="utf-8")
+    assert "## Verification" in run and "design-system.md" in run
+
+
+def test_the_default_is_one_full_round_and_one_fix_round(design, project):
+    config = design.load_config(Path.cwd())
+    assert config["workflow"]["max_validation_rounds"] == 2
+
+
+def test_unchecked_fixes_after_the_last_round_stop_the_run(status, feature):
+    """The last allowed round raised findings and they were ticked off since.
+    Asking for another round is what the bound refuses; calling the fixes
+    checked would let the fixing pass sign off its own work."""
+    plan_and_tasks(feature)
+    validation_round(feature, 1, [], fixed=["DS-F-001 **violation** · raw padding"])
+    validation_round(feature, 2, [], fixed=["DS-F-002 **violation** · focus lost"])
+
+    result = status()
+    assert result["open_findings"] == []
+    assert result["may_validate_again"] is False
+    assert result["next"] == "stop"
+    assert "unchecked" in result["reason"] and "human" in result["reason"]
+
+
+def test_a_clean_last_round_still_finishes(status, feature):
+    """The stop rule is for unchecked fixes, not for using every round."""
+    plan_and_tasks(feature)
+    validation_round(feature, 1, [], fixed=["DS-F-001 **violation** · raw padding"])
+    validation_round(feature, 2, [])
+    assert status()["next"] == "verify"
+    verification(feature)
+    assert status()["complete"] is True
 
 
 # --- the format contract, against what a model actually writes ----------------

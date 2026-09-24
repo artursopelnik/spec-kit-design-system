@@ -21,7 +21,7 @@ def test_defaults_come_from_the_extension_manifest(design, project):
     assert config["adapter"] == "auto"
     assert config["gate"]["enforce"] is True
     assert config["ledger"]["match_threshold"] == 0.34
-    assert config["workflow"]["max_validation_rounds"] == 3
+    assert config["workflow"]["max_validation_rounds"] == 2
     assert config["principles"]["default"] is True
 
 
@@ -32,7 +32,7 @@ def test_a_working_config_is_one_line(design, project, write_config):
     config = design.load_config(Path.cwd())
 
     assert config["gate"]["enforce"] is True
-    assert config["workflow"]["max_validation_rounds"] == 3
+    assert config["workflow"]["max_validation_rounds"] == 2
     assert config["validation"]["required_dimensions"]
 
 
