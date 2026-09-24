@@ -34,7 +34,7 @@ Where the RFC came from is not your concern. A file, a GitHub issue, a Jira tick
 
 Without bash: `python3 .specify/extensions/design/scripts/python/design.py gate --json`. Identical behaviour. Every command below has the same fallback, so it is not repeated.
 
-Parse `REACHABLE`, `UNREACHABLE_REASON`, `ADAPTER`, `PRINCIPLES_SOURCE`, `DOD_ITEMS`, `FEATURE_DIR`, `DESIGN_DOC`, `CONFIG`.
+Parse `REACHABLE`, `UNREACHABLE_REASON`, `ADAPTER`, `PRINCIPLES_SOURCE`, `DOD_ITEMS`, `FEATURE_DIR`, `FEATURE_RFC`, `DESIGN_DOC`, `CONFIG`.
 
 **If `REACHABLE` is `false`**: report `UNREACHABLE_REASON` and stop. Do not proceed from a remembered component inventory. A run that invents the design system is worse than no run, because everything downstream will look properly sourced.
 
@@ -74,7 +74,9 @@ Write the answers into the RFC understanding you carry forward. Then run `/speck
 
 ### 2. Specify
 
-`/speckit.specify` creates the feature and the spec. The design system is not consulted yet: that happens once, in the gate before planning.
+`/speckit.specify` creates the feature and the spec. Then save the RFC, as given and with your clarifications appended, to `rfc.md` in the new feature directory (`FEATURE_RFC` from a fresh `ds.sh gate --json`). A spec describes *what*, so it tends to summarise a pasted design brief away; the gate and the scan read `rfc.md` to get it back word for word.
+
+The design system is not consulted yet: that happens once, in the gate before planning.
 
 When the spec comes back carrying `[NEEDS CLARIFICATION]` markers, resolve them from the user where they are product questions. Design questions are answered by the gate in the next step. A marker left standing will be resolved by guessing later, when the guess is more expensive.
 

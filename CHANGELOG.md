@@ -32,6 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and contract tokens written nowhere in the code. Files that define the tokens
   are exempt through the new `validation.theme_globs`. Every validation round
   starts from it, so the review spends its attention on what needs a reader.
+- **A place for the design brief in the RFC.** An optional
+  `## Design guidelines` section in the RFC template, free text, for what a
+  team pastes from its guidelines: light or dark, which variant, which tokens.
+  `ds.sh rfc` returns it as `sections.design` under the usual headings,
+  German ones included (Design-Vorgaben, Gestaltung, Styleguide). The run
+  saves the RFC as `rfc.md` next to the spec (`FEATURE_RFC` in the gate), the
+  gate turns each instruction into a `DS-` requirement with the token that
+  delivers it, and `ds.sh scan` checks its token names too.
 - **Call count.** `ds.sh cache stats` reports how often the design system was
   actually asked and how often memory answered instead, per capability, kept
   whether or not caching is on. `ds.sh cache clear` starts the feature over.

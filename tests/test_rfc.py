@@ -104,3 +104,31 @@ def test_a_short_ui_rfc_is_still_recognized(design):
 def test_a_short_backend_rfc_is_still_not(design):
     text = "# RFC: Retention\n\n## Proposal\nPurge ledger entries older than seven years.\n"
     assert design.parse_rfc(text)["ui_bearing"] is False
+
+
+# --- the design brief ----------------------------------------------------------
+
+
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize(
+    "heading",
+    ["## Design guidelines", "## Design-Vorgaben", "## Gestaltung", "## Look & Feel", "## Styleguide"],
+)
+def test_a_pasted_design_brief_is_its_own_section(design, heading):
+    """Teams paste their guidelines at the end of the RFC under whatever heading
+    their wiki uses. The spec summarises *what*, so this section is how the brief
+    reaches the gate word for word."""
+    rfc = design.parse_rfc(
+        "# RFC: Footer signup\n\n## Problem\nNo way to subscribe.\n\n"
+        f"{heading}\nDunkler Hintergrund `color.surface.inverse`, Abstand `space.6`.\n"
+    )
+    assert "color.surface.inverse" in rfc["sections"]["design"]
+    assert "space.6" in rfc["sections"]["design"]
+
+
+def test_an_rfc_without_a_brief_is_fine(design):
+    rfc = design.parse_rfc("# RFC: Footer signup\n\n## Problem\nNo way to subscribe.\n")
+    assert "design" not in rfc["sections"]
+    assert not any("design" in warning for warning in rfc["warnings"])

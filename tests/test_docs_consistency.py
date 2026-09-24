@@ -244,3 +244,13 @@ def test_the_design_system_is_consulted_once_before_planning():
     assert "principles_source" in check and "query tokens" in check
     for path in PROSE:
         assert "speckit.design.context" not in body(path), f"{path.name} still names the removed command"
+
+
+def test_the_rfc_template_and_the_readme_teach_the_design_brief():
+    """The brief is optional and free text, but it has to have a place, or teams
+    paste it under a heading the parser does not know and the gate never sees it."""
+    template = body(REPO / "templates" / "rfc-template.md")
+    readme = body(REPO / "README.md")
+    assert "## Design guidelines" in template
+    assert "## Design guidelines" in readme
+    assert "no design decisions" not in readme, "the README still forbids the brief"

@@ -42,6 +42,9 @@ CONFIG_NAME = "design-config.yml"
 LOCAL_CONFIG_NAME = "design-config.local.yml"
 LEDGER_NAME = "design-decisions.yml"
 DESIGN_DOC_NAME = "design-system.md"
+# Where the run keeps the RFC it was given, next to the spec made from it, so
+# the gate and the scan can read the brief the spec may have summarised away.
+RFC_NAME = "rfc.md"
 # The team's own Definition of Done, next to the config because it is authored
 # rather than derived. Optional: most projects will not have one.
 DOD_NAME = "definition-of-done.md"
@@ -2160,7 +2163,8 @@ def scan_implementation(ds: DesignSystem, paths: list[str] | None = None) -> dic
     if "tokens" in mapped_capabilities(ds.adapter) and not tokens.get("available"):
         notes.append(unasked("tokens", tokens))
     contract = contract_mentions(
-        [read_text(feature / DESIGN_DOC_NAME), read_text(feature / "spec.md")] if feature else [],
+        [read_text(feature / name) for name in (DESIGN_DOC_NAME, "spec.md", RFC_NAME)]
+        if feature else [],
         names,
     )
     ungrouped = {name.split(".", 1)[1] for name in names if "." in name}
@@ -2231,6 +2235,11 @@ SECTION_ALIASES = {
     "surfaces": ("surfaces", "ui", "user interface", "screens", "user experience"),
     "acceptance": ("acceptance", "success", "criteria", "done when", "requirements"),
     "out_of_scope": ("out of scope", "non-goals", "non goals", "excluded"),
+    # The brief a team pastes in from its guidelines: which tokens, which
+    # variant, light or dark. Free text; the gate checks the token names in it.
+    "design": ("design guidelines", "design brief", "design", "guidelines", "vorgaben",
+               "gestaltung", "styleguide", "style guide", "visual", "look and feel",
+               "look & feel"),
     "open_questions": ("open questions", "questions", "unknowns", "risks"),
 }
 
@@ -2592,6 +2601,9 @@ def cmd_gate(args: argparse.Namespace) -> None:
             "IMPL_PLAN": str(feature / "plan.md") if feature else "",
             "TASKS": str(feature / "tasks.md") if feature else "",
             "DESIGN_DOC": str(feature / DESIGN_DOC_NAME) if feature else "",
+            # The RFC the run saved next to the spec. Empty path when no feature;
+            # the file itself may not exist when Spec Kit was driven by hand.
+            "FEATURE_RFC": str(feature / RFC_NAME) if feature else "",
             "LEDGER": str(ledger_path(root)),
             "LEDGER_COUNT": len(load_ledger(root)["decisions"]),
             # Where the principles came from: cli, adapter or default. `default`

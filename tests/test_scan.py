@@ -167,3 +167,23 @@ def test_a_token_named_without_its_group_is_still_a_token(design, project, write
     assert result["contract_tokens"] == ["muted-foreground"]
     assert result["unknown_tokens"] == []
     assert result["tokens_not_seen"] == []
+
+
+def test_tokens_from_the_saved_rfc_count_as_asked_for(design, system, feature):
+    """The spec may summarise a pasted brief away; the run saves the RFC next to
+    it so the brief's token names are still checked."""
+    (feature / "rfc.md").write_text(
+        "# RFC: Filter\n\n## Design-Vorgaben\nPanel dunkel: `color.surface.inverse`, "
+        "Abstand `space.7`.\n",
+        encoding="utf-8",
+    )
+    result = scan(design)
+    assert result["contract_tokens"] == ["color.surface.inverse", "space.7"]
+    assert result["unknown_tokens"] == ["space.7"]
+
+
+def test_the_gate_names_where_the_rfc_is_kept(design, system, feature, capsys, monkeypatch):
+    monkeypatch.setattr("sys.argv", ["design", "gate", "--json"])
+    design.main()
+    gate = json.loads(capsys.readouterr().out)
+    assert gate["FEATURE_RFC"].endswith("specs/001-booking-filters/rfc.md")

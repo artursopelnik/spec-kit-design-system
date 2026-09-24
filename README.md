@@ -119,8 +119,14 @@ and the code a benchmark case is about:
 ## The RFC you write
 
 An RFC says **what should change and why**, before anyone builds it. It is the
-only input this extension takes. It is not a spec: no component names, no
-implementation, no design decisions. Those come out of the workflow.
+only input this extension takes. It is not a spec: no component names and no
+implementation. Which components to use comes out of the workflow.
+
+What it has to *look* like may already be decided, and then it belongs in the
+RFC: paste your guidelines under a design heading, as free text, naming tokens
+where you know them. The workflow checks every token name against your design
+system, carries the brief into the spec's requirements, and validation checks
+the code uses them.
 
 ```markdown
 # RFC: Newsletter signup in the footer
@@ -139,6 +145,10 @@ Managing or cancelling subscriptions.
 - [ ] A valid email can be submitted
 - [ ] An invalid email shows an error
 - [ ] The visitor sees a confirmation afterwards
+
+## Design guidelines
+Dark footer band: background `color.surface.inverse`, text `color.text.inverse`.
+Field and button sit on one row from `md` up, `space.4` apart.
 
 ## Open questions
 - Double opt-in by email?

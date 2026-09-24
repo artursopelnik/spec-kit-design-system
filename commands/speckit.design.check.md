@@ -27,7 +27,7 @@ Run:
 Where bash is unavailable, call the module directly. It behaves identically:
 `python3 .specify/extensions/design/scripts/python/design.py gate --json`
 
-Parse the JSON for `FEATURE_DIR`, `FEATURE_SPEC`, `DESIGN_DOC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON`, `UI_BEARING`, `PRINCIPLES_SOURCE`, `PRINCIPLES_DISABLED`, `HAS_TOKENS` and `REQUIRED_DIMENSIONS`.
+Parse the JSON for `FEATURE_DIR`, `FEATURE_SPEC`, `DESIGN_DOC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON`, `UI_BEARING`, `FEATURE_RFC`, `PRINCIPLES_SOURCE`, `PRINCIPLES_DISABLED`, `HAS_TOKENS` and `REQUIRED_DIMENSIONS`.
 
 `CAPABILITIES` is what the adapter maps **and** the design system was just reached for: the script spends one real call before reporting any of it, so a CLI that is not installed comes back with nothing rather than with a full contract. An empty list therefore means the source of truth is unavailable. One call is proof of reach, not of every mapping — an individual capability can still answer `available: false` with a `reason`, and that is a failure to ask, never the design system saying it has nothing.
 
@@ -81,7 +81,9 @@ The sources are never merged. `principles` carries the citable ones, each with `
 
 These are the only names that may appear in the spec, the plan and the code: `color.surface.raised`, `space.3`, `md`. Never a hex value, a pixel width, or a name you have not seen come back from one of these calls.
 
-**Names the feature already asks for.** Where the spec, or the RFC behind it, names tokens (a design brief pasted in often does), check each against the token list. A name that is not in it is a typo or a renamed token: do not substitute the nearest one, mark it `[NEEDS CLARIFICATION]` in the spec.
+**What the feature already asks for.** Where `FEATURE_RFC` exists, read its design section: `ds.sh rfc "<FEATURE_RFC>" --json` returns it as `sections.design`, under whatever heading the team used (Design-Vorgaben, Guidelines, Look & Feel). It is free text, often pasted from the team's guidelines, and it is binding: light or dark, which variant, which tokens. Read the spec for the same.
+
+Check every token it names against the token list. A name that is not in it is a typo or a renamed token: do not substitute the nearest one, mark it `[NEEDS CLARIFICATION]` in the spec. The rest of the brief shapes the walk: a Reuse only holds if the component can look the way the brief says.
 
 ### 3. Walk the ladder, per surface
 
@@ -267,7 +269,7 @@ For a **Reuse** surface the component's documentation already answers most of th
 
 `design-system.md` is the contract; the spec states the requirements that come out of it, so the plan and the validation read one set of names. Fill in the `## Design System Requirements` section of `FEATURE_SPEC`. The `design` preset appends it to the spec template; if the preset is not installed, create it at the end of the spec.
 
-Write `DS-` prefixed, testable requirements in the same MUST/SHOULD style as the functional requirements, and only for what this feature needs **beyond** the principles in force:
+Write `DS-` prefixed, testable requirements in the same MUST/SHOULD style as the functional requirements, and only for what this feature needs **beyond** the principles in force. Every instruction in the RFC's design section becomes one, quoted closely enough that its author recognises it, with the token, variant or theme setting that delivers it: that is what carries the brief through planning and into validation.
 
 ```markdown
 ### Requirements
