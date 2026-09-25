@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-25
+
 Closer to what the guides on making a design system AI-ready ask for: spec
 files the agent reads, a closed token layer, an audit that runs without an
 agent, and a sync routine that says what went out of date when the design
@@ -36,6 +38,22 @@ system shipped.
   `DESIGN_SYSTEM_VERSION`, `ledger lookup` uses it, and `ledger record` fills
   it in.
 - `principles.source` may be a Markdown file.
+
+**Upgrading.** Nothing in `design-config.yml` has to change, but these things
+behave differently without it:
+
+- `adapter: auto` now picks `markdown-specs` when `.design-system/specs`
+  exists; before, that project got `static-json`. Set `adapter:` explicitly to
+  keep the old choice.
+- For the library adapters (`mui`, `antd`, `chakra`, `ark-ui`, `radix`) the
+  design system version is now read from the installed package. Ledger
+  decisions recorded against another version are flagged `stale` and re-walked
+  rather than adopted, and the answer cache starts cold once. Set
+  `design_system_version` to pin it.
+- `scan` reports durations, z-indices, opacities and font weights, so a
+  validation round can raise findings the same code did not raise under 0.2.0.
+- Run `ds.sh sync record` once and commit
+  `.specify/memory/design-system-snapshot.json` to start tracking changes.
 
 ## [0.2.0] - 2026-09-24
 
@@ -478,6 +496,7 @@ Issue import and export. The catalog already covers both directions
 The ledger sits in `.specify/memory/` because `memory-loader` already loads
 that directory into agent context.
 
-[Unreleased]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/artursopelnik/spec-kit-design-system/releases/tag/v0.1.0

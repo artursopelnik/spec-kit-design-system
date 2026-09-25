@@ -22,8 +22,8 @@ every user installs.
 
 ```bash
 git checkout main && git pull
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 `.github/workflows/release.yml` runs on the tag. It refuses a tag that
@@ -39,11 +39,11 @@ an unchanged URL, so a recorded `sha256` would stop matching and anyone who
 installed the old one would get something different on reinstall.
 
 ```bash
-# delete the release first (Releases page, or: gh release delete v0.2.0 --yes)
-git push origin :refs/tags/v0.2.0
-git tag -d v0.2.0
-git tag v0.2.0 origin/main
-git push origin v0.2.0
+# delete the release first (Releases page, or: gh release delete v0.3.0 --yes)
+git push origin :refs/tags/v0.3.0
+git tag -d v0.3.0
+git tag v0.3.0 origin/main
+git push origin v0.3.0
 ```
 
 ## Checking the archive
@@ -51,7 +51,7 @@ git push origin v0.2.0
 ```bash
 specify init /tmp/check --integration claude --non-interactive --ignore-agent-tools
 cd /tmp/check
-specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip
+specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.3.0.zip
 specify preset add --dev .specify/extensions/design/preset
 specify extension info design
 ls .specify/extensions/design     # no tests/, no benchmarks/
@@ -60,7 +60,7 @@ ls .specify/extensions/design     # no tests/, no benchmarks/
 The digest for the catalog entry's optional `sha256`:
 
 ```bash
-curl -sL https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip | sha256sum
+curl -sL https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.3.0.zip | sha256sum
 ```
 
 ## Submitting
@@ -75,11 +75,11 @@ The fields, ready to paste:
 | ------------------------- | --------------------------------------------------------------------------------------------------- |
 | Extension ID              | `design`                                                                                            |
 | Extension Name            | `Spec Kit Design System`                                                                            |
-| Version                   | `0.2.0`                                                                                             |
+| Version                   | `0.3.0`                                                                                             |
 | Description               | `Give it an RFC. It runs the Spec Kit workflow and implements the change using your design system.` |
 | Author                    | `artursopelnik`                                                                                     |
 | Repository URL            | `https://github.com/artursopelnik/spec-kit-design-system`                                           |
-| Download URL              | `https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip`              |
+| Download URL              | `https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.3.0.zip`              |
 | License                   | `MIT`                                                                                               |
 | Homepage                  | `https://github.com/artursopelnik/spec-kit-design-system`                                           |
 | Documentation URL         | `https://github.com/artursopelnik/spec-kit-design-system/blob/main/README.md`                       |
@@ -132,7 +132,7 @@ The fields, ready to paste:
 **Example Usage**
 
 ```bash
-specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip
+specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.3.0.zip
 specify preset add --dev .specify/extensions/design/preset
 
 /speckit.design.run docs/rfcs/newsletter-footer.md
@@ -147,8 +147,8 @@ specify preset add --dev .specify/extensions/design/preset
     "id": "design",
     "description": "Give it an RFC. It runs the Spec Kit workflow and implements the change using your design system.",
     "author": "artursopelnik",
-    "version": "0.2.0",
-    "download_url": "https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip",
+    "version": "0.3.0",
+    "download_url": "https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.3.0.zip",
     "repository": "https://github.com/artursopelnik/spec-kit-design-system",
     "homepage": "https://github.com/artursopelnik/spec-kit-design-system",
     "documentation": "https://github.com/artursopelnik/spec-kit-design-system/blob/main/README.md",

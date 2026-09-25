@@ -1,7 +1,7 @@
 # Design System Extension for Spec Kit
 
 [![Spec Kit](https://img.shields.io/badge/spec--kit-extension-blue?logo=github)](https://github.com/github/spec-kit)
-[![Version](https://img.shields.io/badge/version-0.2.0-green)](https://github.com/artursopelnik/spec-kit-design-system/releases)
+[![Version](https://img.shields.io/badge/version-0.3.0-green)](https://github.com/artursopelnik/spec-kit-design-system/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 <p align="center">
@@ -72,7 +72,7 @@ tribal knowledge, there is nothing to ask.
 that ships inside it:
 
 ```bash
-specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip
+specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.3.0.zip
 specify preset add --dev .specify/extensions/design/preset
 ```
 
