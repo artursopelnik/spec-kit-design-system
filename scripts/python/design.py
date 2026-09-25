@@ -15,6 +15,8 @@ Subcommands:
     ledger record <file>     append a decision (JSON object on disk or '-')
     ledger list              all active decisions
     scan [--path <glob>]     raw values and token names in the implementation
+    sync [check|record]      what changed in the design system since the
+                             committed snapshot, and what still names it
     cache stats              how often the design system was actually asked
     cache clear              drop remembered answers for the active feature
 
@@ -345,6 +347,11 @@ def load_config(root: Path) -> dict:
 # Anything detection could not read, reported by the gate rather than swallowed.
 DETECTION_NOTES: list[str] = []
 
+# Where `markdown-specs` looks by default, and what `auto` takes as the sign of
+# a design system written down as spec files. Not `specs/`: that is where Spec
+# Kit keeps its features.
+MARKDOWN_SPECS_DIR = ".design-system/specs"
+
 # Dependency name -> adapter. Ordered: the first match wins.
 LIBRARY_ADAPTERS = (
     ("@mui/material", "mui"),
@@ -378,7 +385,56 @@ def detect_adapter(root: Path, config: dict) -> str:
     for package, adapter_id in LIBRARY_ADAPTERS:
         if package in deps or (package.endswith("/") and any(d.startswith(package) for d in deps)):
             return adapter_id
+    if (base / MARKDOWN_SPECS_DIR).is_dir():
+        return "markdown-specs"
     return "static-json"
+
+
+def detect_version(root: Path, config: dict, adapter_id: str = "") -> tuple[str, str]:
+    """The design system version in use, and where it was read.
+
+    Staleness used to depend on somebody remembering to bump
+    `design_system_version` by hand, so on most projects it was never checked.
+    The package the project already installs knows its own version, so read it:
+
+      1. `design_system_version` in config: an explicit answer wins
+      2. the installed package's own `package.json` (`design_system_package`,
+         else the package the adapter stands for)
+      3. the range the project's `package.json` declares for it
+
+    Returns ("", "") when none of these answers, which callers report as
+    unchecked rather than read as fresh.
+    """
+    explicit = str(config.get("design_system_version") or "").strip()
+    if explicit:
+        return explicit, "config"
+    package = str(config.get("design_system_package") or "").strip()
+    if not package:
+        package = next(
+            (name for name, known in LIBRARY_ADAPTERS if known == adapter_id and not name.endswith("/")),
+            "",
+        )
+    if not package:
+        return "", ""
+    base = root / config["cwd"] if config.get("cwd") else root
+    for directory in (base, root):
+        try:
+            installed = json.loads(
+                (directory / "node_modules" / package / "package.json").read_text(encoding="utf-8")
+            )
+            if isinstance(installed, dict) and installed.get("version"):
+                return str(installed["version"]), f"node_modules/{package}"
+        except (OSError, ValueError):
+            pass
+    try:
+        manifest = json.loads((base / "package.json").read_text(encoding="utf-8"))
+        for key in ("dependencies", "devDependencies", "peerDependencies"):
+            declared = (manifest.get(key) or {}).get(package)
+            if declared:
+                return str(declared), f"package.json ({key})"
+    except (OSError, ValueError, AttributeError):
+        pass
+    return "", ""
 
 
 def load_adapter(root: Path, config: dict) -> dict:
@@ -401,6 +457,8 @@ def load_adapter(root: Path, config: dict) -> dict:
         adapter["source"] = config["source"]
     if config.get("registries"):
         adapter["registries"] = config["registries"]
+    if config.get("tiers"):
+        adapter["tiers"] = {**(adapter.get("tiers") or {}), **config["tiers"]}
     if config.get("capabilities"):
         adapter["capabilities"] = deep_merge(
             adapter.get("capabilities", {}), config["capabilities"]
@@ -494,6 +552,14 @@ class DesignSystem:
     @property
     def adapter_id(self) -> str:
         return self.adapter.get("id", "")
+
+    @property
+    def version(self) -> str:
+        return detect_version(self.root, self.config, self.adapter_id)[0]
+
+    @property
+    def version_source(self) -> str:
+        return detect_version(self.root, self.config, self.adapter_id)[1]
 
     @property
     def probe(self) -> dict:
@@ -628,7 +694,7 @@ class AnswerCache:
             "params": params,
             "adapter": ds.adapter,
             "base": str(ds.base),
-            "version": ds.config.get("design_system_version") or "",
+            "version": ds.version,
         }
         encoded = json.dumps(material, sort_keys=True, default=str)
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:32]
@@ -941,15 +1007,16 @@ class Transport(Protocol):
 
 
 def reads_a_file(spec: dict) -> bool:
-    """Whether a mapping is answered from a file rather than by asking anything."""
-    return bool(spec.get("read_file"))
+    """Whether a mapping is answered from disk rather than by asking anything:
+    one inventory file, or a directory of spec files."""
+    return bool(spec.get("read_file") or spec.get("read_dir"))
 
 
 class FileTransport:
     """A capability answered by reading a file the project already generates."""
 
     def handles(self, request: Request) -> bool:
-        return reads_a_file(request.spec)
+        return bool(request.spec.get("read_file"))
 
     def fetch(self, request: Request) -> Fetched:
         target = substitute(
@@ -976,6 +1043,44 @@ class FileTransport:
                     f"got {type(document).__name__}"
                 ),
             )
+        return Fetched("ok", document=document, source=str(path))
+
+
+class DirectoryTransport:
+    """A capability answered from a directory of Markdown spec files.
+
+    The layout the "AI-ready design system" guides converge on: one file per
+    foundation, token group and component, sorted into tiers
+    (`foundations/`, `tokens/`, `atoms/`, `molecules/`, `organisms/`). Such a
+    system has no inventory file and no CLI, and asking it to generate one
+    would be asking it to restate what it already says.
+
+    The directory is read into the same document shape `static-json` reads, so
+    every strategy works on it unchanged. Which tier lands in which section is
+    the adapter's `tiers` map; the parsing knows Markdown, not any system.
+    """
+
+    def handles(self, request: Request) -> bool:
+        return bool(request.spec.get("read_dir"))
+
+    def fetch(self, request: Request) -> Fetched:
+        target = substitute(
+            [request.spec["read_dir"]],
+            {**request.params, "source": request.adapter.get("source", "")},
+        )
+        if not target:
+            return Fetched(
+                "unreachable",
+                reason=f"'{request.spec['read_dir']}' names no directory; set `source` in the config",
+            )
+        path = request.base / target[0]
+        if not path.is_dir():
+            return Fetched("unreachable", reason=f"{path} is not a directory")
+        document = read_spec_directory(path, request.adapter.get("tiers") or {}, request.base)
+        if not document["files"]:
+            # An empty directory is a path that points at the wrong place far
+            # more often than a design system with nothing in it.
+            return Fetched("unreachable", reason=f"{path} holds no Markdown spec files")
         return Fetched("ok", document=document, source=str(path))
 
 
@@ -1146,7 +1251,9 @@ class McpTransport:
 
 
 # Ordered: the first transport that recognises the mapping is used.
-TRANSPORTS: tuple[Transport, ...] = (FileTransport(), McpTransport(), ProcessTransport())
+TRANSPORTS: tuple[Transport, ...] = (
+    FileTransport(), DirectoryTransport(), McpTransport(), ProcessTransport()
+)
 
 
 class Strategy(Protocol):
@@ -1231,6 +1338,14 @@ class WeightedSearch:
         # Ties break on name so ordering is stable rather than positional.
         hits.sort(key=lambda entry: (-entry["score"], str(entry.get("name", ""))))
         top = hits[:SEARCH_HITS_RETURNED]
+        # A spec file carries its whole body, which is the right answer to
+        # `component` and far too much for twenty search hits. `hit_fields`
+        # trims the hits; the full record stays one `component` call away.
+        keep = [name for name in (spec.get("hit_fields") or []) if name]
+        if keep:
+            top = [
+                {key: hit[key] for key in ["kind", "score", *keep] if key in hit} for hit in top
+            ]
         return Answer.answered(
             request.capability, top, found=bool(hits), source=fetched.source
         )
@@ -1343,6 +1458,166 @@ def surface_kinds(value: str | None) -> list[str] | None:
     return [kind.strip() for kind in value.split(",") if kind.strip()] or None
 
 
+# --- Markdown spec files -----------------------------------------------------
+
+FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.S)
+SPEC_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
+# Where a spec file says how to use it, and where it says what not to do.
+USAGE_HEADING = re.compile(r"\b(usage|when to use|guidelines?|do'?s?\b|best practices?)", re.I)
+AVOID_HEADING = re.compile(r"\b(avoid|don'?ts?|do not|when not to use|anti-?patterns?)\b", re.I)
+# Something a table cell or list item states as a value rather than a label.
+VALUE_LIKE = re.compile(r"^(?:#[0-9a-fA-F]{3,8}|-?\d|\.\d|(?:rgba?|hsla?|oklch|oklab|var|calc)\()")
+LIST_PAIR = re.compile(r"^\s*[-*]\s+`([^`]+)`\s*(?::|=|—|–|-)\s*`?([^`\n]+?)`?\s*$")
+
+
+def parse_frontmatter(text: str) -> tuple[dict, str]:
+    match = FRONTMATTER.match(text)
+    if not match:
+        return {}, text
+    import yaml
+
+    try:
+        meta = yaml.safe_load(match.group(1)) or {}
+    except yaml.YAMLError:
+        # A broken header is still a spec file; read it as plain Markdown.
+        return {}, text
+    return (meta if isinstance(meta, dict) else {}), text[match.end():]
+
+
+def markdown_sections(text: str) -> tuple[str, str, list[tuple[str, str]]]:
+    """The title, the first paragraph under it, and every later section as
+    (heading, body). Headings inside fenced code are not headings."""
+    title = ""
+    intro: list[str] = []
+    sections: list[tuple[str, list[str]]] = []
+    fenced = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        heading = None if fenced else SPEC_HEADING.match(line)
+        if heading and len(heading.group(1)) == 1 and not title and not sections:
+            title = heading.group(2).strip()
+        elif heading:
+            sections.append((heading.group(2).strip(), []))
+        elif sections:
+            sections[-1][1].append(line)
+        else:
+            intro.append(line)
+    paragraph: list[str] = []
+    for line in intro:
+        stripped = line.strip()
+        if not stripped:
+            if paragraph:
+                break
+            continue
+        if stripped.startswith(("|", "```", ">")):
+            if paragraph:
+                break
+            continue
+        paragraph.append(stripped)
+    return title, " ".join(paragraph), [(h, "\n".join(b).strip()) for h, b in sections]
+
+
+def markdown_pairs(text: str) -> dict[str, str]:
+    """Named values a spec file states: table rows whose first cell is a name
+    and a later cell a value, and `- name: value` list items with the name in
+    backticks. Labels are kept as written."""
+    pairs: dict[str, str] = {}
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("|"):
+            cells = [cell.strip().strip("`").strip() for cell in stripped.strip("|").split("|")]
+            if len(cells) < 2 or not cells[0] or set(cells[0]) <= set("-: "):
+                continue
+            value = next((cell for cell in cells[1:] if VALUE_LIKE.match(cell)), None)
+            if value is not None:
+                pairs.setdefault(cells[0], value)
+            continue
+        match = LIST_PAIR.match(line)
+        if match and VALUE_LIKE.match(match.group(2).strip()):
+            pairs.setdefault(match.group(1).strip(), match.group(2).strip())
+    return pairs
+
+
+def token_key(label: str) -> str:
+    """A token label as the rest of the scripts spell tokens: dotted, without
+    the CSS variable's dashes or a preprocessor's sigil. `--color-text` and
+    `$color-text` both become `color.text`; a dotted name is kept."""
+    name = label.strip()
+    if name.startswith("var(") and name.endswith(")"):
+        name = name[4:-1]
+    name = name.lstrip("-$@")
+    return name if "." in name else name.replace("-", ".")
+
+
+def read_spec_directory(path: Path, tiers: dict, base: Path) -> dict:
+    """A directory of Markdown spec files as one inventory document.
+
+    `tiers` maps a top-level folder to the section its files land in:
+    `components`, `patterns`, `foundations`, `tokens` or `principles`. A file
+    in no mapped folder is a foundation, the one section that asks nothing of
+    its shape. Every file's named values are also kept under `values.<stem>`,
+    so a capability like `breakpoints` can point at the one file that states
+    them without the reader knowing which file that is.
+    """
+    document: dict[str, Any] = {
+        "components": [], "patterns": [], "foundations": [], "tokens": {}, "values": {},
+        "files": 0,
+    }
+    principles: list[str] = []
+    for file in sorted(path.rglob("*.md")):
+        relative = file.relative_to(path)
+        if any(part.startswith(".") for part in relative.parts):
+            continue
+        folder = relative.parts[0] if len(relative.parts) > 1 else ""
+        section = tiers.get(folder) or tiers.get(file.stem) or "foundations"
+        text = read_text(file)
+        meta, rest = parse_frontmatter(text)
+        title, description, sections = markdown_sections(rest)
+        pairs = markdown_pairs(rest)
+        document["files"] += 1
+        document["values"].setdefault(file.stem, {}).update(pairs)
+
+        if section == "tokens":
+            for label, value in pairs.items():
+                document["tokens"].setdefault(token_key(label), value)
+            continue
+        if section == "principles":
+            principles.append(rest.strip())
+            continue
+
+        record: dict[str, Any] = {
+            "name": str(meta.get("name") or title or file.stem),
+            "tier": folder or "",
+            "description": str(meta.get("description") or description),
+        }
+        usage = [body for heading, body in sections if USAGE_HEADING.search(heading)]
+        avoid = [
+            body for heading, body in sections
+            if AVOID_HEADING.search(heading) and not USAGE_HEADING.search(heading)
+        ]
+        if usage:
+            record["usage"] = "\n\n".join(usage)
+        if avoid:
+            record["avoid"] = "\n\n".join(avoid)
+        for key, value in meta.items():
+            record.setdefault(str(key), value)
+        try:
+            record["path"] = str(file.relative_to(base))
+        except ValueError:
+            record["path"] = str(file)
+        record["spec"] = rest.strip()
+        document[section if section in ("components", "patterns") else "foundations"].append(
+            record
+        )
+
+    if principles:
+        # Prose, as the system wrote it. Rules it states as MUST/SHOULD are for
+        # it to publish as a principles file; nothing here invents structure.
+        document["principles"] = "\n\n".join(principles)
+    return document
+
+
 def read_structured(path: Path) -> Any:
     """Read a JSON or YAML file. Adapters point at whatever the design system
     already publishes, and that is JSON about as often as it is YAML."""
@@ -1350,6 +1625,10 @@ def read_structured(path: Path) -> Any:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise ValueError(str(exc)) from exc
+    if path.suffix.lower() in {".md", ".markdown"}:
+        # A principles file written as prose, which is how most systems write
+        # them. The reader decides what it can use; the prose is the answer.
+        return parse_frontmatter(text)[1].strip()
     if path.suffix.lower() in {".yml", ".yaml"}:
         # Parsed here rather than through `load_yaml`, which exits the process:
         # a broken inventory is one capability that cannot answer, and the
@@ -1507,7 +1786,7 @@ def resolve_principles(ds: DesignSystem, kinds: list[str] | None = None) -> dict
     attempts: list[dict] = []
 
     spec = (ds.adapter.get("capabilities") or {}).get("principles") or {}
-    is_file_backed = bool(spec.get("read_file"))
+    is_file_backed = reads_a_file(spec)
 
     # 1. The CLI.
     if spec and not is_file_backed:
@@ -2080,6 +2359,18 @@ RAW_VALUE_PATTERNS = (
     # system leaves literal; flagging either would bury the real ones.
     ("length", re.compile(r"(?<![\w.#-])(?!0+(?:\.0+)?(?:px|rem|em)\b)(?!1px\b)\d*\.?\d+(?:px|rem|em)\b")),
     ("font", re.compile(r"font-family\s*:\s*(?!\s*var\()(?!\s*inherit)[^;}\n]+|fontFamily\s*:\s*['\"][^'\"]+['\"]")),
+    # The foundations beyond colour and space that a system tokenises just the
+    # same: motion, stacking, opacity, weight. Where a pattern names a group
+    # `v`, that group is the value reported; the rest is only context.
+    ("duration", re.compile(r"(?<![\w.#-])\d*\.?\d+ms\b")),
+    ("duration", re.compile(
+        r"(?i)(?:transition|animation)[\w-]*['\"]?\s*:\s*[^;}\n]*?(?<![\w.#-])(?P<v>\d*\.?\d+s)\b"
+    )),
+    # 0, 1 and -1 are the stacking every system leaves literal.
+    ("z-index", re.compile(r"(?i)\bz-?index['\"]?\s*:\s*['\"]?(?P<v>-?(?:[2-9]|\d{2,}))\b")),
+    # Fully on and fully off are not a design decision; everything between is.
+    ("opacity", re.compile(r"(?i)\bopacity['\"]?\s*:\s*['\"]?(?P<v>0?\.\d+)")),
+    ("font-weight", re.compile(r"(?i)\bfont-?weight['\"]?\s*:\s*['\"]?(?P<v>[1-9]00)\b")),
 )
 COMMENT_LINE = re.compile(r"^\s*(?://|/\*|\*|<!--)")
 # A token as prose names it: `color.surface.inverse`, `space-6`, `space.*`.
@@ -2104,6 +2395,114 @@ def token_names(payload: Any, prefix: str = "") -> set[str]:
     elif prefix:
         names.add(prefix)
     return names
+
+
+def token_values(payload: Any, prefix: str = "") -> dict[str, str]:
+    """Every token's dotted name and literal value. A DTCG leaf
+    (`{"$value": "#fff", "$type": "color"}`) is one token, not a group."""
+    values: dict[str, str] = {}
+    if isinstance(payload, dict):
+        for leaf in ("$value", "value"):
+            if leaf in payload and not isinstance(payload[leaf], (dict, list)) and prefix:
+                values[prefix] = str(payload[leaf])
+                return values
+        for key, value in payload.items():
+            if str(key).startswith("$"):
+                continue
+            values.update(token_values(value, f"{prefix}.{key}" if prefix else str(key)))
+    elif prefix and isinstance(payload, (str, int, float)) and not isinstance(payload, bool):
+        values[prefix] = str(payload)
+    return values
+
+
+HEX_COLOR = re.compile(r"^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$")
+RGB_COLOR = re.compile(r"^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)\s*(?:[,/]\s*([\d.]+%?)\s*)?\)$")
+LENGTH = re.compile(r"^(-?\d*\.?\d+)(px|rem|em)$")
+DURATION = re.compile(r"^(\d*\.?\d+)(ms|s)$")
+NUMBER = re.compile(r"^-?\d*\.?\d+$")
+# How close a colour has to be, in RGB distance, to be worth naming as the
+# nearest token. Past this the nearest one is a different colour, and saying
+# so would read as a suggestion to use it.
+NEAREST_COLOR_DISTANCE = 24.0
+REM_PX = 16.0
+
+
+def comparable(kind: str, value: str) -> tuple | None:
+    """A value reduced to something another value of its kind can equal:
+    `#FFF` and `rgb(255, 255, 255)` are one colour, `1rem` and `16px` one
+    length, `0.2s` and `200ms` one duration."""
+    text = value.strip().lower()
+    if kind == "color":
+        hex_match = HEX_COLOR.match(text)
+        if hex_match:
+            digits = hex_match.group(1)
+            if len(digits) in (3, 4):
+                digits = "".join(c * 2 for c in digits)
+            alpha = int(digits[6:8], 16) / 255 if len(digits) == 8 else 1.0
+            return ("color", int(digits[0:2], 16), int(digits[2:4], 16), int(digits[4:6], 16),
+                    round(alpha, 2))
+        rgb = RGB_COLOR.match(text)
+        if rgb:
+            alpha_text = rgb.group(4)
+            alpha = 1.0
+            if alpha_text:
+                alpha = float(alpha_text[:-1]) / 100 if alpha_text.endswith("%") else float(alpha_text)
+            return ("color", int(rgb.group(1)), int(rgb.group(2)), int(rgb.group(3)), round(alpha, 2))
+        return None
+    if kind == "length":
+        length = LENGTH.match(text)
+        if length:
+            number = float(length.group(1))
+            return ("length", round(number * (REM_PX if length.group(2) != "px" else 1), 3))
+        return None
+    if kind == "duration":
+        duration = DURATION.match(text)
+        if duration:
+            number = float(duration.group(1))
+            return ("duration", round(number * (1000 if duration.group(2) == "s" else 1), 3))
+        return None
+    if kind in ("z-index", "opacity", "font-weight") and NUMBER.match(text):
+        return (kind, float(text))
+    return None
+
+
+def token_for(kind: str, value: str, tokens: dict[str, str]) -> dict:
+    """The token that already carries this value, stated rather than chosen.
+
+    An exact match is a fact: the system has a name for this value. For a
+    colour or a length with no exact match, the nearest token and how far off
+    it is are reported, so the fix round starts from a candidate instead of a
+    search; whether the nearest one is the right one stays the reviewer's call.
+    """
+    wanted = comparable(kind, value)
+    if wanted is None or not tokens:
+        return {}
+    exact: list[str] = []
+    nearest: tuple[float, str, str] | None = None
+    for name, literal in tokens.items():
+        candidate = comparable(kind, literal)
+        if candidate is None:
+            continue
+        if candidate == wanted:
+            exact.append(name)
+            continue
+        if kind == "color" and candidate[4] == wanted[4]:
+            distance = sum((a - b) ** 2 for a, b in zip(candidate[1:4], wanted[1:4])) ** 0.5
+            if distance <= NEAREST_COLOR_DISTANCE:
+                distance = round(distance, 1)
+            else:
+                continue
+        elif kind == "length":
+            distance = round(abs(candidate[1] - wanted[1]), 3)
+        else:
+            continue
+        if nearest is None or (distance, name) < (nearest[0], nearest[1]):
+            nearest = (distance, name, literal)
+    if exact:
+        return {"tokens": sorted(exact)[:3]}
+    if nearest is not None:
+        return {"nearest": {"token": nearest[1], "value": nearest[2], "distance": nearest[0]}}
+    return {}
 
 
 def token_spellings(name: str) -> set[str]:
@@ -2160,6 +2559,7 @@ def scan_implementation(ds: DesignSystem, paths: list[str] | None = None) -> dic
     tokens = ds.ask("tokens")
     has_tokens = bool(tokens.get("available") and tokens.get("data") not in (None, {}, []))
     names = token_names(tokens.get("data")) if has_tokens else set()
+    values = token_values(tokens.get("data")) if has_tokens else {}
     if "tokens" in mapped_capabilities(ds.adapter) and not tokens.get("available"):
         notes.append(unasked("tokens", tokens))
     contract = contract_mentions(
@@ -2193,12 +2593,15 @@ def scan_implementation(ds: DesignSystem, paths: list[str] | None = None) -> dic
                 continue
             for kind, pattern in RAW_VALUE_PATTERNS:
                 for match in pattern.finditer(line):
-                    raw.append({
+                    value = match.group("v" if "v" in pattern.groupindex else 0).strip()[:80]
+                    entry = {
                         "file": str(path.relative_to(ds.root)),
                         "line": number,
                         "kind": kind,
-                        "value": match.group(0).strip()[:80],
-                    })
+                        "value": value,
+                    }
+                    entry.update(token_for(kind, value, values))
+                    raw.append(entry)
     code = "\n".join(corpus)
     not_seen = [
         name for name in contract
@@ -2222,6 +2625,12 @@ def scan_implementation(ds: DesignSystem, paths: list[str] | None = None) -> dic
         # Asked for and real, but written nowhere in the scanned code under any
         # usual spelling. A lead for the review, not yet a verdict.
         "tokens_not_seen": not_seen if files else [],
+        # The raw values that are violations without argument: a literal where
+        # the system has a token layer and forbids them. The count `--strict`
+        # fails on, together with `unknown_tokens`.
+        "violation_count": (
+            len(raw) if has_tokens and validation.get("forbid_raw_values", True) else 0
+        ) + len(unknown),
         "notes": notes,
     }
 
@@ -2529,6 +2938,249 @@ def ledger_record(root: Path, payload: dict) -> dict:
     return {"recorded": payload["id"], "supersedes": superseded, "ledger": str(ledger_path(root))}
 
 
+# --- sync --------------------------------------------------------------------
+
+SNAPSHOT_NAME = "design-system-snapshot.json"
+FINGERPRINT_CHARS = 12
+
+
+def snapshot_path(root: Path) -> Path:
+    return root / ".specify" / "memory" / SNAPSHOT_NAME
+
+
+def load_snapshot(root: Path) -> dict | None:
+    path = snapshot_path(root)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def is_deprecated(record: Any) -> bool:
+    if not isinstance(record, dict):
+        return False
+    if record.get("deprecated") not in (None, False, "", "false"):
+        return True
+    return "deprecat" in str(record.get("status") or "").lower()
+
+
+def take_snapshot(ds: DesignSystem) -> dict:
+    """What the design system offers right now, reduced to what a change can be
+    seen in: each component's fingerprint and status, each token's value.
+
+    Asked, never assumed. A capability that is mapped and did not answer makes
+    the whole snapshot unavailable, because a partial one would report every
+    component it failed to list as removed.
+    """
+    mapped = mapped_capabilities(ds.adapter)
+    notes: list[str] = []
+    snapshot: dict[str, Any] = {
+        "schema_version": "1.0",
+        "taken": date.today().isoformat(),
+        "version": ds.version,
+        "adapter": ds.adapter_id,
+    }
+
+    if "list_components" not in mapped:
+        return {"available": False, "reason": "the adapter does not map list_components"}
+    listing = ds.ask("list_components")
+    if not listing.get("available"):
+        return {"available": False, "reason": unasked("list_components", listing)}
+    components: dict[str, dict] = {}
+    for item in listing.get("data") or []:
+        name = str(item.get("name") or "") if isinstance(item, dict) else str(item)
+        if not name:
+            continue
+        encoded = json.dumps(item, sort_keys=True, default=str).encode("utf-8")
+        components[name] = {
+            "fingerprint": hashlib.sha256(encoded).hexdigest()[:FINGERPRINT_CHARS],
+            "deprecated": is_deprecated(item),
+        }
+    snapshot["components"] = components
+
+    if "tokens" in mapped:
+        tokens = ds.ask("tokens")
+        if not tokens.get("available"):
+            return {"available": False, "reason": unasked("tokens", tokens)}
+        snapshot["tokens"] = token_values(tokens.get("data"))
+    else:
+        notes.append("the adapter does not map tokens: token changes are not tracked")
+    return {"available": True, "snapshot": snapshot, "notes": notes}
+
+
+def diff_snapshots(before: dict, after: dict) -> dict:
+    old = before.get("components") or {}
+    new = after.get("components") or {}
+    old_tokens = before.get("tokens")
+    new_tokens = after.get("tokens")
+    changes: dict[str, Any] = {
+        "components": {
+            "added": sorted(set(new) - set(old)),
+            "removed": sorted(set(old) - set(new)),
+            "changed": sorted(
+                name for name in set(old) & set(new)
+                if old[name].get("fingerprint") != new[name].get("fingerprint")
+            ),
+            "deprecated": sorted(
+                name for name in new
+                if new[name].get("deprecated") and not (old.get(name) or {}).get("deprecated")
+            ),
+        },
+    }
+    if isinstance(old_tokens, dict) and isinstance(new_tokens, dict):
+        changes["tokens"] = {
+            "added": sorted(set(new_tokens) - set(old_tokens)),
+            "removed": sorted(set(old_tokens) - set(new_tokens)),
+            "changed": sorted(
+                name for name in set(old_tokens) & set(new_tokens)
+                if str(old_tokens[name]) != str(new_tokens[name])
+            ),
+        }
+    return changes
+
+
+def change_count(changes: dict) -> int:
+    return sum(len(names) for group in changes.values() for names in group.values())
+
+
+def reference_patterns(changes: dict) -> list[tuple[str, str, str, re.Pattern]]:
+    """(kind, name, change, pattern) for everything a reference could now be
+    wrong about. Additions are left out: nothing written before them names them."""
+    wanted: list[tuple[str, str, str, re.Pattern]] = []
+    components = changes.get("components") or {}
+    for change in ("removed", "deprecated", "changed"):
+        for name in components.get(change) or []:
+            wanted.append((
+                "component", name, change,
+                re.compile(rf"(?<![\w-]){re.escape(name)}(?![\w-])"),
+            ))
+    tokens = changes.get("tokens") or {}
+    for change in ("removed", "changed"):
+        for name in tokens.get(change) or []:
+            spellings = sorted(token_spellings(name), key=len, reverse=True)
+            wanted.append((
+                "token", name, change,
+                re.compile(
+                    # `--` so a CSS custom property counts: `var(--color-brand)`.
+                    r"(?<![\w.-])(?:--)?(?:"
+                    + "|".join(re.escape(s) for s in spellings)
+                    + r")(?![\w-])"
+                ),
+            ))
+    return wanted
+
+
+def find_references(ds: DesignSystem, changes: dict, paths: list[str] | None) -> dict:
+    """Where the project still names what changed: feature specs, the ledger and
+    the implementation. Stated, not judged: a changed component may still be
+    used correctly, and deciding that is the reader's work."""
+    wanted = reference_patterns(changes)
+    references: list[dict] = []
+    decisions: list[dict] = []
+    if not wanted:
+        return {"references": references, "decisions": decisions}
+
+    specs = sorted((ds.root / "specs").glob("*/*.md")) if (ds.root / "specs").is_dir() else []
+    code_globs = list(paths or (ds.config.get("validation") or {}).get("source_globs") or [])
+    code = scan_sources(ds.root, code_globs) if code_globs else []
+    for where, files in (("spec", specs), ("code", code)):
+        for path in files:
+            for number, line in enumerate(read_text(path).splitlines(), start=1):
+                for kind, name, change, pattern in wanted:
+                    if pattern.search(line):
+                        references.append({
+                            "file": str(path.relative_to(ds.root)),
+                            "line": number,
+                            "where": where,
+                            "kind": kind,
+                            "name": name,
+                            "change": change,
+                        })
+
+    for decision in load_ledger(ds.root)["decisions"]:
+        if decision.get("status") == "superseded":
+            continue
+        text = json.dumps(decision, default=str)
+        hits = [
+            {"kind": kind, "name": name, "change": change}
+            for kind, name, change, pattern in wanted if pattern.search(text)
+        ]
+        if hits:
+            decisions.append({
+                "id": decision.get("id"),
+                "capability": decision.get("capability"),
+                "names": hits,
+            })
+    return {"references": references, "decisions": decisions}
+
+
+def sync_design_system(ds: DesignSystem, record: bool, paths: list[str] | None = None) -> dict:
+    """What moved in the design system since the committed snapshot, and which
+    specs, decisions and code still name it.
+
+    The routine that keeps what a run reads current: the design system ships,
+    `sync` says what changed and where the project is now out of date, and
+    `sync record` takes a new snapshot once that is dealt with. Like `scan`
+    it states and does not judge, and like the gate it fails closed: a design
+    system that could not be asked has changed in some unknown way, never in
+    no way.
+    """
+    before = load_snapshot(ds.root)
+    current = take_snapshot(ds)
+    result: dict[str, Any] = {
+        "snapshot": str(snapshot_path(ds.root)),
+        "snapshot_exists": before is not None,
+        "snapshot_taken": (before or {}).get("taken"),
+        "snapshot_version": (before or {}).get("version") or "",
+        "current_version": ds.version,
+        "version_source": ds.version_source,
+        "available": current["available"],
+        "notes": list(current.get("notes") or []),
+    }
+    if not current["available"]:
+        result["reason"] = current["reason"]
+        result["changes"] = None
+        return result
+
+    snapshot = current["snapshot"]
+    result["components"] = len(snapshot["components"])
+    result["tokens"] = len(snapshot.get("tokens") or {})
+    if before is None:
+        result["changes"] = None
+        if not record:
+            result["notes"].append(
+                "no snapshot yet: run `ds.sh sync record` and commit it"
+            )
+    else:
+        changes = diff_snapshots(before, snapshot)
+        found = find_references(ds, changes, paths)
+        result["changes"] = changes
+        result["change_count"] = change_count(changes)
+        result["reference_count"] = len(found["references"])
+        result["references"] = found["references"][:SCAN_REPORTED]
+        # Decisions that name something that moved, and decisions taken
+        # against another version. Either way Recall must re-walk, not adopt.
+        result["affected_decisions"] = found["decisions"]
+        current_version = ds.version
+        result["stale_decisions"] = [
+            decision.get("id")
+            for decision in load_ledger(ds.root)["decisions"]
+            if decision.get("status") != "superseded" and current_version
+            and decision.get("design_system_version")
+            and decision.get("design_system_version") != current_version
+        ]
+
+    if record:
+        path = snapshot_path(ds.root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        result["recorded"] = True
+    return result
+
+
 # --- gate --------------------------------------------------------------------
 
 
@@ -2625,6 +3277,13 @@ def cmd_gate(args: argparse.Namespace) -> None:
             "DOD_ERROR": dod["error"],
             "ADAPTER": ds.adapter_id,
             "ADAPTER_NAME": ds.adapter.get("name", ""),
+            # The version in use, read from config or the installed package,
+            # and where from. Empty means staleness cannot be checked.
+            "DESIGN_SYSTEM_VERSION": ds.version,
+            "DESIGN_SYSTEM_VERSION_SOURCE": ds.version_source,
+            # The version the committed `ds.sh sync` snapshot was taken at.
+            # Differing from the above means the design system moved since.
+            "SYNC_SNAPSHOT_VERSION": (load_snapshot(root) or {}).get("version") or "",
             # Empty when the design system could not actually be reached. The
             # commands treat that as a gate failure, not a pass.
             "CAPABILITIES": probe["capabilities"],
@@ -2708,6 +3367,15 @@ def cmd_query(args: argparse.Namespace) -> None:
     emit(result)
 
 
+def project_version(root: Path, config: dict) -> str:
+    """`detect_version` without resolving the adapter file, for the commands
+    that never ask the design system anything."""
+    adapter_id = config.get("adapter") or "auto"
+    if adapter_id == "auto":
+        adapter_id = detect_adapter(root, config)
+    return detect_version(root, config, adapter_id)[0]
+
+
 def cmd_ledger(args: argparse.Namespace) -> None:
     root = repo_root()
     config = load_config(root)
@@ -2722,7 +3390,7 @@ def cmd_ledger(args: argparse.Namespace) -> None:
         threshold = args.threshold
         if threshold is None:
             threshold = float((config.get("ledger") or {}).get("match_threshold", 0.34))
-        current_version = args.current_version or config.get("design_system_version")
+        current_version = args.current_version or project_version(root, config) or None
         emit(ledger_lookup(root, args.value, threshold, current_version))
     elif args.action == "record":
         if args.value in (None, "-"):
@@ -2740,11 +3408,42 @@ def cmd_ledger(args: argparse.Namespace) -> None:
             die(f"decision payload is not valid JSON: {exc}")
         if not isinstance(payload, dict):
             die("decision payload must be a JSON object")
+        # A decision without the version it was taken against can never be
+        # flagged stale. Where the version can be read, record it.
+        if not payload.get("design_system_version"):
+            version = project_version(root, config)
+            if version:
+                payload["design_system_version"] = version
         emit(ledger_record(root, payload))
 
 
+def strict_exit(failed: bool, result: dict, args: argparse.Namespace) -> None:
+    """Emit, then exit non-zero when `--strict` asked for a verdict and there
+    is one. Every other call keeps the one-JSON-object, exit-zero contract;
+    only a CI job that opts in gets an exit code to fail on."""
+    if getattr(args, "strict", False):
+        result["strict"] = True
+        result["failed"] = failed
+    emit(result)
+    if getattr(args, "strict", False) and failed:
+        sys.exit(1)
+
+
 def cmd_scan(args: argparse.Namespace) -> None:
-    emit(scan_implementation(DesignSystem.resolve(), args.path))
+    result = scan_implementation(DesignSystem.resolve(), args.path)
+    # Nothing scanned is not a pass: a glob that matches nothing in CI would
+    # otherwise go green forever.
+    strict_exit(bool(result["violation_count"]) or not result["files_scanned"], result, args)
+
+
+def cmd_sync(args: argparse.Namespace) -> None:
+    result = sync_design_system(DesignSystem.resolve(), args.action == "record", args.path)
+    failed = (
+        not result["available"]
+        or (args.action == "check" and not result["snapshot_exists"])
+        or bool(result.get("reference_count") or result.get("affected_decisions"))
+    )
+    strict_exit(failed, result, args)
 
 
 def cmd_cache(args: argparse.Namespace) -> None:
@@ -2820,7 +3519,8 @@ def main() -> None:
         default=None,
         help=(
             "the design system version in use now, so prior decisions taken against "
-            "an older one are flagged stale; falls back to design_system_version in config"
+            "an older one are flagged stale; falls back to design_system_version in "
+            "config, then to the installed design system package's version"
         ),
     )
     ledger.set_defaults(func=cmd_ledger)
@@ -2831,7 +3531,26 @@ def main() -> None:
         help="glob of implementation files, relative to the repo root (repeatable); "
              "defaults to validation.source_globs",
     )
+    scan.add_argument(
+        "--strict", action="store_true",
+        help="exit 1 when there are violations or nothing was scanned, for CI; "
+             "the JSON is emitted either way",
+    )
     scan.set_defaults(func=cmd_scan)
+
+    sync = sub.add_parser("sync", parents=[common])
+    sync.add_argument("action", choices=["check", "record"], nargs="?", default="check")
+    sync.add_argument(
+        "--path", action="append",
+        help="glob of implementation files to search for changed names (repeatable); "
+             "defaults to validation.source_globs",
+    )
+    sync.add_argument(
+        "--strict", action="store_true",
+        help="exit 1 when the design system could not be asked, there is no snapshot, "
+             "or something the project names has changed; for CI",
+    )
+    sync.set_defaults(func=cmd_sync)
 
     cache = sub.add_parser("cache", parents=[common])
     cache.add_argument("action", choices=["stats", "clear"], nargs="?", default="stats")

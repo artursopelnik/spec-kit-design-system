@@ -45,7 +45,7 @@ Use `validation.source_globs` from `CONFIG` if set. Otherwise infer the implemen
 
 The scan states what needs no judgement, and each of these is a finding without further argument:
 
-- **`raw_values`**: when `validation.forbid_raw_values` is true and `has_tokens` is true, every literal colour, length or font stack is a **violation**. Report the token that should have been used, not just the value. Files that define the tokens are exempt through `validation.theme_globs`; a literal the design system genuinely has no token for is a **note** that says so.
+- **`raw_values`**: when `validation.forbid_raw_values` is true and `has_tokens` is true, every literal colour, length, font stack, duration, z-index, opacity or font weight is a **violation**. Report the token that should have been used, not just the value. Where the scan found one it says so: `tokens` names the tokens that carry exactly this value, which is the fix; `nearest` names the closest colour or length token and how far off it is, which is a candidate to confirm against the contract, not a fix to apply blindly. Files that define the tokens are exempt through `validation.theme_globs`; a literal the design system genuinely has no token for is a **note** that says so.
 - **`unknown_tokens`**: the contract or the spec names a token the design system does not have. A **violation**: a typo, or a token renamed since the spec was written.
 - **`tokens_not_seen`**: a real token the contract asks for appears nowhere in the scanned code under any usual spelling. Look where it belongs: if the surface uses it under a spelling the scan does not know, move on; if it is not used, that is a **violation**.
 

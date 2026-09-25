@@ -1,7 +1,7 @@
 # Design System Extension for Spec Kit
 
 [![Spec Kit](https://img.shields.io/badge/spec--kit-extension-blue?logo=github)](https://github.com/github/spec-kit)
-[![Version](https://img.shields.io/badge/version-0.2.0-green)](https://github.com/artursopelnik/spec-kit-design-system/releases)
+[![Version](https://img.shields.io/badge/version-0.3.0-green)](https://github.com/artursopelnik/spec-kit-design-system/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 <p align="center">
@@ -72,7 +72,7 @@ tribal knowledge, there is nothing to ask.
 that ships inside it:
 
 ```bash
-specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.2.0.zip
+specify extension add design --from https://github.com/artursopelnik/spec-kit-design-system/archive/refs/tags/v0.3.0.zip
 specify preset add --dev .specify/extensions/design/preset
 ```
 
@@ -298,12 +298,22 @@ read, or an MCP tool. One adapter can mix all three.
 | `radix` | [Radix UI](https://www.radix-ui.com), via an inventory file |
 | `ark-ui` | [Ark UI](https://ark-ui.com), via an inventory file |
 | `static-json` | Any system with no CLI: point it at a generated inventory file |
+| `markdown-specs` | A design system written down as a folder of Markdown spec files (`foundations/`, `tokens/`, `atoms/`, `molecules/`, `organisms/`), read as it is |
 | `example` | Template to copy for your own CLI |
 
 The library adapters read an inventory file your project generates (default
 `.design-system/inventory.json`, shape in
 [adapters/static-json.yml](adapters/static-json.yml)), because those libraries
 have no CLI to ask. Without the file the gate stops rather than guess.
+
+If your design system is already written down as one Markdown file per
+foundation, token group and component, as the guides on making a design system
+AI-ready recommend, there is nothing to generate: `markdown-specs` reads the
+folder (default `.design-system/specs`, picked by `auto` when it exists). Each
+file's title, first paragraph, *Usage* and *Don'ts* sections and front matter
+become the component record, and the token tables under `tokens/` (a name
+and its value per row) become the closed set of names the agent chooses from. Layout and
+tier names: [adapters/markdown-specs.yml](adapters/markdown-specs.yml).
 
 Adapters only map. They never hold rules or component knowledge, otherwise your
 design system would stop being the source of truth. Writing one:
@@ -370,7 +380,7 @@ For most projects the whole file
 (`.specify/extensions/design/design-config.yml`) is one line:
 
 ```yaml
-adapter: shadcn   # or auto (default), mui, antd, chakra, radix, ark-ui, static-json, your own
+adapter: shadcn   # or auto (default), mui, antd, chakra, radix, ark-ui, static-json, markdown-specs, your own
 ```
 
 Everything else is optional and documented in
@@ -380,6 +390,33 @@ monorepos, a principles `source`, a `dod.source`, per-capability overrides,
 while adopting.
 `SPECKIT_DESIGN_*` environment variables and a gitignored
 `design-config.local.yml` override the committed config.
+
+### Keeping it current
+
+A design system ships; what the project wrote against the old one does not
+update itself. Two commands keep that visible, and both run in CI:
+
+```bash
+ds=.specify/extensions/design/scripts/bash/ds.sh
+$ds sync record            # once: snapshot what the design system offers, and commit it
+$ds sync --strict          # later: what was removed, deprecated or changed since,
+                           # and which specs, ledger decisions and code still name it
+$ds scan --strict --path "src/**/*.tsx"   # hardcoded values where a token exists
+```
+
+`sync` compares the design system's components and tokens with the committed
+snapshot (`.specify/memory/design-system-snapshot.json`) and lists every line in
+`specs/`, the implementation and the decision ledger that names something that
+moved. After the references are dealt with, `sync record` takes the new
+snapshot. `scan` reports literal colours, lengths, font stacks, durations,
+z-indices, opacities and font weights, and names the token that already carries
+the value where there is one. Without `--strict` both only report; with it they
+exit 1, so a pipeline can fail on them. A design system that cannot be asked
+fails the check rather than passing it.
+
+The version prior decisions are checked against is read from the installed
+design system package (or `design_system_package`, or `design_system_version` in
+config), so staleness no longer depends on someone remembering to bump a number.
 
 ## Does it actually help?
 
@@ -406,7 +443,8 @@ Three layers, only the first is public:
   order, and what not to accept.
 - **One script** (`scripts/python/design.py`, with a bash shim): prerequisites,
   capability dispatch, principles, focused context, workflow position, RFC
-  parsing, the ledger. Always emits JSON.
+  parsing, the ledger, the implementation scan and the design system sync.
+  Always emits JSON.
 - **Adapters** (`adapters/`): declarative YAML, no code.
 
 There is no run-state file. Workflow position is read from the artifacts the

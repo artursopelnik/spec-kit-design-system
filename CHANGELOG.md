@@ -6,6 +6,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-25
+
+Closer to what the guides on making a design system AI-ready ask for: spec
+files the agent reads, a closed token layer, an audit that runs without an
+agent, and a sync routine that says what went out of date when the design
+system shipped.
+
+### Added
+
+- `markdown-specs` adapter: reads a design system written down as a folder of
+  Markdown spec files (`foundations/`, `tokens/`, `atoms/`, `molecules/`,
+  `organisms/`) as it is, with no inventory to generate. Front matter, title,
+  first paragraph, *Usage* and *Don'ts* sections become the component record;
+  token tables become the token set. `auto` picks it when
+  `.design-system/specs` exists. A new `DirectoryTransport` carries it, and
+  `hit_fields` keeps search hits from carrying whole files.
+- `ds.sh sync`: diffs the design system's components and tokens against a
+  committed snapshot and lists every spec line, ledger decision and source line
+  that names something removed, deprecated or changed. `sync record` takes the
+  snapshot. The gate reports `SYNC_SNAPSHOT_VERSION`, and the check command runs
+  `sync` before Recall when the design system has moved.
+- `ds.sh scan` reports durations, z-indices, opacities and font weights as raw
+  values, and names the token that already carries a value (`tokens`) or the
+  nearest colour or length token (`nearest`).
+- `--strict` on `scan` and `sync`: exit 1 on violations, for CI. Without it
+  both keep the one-JSON-object, exit-zero contract.
+- The design system version is read from the installed package
+  (`design_system_package`, or the package the adapter stands for) when
+  `design_system_version` is not set. The gate reports it as
+  `DESIGN_SYSTEM_VERSION`, `ledger lookup` uses it, and `ledger record` fills
+  it in.
+- `principles.source` may be a Markdown file.
+
+**Upgrading.** Nothing in `design-config.yml` has to change, but these things
+behave differently without it:
+
+- `adapter: auto` now picks `markdown-specs` when `.design-system/specs`
+  exists; before, that project got `static-json`. Set `adapter:` explicitly to
+  keep the old choice.
+- For the library adapters (`mui`, `antd`, `chakra`, `ark-ui`, `radix`) the
+  design system version is now read from the installed package. Ledger
+  decisions recorded against another version are flagged `stale` and re-walked
+  rather than adopted, and the answer cache starts cold once. Set
+  `design_system_version` to pin it.
+- `scan` reports durations, z-indices, opacities and font weights, so a
+  validation round can raise findings the same code did not raise under 0.2.0.
+- Run `ds.sh sync record` once and commit
+  `.specify/memory/design-system-snapshot.json` to start tracking changes.
+
 ## [0.2.0] - 2026-09-24
 
 Faster, simpler, and closer to the RFC. A run asks the design system each
@@ -447,6 +496,7 @@ Issue import and export. The catalog already covers both directions
 The ledger sits in `.specify/memory/` because `memory-loader` already loads
 that directory into agent context.
 
-[Unreleased]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/artursopelnik/spec-kit-design-system/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/artursopelnik/spec-kit-design-system/releases/tag/v0.1.0

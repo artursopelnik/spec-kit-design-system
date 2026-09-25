@@ -187,3 +187,95 @@ def test_the_gate_names_where_the_rfc_is_kept(design, system, feature, capsys, m
     design.main()
     gate = json.loads(capsys.readouterr().out)
     assert gate["FEATURE_RFC"].endswith("specs/001-booking-filters/rfc.md")
+
+
+# --- the foundations beyond colour and space ----------------------------------
+
+
+def test_motion_stacking_opacity_and_weight_are_raw_values_too(design, system, feature):
+    source(system, "Toast.css", """\
+        .toast {
+          transition: opacity 0.2s ease-out;
+          animation-duration: 150ms;
+          z-index: 999;
+          opacity: .64;
+          font-weight: 600;
+        }
+        """)
+    source(system, "Toast.tsx", 'const s = { zIndex: 50, fontWeight: "700", opacity: 0.5 };\n')
+    found = {(r["file"], r["kind"], r["value"]) for r in scan(design)["raw_values"]}
+    assert ("src/Toast.css", "duration", "0.2s") in found
+    assert ("src/Toast.css", "duration", "150ms") in found
+    assert ("src/Toast.css", "z-index", "999") in found
+    assert ("src/Toast.css", "opacity", ".64") in found
+    assert ("src/Toast.css", "font-weight", "600") in found
+    assert ("src/Toast.tsx", "z-index", "50") in found
+    assert ("src/Toast.tsx", "font-weight", "700") in found
+    assert ("src/Toast.tsx", "opacity", "0.5") in found
+
+
+def test_the_values_no_system_tokenises_stay_quiet(design, system, feature):
+    source(system, "Ok.css", ".x { z-index: 1; opacity: 0; opacity: 1; font-weight: bold; }\n")
+    assert scan(design)["raw_values"] == []
+
+
+def test_a_raw_value_names_the_token_that_already_carries_it(design, system, feature):
+    source(system, "Card.css", """\
+        .card { color: #FFF; padding: 0.75rem; background: rgb(17, 17, 17); }
+        .card { margin: 13px; border-color: #121212; }
+        """)
+    by_value = {r["value"]: r for r in scan(design)["raw_values"]}
+    assert by_value["#FFF"]["tokens"] == ["color.surface.raised"]
+    assert by_value["0.75rem"]["tokens"] == ["space.3"]
+    assert by_value["rgb(17, 17, 17)"]["tokens"] == ["color.surface.inverse"]
+    # No exact match: the nearest one, and how far off it is. A candidate, not
+    # a verdict.
+    assert by_value["13px"]["nearest"] == {"token": "space.3", "value": "12px", "distance": 1.0}
+    assert by_value["#121212"]["nearest"]["token"] == "color.surface.inverse"
+
+
+def test_a_colour_far_from_every_token_names_none(design, system, feature):
+    source(system, "Odd.css", ".x { color: #ff00aa; }\n")
+    (entry,) = scan(design)["raw_values"]
+    assert "tokens" not in entry and "nearest" not in entry
+
+
+def test_dtcg_values_are_read_as_one_token(design):
+    payload = {"color": {"bg": {"$value": "#fff", "$type": "color"}}, "space": {"1": {"value": "4px"}}}
+    assert design.token_values(payload) == {"color.bg": "#fff", "space.1": "4px"}
+
+
+def run_strict(design, capsys, monkeypatch, argv):
+    monkeypatch.setattr("sys.argv", ["design", *argv])
+    code = 0
+    try:
+        design.main()
+    except SystemExit as exc:
+        code = exc.code
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert len(lines) == 1
+    return code, json.loads(lines[0])
+
+
+def test_strict_scan_fails_ci_on_a_violation(design, system, feature, capsys, monkeypatch):
+    source(system, "A.css", ".x { padding: 12px; }\n")
+    code, result = run_strict(design, capsys, monkeypatch, ["scan", "--strict"])
+    assert code == 1 and result["failed"] is True and result["violation_count"] == 1
+
+
+def test_strict_scan_passes_clean_code(design, system, feature, capsys, monkeypatch):
+    source(system, "A.css", ".x { padding: var(--space-3); }\n")
+    code, result = run_strict(design, capsys, monkeypatch, ["scan", "--strict"])
+    assert code == 0 and result["failed"] is False
+
+
+def test_strict_scan_of_nothing_is_not_a_pass(design, system, feature, capsys, monkeypatch):
+    """A glob that matches nothing would otherwise keep CI green forever."""
+    code, result = run_strict(design, capsys, monkeypatch, ["scan", "--strict", "--path", "nope/**"])
+    assert code == 1 and result["files_scanned"] == 0
+
+
+def test_without_strict_a_violation_still_exits_zero(design, system, feature, capsys, monkeypatch):
+    source(system, "A.css", ".x { padding: 12px; }\n")
+    code, result = run_strict(design, capsys, monkeypatch, ["scan"])
+    assert code in (0, None) and "failed" not in result

@@ -27,7 +27,7 @@ Run:
 Where bash is unavailable, call the module directly. It behaves identically:
 `python3 .specify/extensions/design/scripts/python/design.py gate --json`
 
-Parse the JSON for `FEATURE_DIR`, `FEATURE_SPEC`, `DESIGN_DOC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON`, `UI_BEARING`, `FEATURE_RFC`, `PRINCIPLES_SOURCE`, `PRINCIPLES_DISABLED`, `HAS_TOKENS` and `REQUIRED_DIMENSIONS`.
+Parse the JSON for `FEATURE_DIR`, `FEATURE_SPEC`, `DESIGN_DOC`, `CONFIG`, `ADAPTER`, `CAPABILITIES`, `REACHABLE`, `UNREACHABLE_REASON`, `UI_BEARING`, `FEATURE_RFC`, `PRINCIPLES_SOURCE`, `PRINCIPLES_DISABLED`, `HAS_TOKENS`, `REQUIRED_DIMENSIONS`, `DESIGN_SYSTEM_VERSION` and `SYNC_SNAPSHOT_VERSION`.
 
 `CAPABILITIES` is what the adapter maps **and** the design system was just reached for: the script spends one real call before reporting any of it, so a CLI that is not installed comes back with nothing rather than with a full contract. An empty list therefore means the source of truth is unavailable. One call is proof of reach, not of every mapping — an individual capability can still answer `available: false` with a `reason`, and that is a failure to ask, never the design system saying it has nothing.
 
@@ -99,7 +99,15 @@ So every surface starts on the short path and leaves it only when the short path
 .specify/extensions/design/scripts/bash/ds.sh ledger lookup "<capability phrase>" --current-version "<version>"
 ```
 
-Get `<version>` from the design system itself where the adapter maps `describe`, otherwise from its package version or `design_system_version` in config. Without it the lookup reports `"staleness_checked": false` and every `stale` flag comes back `null`, meaning unknown, which is not the same as fresh. Do not read an unchecked decision as a verified-current one.
+`<version>` is `DESIGN_SYSTEM_VERSION`, which the gate read from `design_system_version` in config or from the installed design system package; the lookup falls back to the same value when the flag is left out. Where it is empty, ask the design system (`ds.sh query describe`) if the adapter maps it. Without a version the lookup reports `"staleness_checked": false` and every `stale` flag comes back `null`, meaning unknown, which is not the same as fresh. Do not read an unchecked decision as a verified-current one.
+
+**If `SYNC_SNAPSHOT_VERSION` is set and differs from `DESIGN_SYSTEM_VERSION`**, the design system has shipped since the project last took stock. Before the first lookup, run:
+
+```
+.specify/extensions/design/scripts/bash/ds.sh sync --json
+```
+
+It names what was removed, deprecated or changed, and every decision in `affected_decisions` must be re-walked from Rung 1 rather than adopted, exactly like a `stale` match. Do not run `sync record` from here: taking a new snapshot is a statement that the whole project has been brought up to date, and this command has only looked at one feature.
 
 If the first wording misses, try one other before concluding there is nothing. A prior decision is returned with a `match_score` and a `stale` flag. When `ledger.enabled` in `CONFIG` is false the project keeps no ledger: skip this rung and step 5, and say so once in the completion report.
 
@@ -242,7 +250,7 @@ is gone, and two spellings of one rung are two answers to one question.
 Three fields decide whether this ledger is worth having:
 
 - **`aliases`**: record every wording you actually searched with, including the ones that missed. These are what make a future lookup hit when the next author phrases the same need differently. A decision with no aliases is a decision that will be re-derived.
-- **`design_system_version`**: so a later lookup can tell that the system has moved on. Get it from the CLI (`ds.sh query describe`) where available; otherwise from the design system package's version.
+- **`design_system_version`**: so a later lookup can tell that the system has moved on. Use `DESIGN_SYSTEM_VERSION`; where it is empty, get it from the CLI (`ds.sh query describe`). Left out, `ledger record` fills it in from the same source the gate used, when there is one.
 - **`decided_in`**: the feature that took the decision, so a later reader can go and see the argument rather than just the verdict. This is the only name for it; `feature` is folded into it.
 
 Do not record a surface that was adopted unchanged from a prior decision, because it is already there. When re-walking produced a *different* answer, add `"supersedes": "<id>"` so the old decision is retired rather than left to contradict the new one.

@@ -194,10 +194,11 @@ def test_search_scores_are_not_all_equal(design, project, write_config, inventor
 
 ADAPTER_KEYS = {
     "id", "name", "bin", "global_args", "envelope", "source", "registries", "capabilities",
+    "tiers",
 }
 CAPABILITY_KEYS = {
     "args", "bin", "read_file", "result_path", "result_paths", "pick", "key_field",
-    "search_keys", "match_fields", "defaults", "not_found_codes",
+    "search_keys", "match_fields", "defaults", "not_found_codes", "read_dir", "hit_fields",
 }
 
 

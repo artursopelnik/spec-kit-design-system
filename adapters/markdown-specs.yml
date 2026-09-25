@@ -1,0 +1,94 @@
+# Adapter: Markdown spec files, for a design system written down as a folder
+#
+# The layout the "make your design system AI-ready" guides recommend: one
+# Markdown file per foundation, token group and component, sorted by tier.
+#
+#   .design-system/specs/
+#     foundations/   color.md, typography.md, spacing.md, breakpoints.md, ...
+#     tokens/        color-tokens.md, spacing-tokens.md, ...
+#     atoms/         button.md, input.md, ...
+#     molecules/     tabs.md, dropdown-menu.md, modal-dialog.md, ...
+#     organisms/     table.md, page-header.md, ...
+#     principles.md  (optional) your principles, do's and don'ts, house policy
+#
+#   # design-config.yml
+#   adapter: markdown-specs
+#   source: "design-system/specs"   # default: .design-system/specs
+#
+# Nothing to convert and no inventory to generate: the files are read as they
+# are. What the reader takes from each one:
+#
+#   name         YAML front matter `name:`, else the `# Title`, else the file name
+#   description  front matter `description:`, else the first paragraph
+#   usage/avoid  the sections headed Usage / When to use / Do's, and
+#                Avoid / Don'ts / When not to use
+#   tokens       every `| \`name\` | value |` row and `- \`name\`: value` item in
+#                a file under a `tokens` tier; `--color-text` is read as
+#                `color.text`
+#   spec         the whole file, so `component Button` hands back what you wrote
+#
+# Any other front matter key (status, since, owner, ...) is carried on the
+# record as written. `status: deprecated` is what `ds.sh sync` reports as a
+# deprecation.
+#
+# `tiers` below says which folder is which section. Rename a folder, or add
+# one (`templates: patterns`), here or under `tiers:` in design-config.yml.
+# A file in no mapped folder is read as a foundation: searchable, never a
+# component.
+
+id: markdown-specs
+name: "Markdown spec files"
+bin: ""
+
+source: ".design-system/specs"
+
+tiers:
+  foundations: foundations
+  tokens: tokens
+  atoms: components
+  components: components
+  molecules: components
+  organisms: patterns
+  patterns: patterns
+  templates: patterns
+  principles: principles
+
+capabilities:
+  search:
+    read_dir: "{source}"
+    search_keys: ["components", "patterns", "foundations"]
+    match_fields: ["name", "description", "usage"]
+    # The hits, not the files: `component <name>` returns the whole spec.
+    hit_fields: ["name", "tier", "description", "status", "path"]
+
+  list_components:
+    read_dir: "{source}"
+    result_path: "components"
+
+  component:
+    read_dir: "{source}"
+    result_path: "components"
+    key_field: "name"
+
+  pattern:
+    read_dir: "{source}"
+    result_path: "patterns"
+    key_field: "name"
+
+  tokens:
+    read_dir: "{source}"
+    result_path: "tokens"
+
+  breakpoints:
+    # The named values of `breakpoints.md`, wherever in the tree it sits.
+    read_dir: "{source}"
+    result_path: "values.breakpoints"
+
+  principles:
+    # `principles.md` or a `principles/` folder. Absent, the default set
+    # applies, exactly as for any other adapter.
+    read_dir: "{source}"
+    result_path: "principles"
+
+  # extend / report_gap: unmapped, because a folder of files has no write side.
+  # Map `report_gap` to your issue tracker as shown in config-template.yml.

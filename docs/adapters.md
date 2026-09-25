@@ -27,6 +27,7 @@ Save as `.specify/extensions/design/adapters/acme.yml`, then `adapter: acme` in 
 | `shadcn`                                   | The shadcn CLI. `docs` and `info` emit JSON; `search` and `view` print for humans, which is usable but less structured. No token command exists, so `tokens` is deliberately unmapped. |
 | `mui`, `antd`, `chakra`, `radix`, `ark-ui` | Libraries with no query CLI. Each reads the same generated inventory as `static-json`, so `adapter: mui` names your system and `auto` can pick it from `package.json`.                 |
 | `static-json`                              | No CLI at all. Reads a generated inventory file.                                                                                                                                       |
+| `markdown-specs`                           | No CLI and no inventory: a folder of Markdown spec files, one per foundation, token group and component, read as it is.                                                                |
 | `example`                                  | A template with invented flags. It will not run as-is, on purpose.                                                                                                                     |
 
 If a shipped adapter drifts from its CLI, fix the YAML — that is the whole point of keeping it out of the code.
@@ -53,7 +54,7 @@ An unmapped capability is reported `available: false` and the commands degrade. 
 
 `ds.sh gate --json` reports `LADDER_SUPPORT`: per rung of the reuse ladder, what backs it and whether the design system can actually be asked. `extend` and `report_gap` are the two most CLIs do not have, so rungs 4 and 5 commonly come back `automated: false`. That is a supported degradation — rung 4 is walked against the component's documented extension points, and the rung 5 gap record is written and gated either way — but it is worth seeing at gate time rather than inferring from a thin ladder walk. Map them to whatever accepts the job: an eject or swizzle command for `extend`, an issue CLI or a webhook script for `report_gap`.
 
-## Three kinds of mapping
+## Four kinds of mapping
 
 **A command**, for a CLI:
 
@@ -94,8 +95,19 @@ The call is handed to a client command you name, because this extension ships no
 
 Everything downstream is identical to a CLI mapping — `result_path`, `pick`, `key_field`, the error semantics below — because the MCP transport reuses the CLI transport's failure handling rather than restating it. An MCP server that cannot be reached is exactly as `available: false` as a CLI that is not installed, and must never read as a design system with nothing in it.
 
+**A directory of spec files**, for a design system written down in Markdown:
+
+```yaml
+component:
+  read_dir: "{source}"
+  result_path: "components"
+  key_field: "name"
+```
+
+The folder is read into the same document `static-json` reads: `components`, `patterns` and `foundations` records (name, tier, description, usage, avoid, front matter keys, path and the whole file as `spec`), a flat `tokens` map, `principles` prose, and each file's named values under `values.<file stem>`, which is how `breakpoints` points at `breakpoints.md`. The adapter's `tiers` map says which top-level folder lands in which section; see [markdown-specs.yml](../adapters/markdown-specs.yml). On `search`, `hit_fields` keeps each hit to the fields named, so twenty hits do not carry twenty files.
+
 > [!NOTE]
-> An adapter uses **one** of these three per capability, and they can be mixed within one adapter: read tokens from a generated file, ask an MCP server for components, shell out to `gh` to file a gap.
+> An adapter uses **one** of these per capability, and they can be mixed within one adapter: read tokens from a generated file, ask an MCP server for components, shell out to `gh` to file a gap.
 
 ## One command, two questions
 

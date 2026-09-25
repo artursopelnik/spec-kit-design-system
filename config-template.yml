@@ -16,6 +16,10 @@
 #   mui, antd, chakra, radix, ark-ui
 #                 read a generated inventory file, like static-json
 #   static-json   no CLI needed; reads a generated inventory file (the default)
+#   markdown-specs
+#                 a folder of Markdown spec files, one per foundation, token
+#                 group and component; `auto` picks it when
+#                 .design-system/specs exists
 #   example       a template to copy and rename for your own CLI
 #   custom        define everything inline under `capabilities:` below
 adapter: auto
@@ -30,9 +34,17 @@ bin: ""
 # point at one package.
 cwd: ""
 
-# static-json only: where the inventory lives. Empty uses the adapter default
-# (.design-system/inventory.json).
+# File-backed adapters only: where the inventory lives (static-json and the
+# library adapters; default .design-system/inventory.json), or the folder of spec
+# files (markdown-specs; default .design-system/specs).
 # source: "node_modules/@acme/design-system/inventory.json"
+
+# markdown-specs only: which top-level folder holds which kind of spec, added
+# to the adapter's own map. Sections: components, patterns, foundations,
+# tokens, principles.
+# tiers:
+#   primitives: components
+#   layouts: patterns
 
 # --- everything below is optional --------------------------------------------
 
@@ -77,8 +89,13 @@ cwd: ""
 #   source: "docs/definition-of-done.md"
 
 # The design system version in use. Prior decisions taken against a different
-# one are flagged stale rather than reused silently. Leave empty and staleness
-# simply is not checked, which lookups report rather than implying freshness.
+# one are flagged stale rather than reused silently, and `ds.sh sync` compares
+# it with the committed snapshot. Normally read for you from the installed
+# package: the one the adapter stands for (@mui/material, antd, ...), or the one
+# named in `design_system_package`. Set `design_system_version` only to override
+# that. When nothing answers, staleness simply is not checked, which lookups
+# report rather than implying freshness.
+# design_system_package: "@acme/design-system"
 # design_system_version: ""
 
 # Capability overrides. The extension is written against capability names only;
@@ -157,7 +174,9 @@ cwd: ""
 #   # Ignored when the system has no token layer at all.
 #   forbid_raw_values: true
 #   # Files that define the tokens, where literal values belong. `ds.sh scan`
-#   # reports no raw values in them.
+#   # reports no raw values in them. `ds.sh scan --strict` exits 1 on any
+#   # violation, for a CI job; `ds.sh sync --strict` does the same when the
+#   # design system moved under something the project still names.
 #   theme_globs: ["src/theme/**/*.ts", "src/styles/tokens.css"]
 #   # What every UI feature must answer for. A dimension the design system
 #   # cannot supply is dropped rather than failed on, so `tokens` disappears
