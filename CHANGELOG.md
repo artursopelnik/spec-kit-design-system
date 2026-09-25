@@ -6,6 +6,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Closer to what the guides on making a design system AI-ready ask for: spec
+files the agent reads, a closed token layer, an audit that runs without an
+agent, and a sync routine that says what went out of date when the design
+system shipped.
+
+### Added
+
+- `markdown-specs` adapter: reads a design system written down as a folder of
+  Markdown spec files (`foundations/`, `tokens/`, `atoms/`, `molecules/`,
+  `organisms/`) as it is, with no inventory to generate. Front matter, title,
+  first paragraph, *Usage* and *Don'ts* sections become the component record;
+  token tables become the token set. `auto` picks it when
+  `.design-system/specs` exists. A new `DirectoryTransport` carries it, and
+  `hit_fields` keeps search hits from carrying whole files.
+- `ds.sh sync`: diffs the design system's components and tokens against a
+  committed snapshot and lists every spec line, ledger decision and source line
+  that names something removed, deprecated or changed. `sync record` takes the
+  snapshot. The gate reports `SYNC_SNAPSHOT_VERSION`, and the check command runs
+  `sync` before Recall when the design system has moved.
+- `ds.sh scan` reports durations, z-indices, opacities and font weights as raw
+  values, and names the token that already carries a value (`tokens`) or the
+  nearest colour or length token (`nearest`).
+- `--strict` on `scan` and `sync`: exit 1 on violations, for CI. Without it
+  both keep the one-JSON-object, exit-zero contract.
+- The design system version is read from the installed package
+  (`design_system_package`, or the package the adapter stands for) when
+  `design_system_version` is not set. The gate reports it as
+  `DESIGN_SYSTEM_VERSION`, `ledger lookup` uses it, and `ledger record` fills
+  it in.
+- `principles.source` may be a Markdown file.
+
 ## [0.2.0] - 2026-09-24
 
 Faster, simpler, and closer to the RFC. A run asks the design system each

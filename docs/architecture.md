@@ -41,6 +41,10 @@ Nothing in `adapters/` may hold rules or component knowledge; a test enforces it
 | `workflow status`    | Where the run is, and what comes next                                                   |
 | `rfc <path>`         | The RFC, normalized: sections, open questions, whether it is UI-bearing                 |
 | `ledger`             | Prior ladder decisions                                                                  |
+| `scan`               | Raw values and token names in the implementation, with the token that carries a value   |
+| `sync`               | What moved in the design system since the committed snapshot, and what still names it   |
+
+`scan --strict` and `sync --strict` are the one exception to the exit-zero rule, and only on request: they emit the same JSON and then exit 1 when there is something to fail on, so a CI job can run the audit without an agent in the loop. Nothing in the command bodies passes `--strict`.
 
 ## Capability dispatch: two axes, not one function
 
@@ -53,7 +57,7 @@ cyclomatic complexity 63).
   run_capability          routing only: which transport, then which strategy
         │
         ├── Transport     WHERE the bytes come from, and whether we got any
-        │                 FileTransport · ProcessTransport · McpTransport
+        │                 FileTransport · DirectoryTransport · ProcessTransport · McpTransport
         │
         └── Strategy      WHAT they answer, once we have them
                           KeyFieldLookup · WeightedSearch · SliceOnly
@@ -67,7 +71,13 @@ or never reached. Only a transport can tell those apart. A **strategy** turns a
 Adding a way of asking is a class plus one entry in `TRANSPORTS`. That is not
 theoretical: the README promised "CLI, MCP, or files" from the start, and the
 MCP transport could not be written while dispatch was one function, because
-there was no seam to add it at.
+there was no seam to add it at. `DirectoryTransport` came the same way: a
+design system written as a folder of Markdown spec files is read into the
+document shape `static-json` reads, so every strategy works on it unchanged.
+Which folder is which section (`atoms` → components, `organisms` → patterns)
+is the adapter's `tiers` map; the parser knows Markdown, not any system. Like
+a file, a directory knows its own shape, so a section it lacks is absent
+rather than guessed at.
 
 `WeightedSearch` living here rather than in the dispatcher matters for the same
 reason the adapters may not model: ranking an inventory is knowledge about one
@@ -98,9 +108,38 @@ Every `ds.sh` call is its own process, so a run used to put the same question to
 - **The probe is always a real call** (`fresh=True`). Reach proven from memory would prove only that the system was there earlier.
 - **Nothing that acts is replayed.** `extend`, `validate` and `report_gap` carry `cacheable=False`.
 - **File-backed capabilities are neither cached nor counted.** A file read costs what a cache read costs, and the file may be regenerated.
-- **Scoped and keyed conservatively.** One file per feature, entries expire after `cache.ttl_minutes`, and the key covers the whole adapter, the `cwd` and `design_system_version`, so changing any of them is a different question.
+- **Scoped and keyed conservatively.** One file per feature, entries expire after `cache.ttl_minutes`, and the key covers the whole adapter, the `cwd` and the design system version (configured, or read from the installed package), so changing any of them is a different question.
 
 The cache lives in `ask`, not in `run_capability`, which still routes and nothing else. It also counts every real round-trip and every hit, whether or not caching is on; `ds.sh cache stats` reports them, which is how the cost of a run becomes a number instead of an impression.
+
+## Keeping what a run reads current
+
+A design system ships, and nothing written against the previous one updates
+itself. `ds.sh sync` is the routine for that, and it follows the same rules as
+`scan`: it states, it does not judge.
+
+- **A committed snapshot.** `sync record` writes the design system's component
+  fingerprints, deprecation flags and token values to
+  `.specify/memory/design-system-snapshot.json`, next to the ledger. `sync`
+  diffs the current answers against it.
+- **References, not verdicts.** Every line in `specs/*/*.md`, the
+  implementation (`validation.source_globs`) and the active ledger decisions that
+  names a removed, deprecated or changed component or a removed or changed token
+  is listed. Additions are not: nothing written before them names them. Whether
+  a changed component is still used correctly is the reader's call.
+- **Fails closed.** A capability that is mapped and does not answer makes the
+  whole sync unavailable. A partial snapshot would report every component it
+  failed to list as removed, and a missing one must never read as "nothing
+  changed". `sync record` writes nothing then.
+- **The gate only compares versions.** `SYNC_SNAPSHOT_VERSION` against
+  `DESIGN_SYSTEM_VERSION` costs no call; only when they differ does the check
+  command run `sync`, and it never records: a new snapshot says the whole
+  project has been brought up to date, and one feature cannot say that.
+
+The version is read rather than remembered: `design_system_version` in config
+wins, otherwise the installed package's own `package.json` (the package the
+adapter stands for, or `design_system_package`), otherwise the range the
+project declares. Empty means unchecked, never fresh.
 
 ## Principles resolution
 
@@ -186,7 +225,9 @@ Judgement, in the command bodies, honoured because the agent is told to:
 - `ledger.enabled` — whether lookup and recording happen at all.
 - `validation.forbid_raw_values` — whether a raw value becomes a finding.
 
-These four are handed over in `CONFIG` and read by nothing in the script. That
+These four are handed over in `CONFIG` and decide nothing in the script during
+a run (`scan --strict`, a CI job's own choice, counts raw values as violations
+only when `forbid_raw_values` is on). That
 is the layering working as intended: judgement belongs in prose, where it can
 be argued with. It is also the reason `tests/test_config.py` pins them — a
 setting the script ignores and no command body mentions is enforced by nothing,
