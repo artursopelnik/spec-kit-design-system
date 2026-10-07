@@ -455,6 +455,28 @@ More: [architecture](docs/architecture.md) · [autonomous
 workflow](docs/autonomous-workflow.md) · [adapters](docs/adapters.md) ·
 [troubleshooting](docs/troubleshooting.md)
 
+## Why Spec Kit
+
+`/speckit.design.run` takes an RFC to done in one command, and stops only when
+continuing would mean guessing: the design system is unreachable, no
+principles are in force, or a product question only a person can answer. That
+needs three things from the host, and Spec Kit provides all three:
+
+- **A blocking hook before planning.** `before_plan` runs the gate with
+  `optional: false`, so a plan cannot start without the design system having
+  been asked, and an unreachable design system stops the run instead of being
+  skipped.
+- **A hook after implementation.** `after_implement` runs validation, so the
+  scan and the review rounds happen without anyone remembering to ask.
+- **Templates that can be appended to.** The preset adds design sections to
+  the spec, plan and constitution without forking Spec Kit's own templates.
+
+OpenSpec, at the time of writing, has none of these: each step is a command a
+person invokes, `/opsx:ff` stops before implementation, and `/opsx:verify`
+reports without blocking. The gate would become advice. The mechanism itself
+(adapters, `scan`, `sync`, the ledger) does not depend on Spec Kit; workflow
+detection does, since it reads Spec Kit's artifacts.
+
 ## Troubleshooting
 
 The usual first stops:
